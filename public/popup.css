@@ -1,0 +1,196 @@
+/* ─────────────────────────────────────────────
+   Lead-Gen Call Popup — shared styles
+   Google Ads compliant: fires after page load,
+   clearly dismissible, page content fully intact.
+───────────────────────────────────────────── */
+
+#ctaOverlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.72);
+    z-index: 9999;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    backdrop-filter: blur(4px);
+    animation: overlayFadeIn 0.25s ease;
+}
+
+#ctaOverlay.active {
+    display: flex;
+}
+
+@keyframes overlayFadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+#ctaModal {
+    background: #ffffff;
+    border-radius: 20px;
+    padding: 40px 36px 32px;
+    max-width: 420px;
+    width: 100%;
+    text-align: center;
+    position: relative;
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
+    animation: modalSlideUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes modalSlideUp {
+    from { opacity: 0; transform: translateY(30px) scale(0.95); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Close button */
+#ctaClose {
+    position: absolute;
+    top: 14px;
+    right: 16px;
+    background: #f1f3f5;
+    border: none;
+    cursor: pointer;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    color: #555;
+    line-height: 1;
+    transition: background 0.15s, color 0.15s;
+}
+#ctaClose:hover {
+    background: #e0e0e0;
+    color: #222;
+}
+
+/* Logo area */
+#ctaLogoWrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 72px;
+    margin-bottom: 20px;
+}
+#ctaLogo {
+    max-height: 56px;
+    max-width: 200px;
+    object-fit: contain;
+}
+#ctaLogoText {
+    font-size: 1.5rem;
+    font-weight: 900;
+    color: #1a1a2e;
+    display: none;
+}
+
+/* Headline */
+#ctaHeadline {
+    font-size: 1.3rem;
+    font-weight: 800;
+    color: #1a1a2e;
+    margin-bottom: 8px;
+    line-height: 1.25;
+    letter-spacing: -0.3px;
+}
+
+/* Sub-text */
+#ctaSub {
+    font-size: 0.88rem;
+    color: #6c757d;
+    margin-bottom: 28px;
+    line-height: 1.5;
+}
+
+/* Call button */
+#ctaCallBtn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    background: #16a34a;
+    color: #fff;
+    text-decoration: none;
+    font-size: 1.15rem;
+    font-weight: 800;
+    padding: 16px 28px;
+    border-radius: 60px;
+    width: 100%;
+    transition: background 0.2s, transform 0.15s;
+    box-shadow: 0 6px 24px rgba(22, 163, 74, 0.4);
+    letter-spacing: -0.2px;
+}
+#ctaCallBtn:hover {
+    background: #15803d;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 30px rgba(22, 163, 74, 0.5);
+}
+#ctaCallBtn:active {
+    transform: translateY(0);
+}
+
+/* Availability note */
+#ctaAvail {
+    font-size: 0.78rem;
+    color: #6c757d;
+    margin-top: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+#ctaAvail::before {
+    content: '';
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    background: #16a34a;
+    border-radius: 50%;
+    flex-shrink: 0;
+    animation: pulse 1.8s infinite;
+}
+@keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.5); }
+    50%       { box-shadow: 0 0 0 5px rgba(22, 163, 74, 0); }
+}
+
+/* Dismiss link */
+#ctaDismiss {
+    display: block;
+    margin-top: 18px;
+    font-size: 0.8rem;
+    color: #aaa;
+    text-decoration: none;
+    cursor: pointer;
+    transition: color 0.15s;
+}
+#ctaDismiss:hover {
+    color: #555;
+}
+
+/* Disclaimer */
+#ctaDisclaimer {
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid #f1f3f5;
+    font-size: 0.68rem;
+    color: #bbb;
+    line-height: 1.5;
+}
+
+/* Mobile adjustments */
+@media (max-width: 480px) {
+    #ctaModal {
+        padding: 32px 24px 28px;
+    }
+    #ctaHeadline {
+        font-size: 1.15rem;
+    }
+    #ctaCallBtn {
+        font-size: 1rem;
+        padding: 14px 20px;
+    }
+}

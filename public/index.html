@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Digital Streaming Services - Streaming & TV Setup Assistance</title>
+    <meta name="description" content="Independent technical support for streaming services and smart TV setup. Get expert help with Paramount+, Hulu, Disney+, ESPN+, FOX, Peacock, STARZ, and Vizio TV activation.">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, sans-serif; color: #1a1a2e; background: #f8f9fa; line-height: 1.6; }
+
+        /* Header */
+        .header { background: #1a1a2e; color: #fff; padding: 12px 20px; text-align: center; }
+        .header .disclaimer-bar { font-size: 11px; color: #adb5bd; max-width: 900px; margin: 0 auto; }
+
+        /* Hero */
+        .hero { background: linear-gradient(135deg, #0f0c29, #302b63, #24243e); color: #fff; padding: 60px 20px 50px; text-align: center; }
+        .hero h1 { font-size: 2.2rem; margin-bottom: 12px; font-weight: 700; }
+        .hero .subtitle { font-size: 1.15rem; color: #b8c1ec; margin-bottom: 30px; max-width: 600px; margin-left: auto; margin-right: auto; }
+        .cta-phone { display: inline-block; background: #00b4d8; color: #fff; text-decoration: none; font-size: 1.4rem; font-weight: 700; padding: 16px 40px; border-radius: 50px; margin-bottom: 14px; transition: all 0.3s; }
+        .cta-phone:hover { background: #0096c7; transform: scale(1.03); }
+        .cta-phone .phone-icon { margin-right: 8px; }
+        .hero .open-hours { font-size: 0.9rem; color: #b8c1ec; margin-top: 6px; }
+
+        /* Trust bar */
+        .trust-bar { background: #fff; border-bottom: 1px solid #e9ecef; padding: 16px 20px; text-align: center; }
+        .trust-items { display: flex; justify-content: center; gap: 30px; flex-wrap: wrap; max-width: 800px; margin: 0 auto; }
+        .trust-item { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; color: #495057; }
+        .trust-item .check { color: #2d6a4f; font-weight: 700; font-size: 1.1rem; }
+
+        /* Services Grid */
+        .services-section { max-width: 1000px; margin: 0 auto; padding: 50px 20px; }
+        .services-section h2 { text-align: center; font-size: 1.6rem; margin-bottom: 10px; }
+        .services-section .section-sub { text-align: center; color: #6c757d; margin-bottom: 40px; font-size: 1rem; }
+        .services-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
+        .service-card { background: #fff; border: 1px solid #e9ecef; border-radius: 12px; padding: 28px 24px; text-align: center; transition: all 0.3s; cursor: pointer; text-decoration: none; color: inherit; display: block; }
+        .service-card:hover { box-shadow: 0 8px 25px rgba(0,0,0,0.1); transform: translateY(-3px); border-color: #00b4d8; }
+        .service-card .service-icon { font-size: 2.4rem; margin-bottom: 12px; }
+        .service-card h3 { font-size: 1.15rem; margin-bottom: 8px; color: #1a1a2e; }
+        .service-card p { font-size: 0.88rem; color: #6c757d; margin-bottom: 16px; }
+        .service-card .card-cta { display: inline-block; background: #e8f8fd; color: #00b4d8; padding: 8px 20px; border-radius: 20px; font-size: 0.85rem; font-weight: 600; }
+
+        /* How It Works */
+        .how-it-works { background: #fff; padding: 50px 20px; }
+        .how-it-works h2 { text-align: center; font-size: 1.6rem; margin-bottom: 40px; }
+        .steps { display: flex; justify-content: center; gap: 40px; flex-wrap: wrap; max-width: 900px; margin: 0 auto; }
+        .step { text-align: center; flex: 1; min-width: 200px; max-width: 260px; }
+        .step-number { width: 50px; height: 50px; background: #00b4d8; color: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; font-weight: 700; margin: 0 auto 16px; }
+        .step h3 { font-size: 1.05rem; margin-bottom: 8px; }
+        .step p { font-size: 0.88rem; color: #6c757d; }
+
+        /* Pricing transparency */
+        .pricing-section { max-width: 700px; margin: 0 auto; padding: 50px 20px; text-align: center; }
+        .pricing-section h2 { font-size: 1.6rem; margin-bottom: 12px; }
+        .pricing-section .pricing-note { color: #6c757d; margin-bottom: 30px; }
+        .pricing-box { background: #fff; border: 2px solid #00b4d8; border-radius: 12px; padding: 30px; }
+        .pricing-box .price { font-size: 2rem; font-weight: 700; color: #1a1a2e; }
+        .pricing-box .price-desc { color: #6c757d; margin-top: 8px; font-size: 0.95rem; }
+        .pricing-box ul { list-style: none; margin-top: 20px; text-align: left; }
+        .pricing-box ul li { padding: 8px 0; border-bottom: 1px solid #f1f3f5; font-size: 0.92rem; }
+        .pricing-box ul li::before { content: "\2713"; color: #2d6a4f; margin-right: 10px; font-weight: 700; }
+
+        /* Bottom CTA */
+        .bottom-cta { background: linear-gradient(135deg, #0f0c29, #302b63); color: #fff; padding: 50px 20px; text-align: center; }
+        .bottom-cta h2 { font-size: 1.5rem; margin-bottom: 8px; }
+        .bottom-cta p { color: #b8c1ec; margin-bottom: 24px; }
+
+        /* Footer */
+        .footer { background: #1a1a2e; color: #adb5bd; padding: 30px 20px; text-align: center; font-size: 0.82rem; }
+        .footer a { color: #00b4d8; text-decoration: none; }
+        .footer .footer-links { margin-bottom: 16px; }
+        .footer .footer-links a { margin: 0 12px; }
+        .footer .disclaimer-full { max-width: 800px; margin: 16px auto 0; line-height: 1.5; color: #868e96; font-size: 0.78rem; }
+
+        /* Mobile */
+        @media (max-width: 600px) {
+            .hero h1 { font-size: 1.6rem; }
+            .cta-phone { font-size: 1.2rem; padding: 14px 30px; }
+            .services-grid { grid-template-columns: 1fr; }
+            .steps { flex-direction: column; align-items: center; }
+            .trust-items { flex-direction: column; gap: 10px; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- Top Disclaimer Bar -->
+<div class="header">
+    <div class="disclaimer-bar">
+        INDEPENDENT SUPPORT SERVICE — We are NOT affiliated with, endorsed by, or connected to any streaming service or TV manufacturer listed on this site. All trademarks belong to their respective owners.
+    </div>
+</div>
+
+<!-- Hero Section -->
+<div class="hero">
+    <h1>Streaming & Smart TV Setup Help</h1>
+    <p class="subtitle">Independent technical support to help you activate, set up, and troubleshoot your favorite streaming services and smart TVs.</p>
+    <a href="tel:+1 888 779 1904" class="cta-phone">
+        <span class="phone-icon">&#9742;</span> Call +1 888 779 1904
+    </a>
+    <p class="open-hours">Available 24/7 — </p>
+</div>
+
+<!-- Trust Bar -->
+<div class="trust-bar">
+    <div class="trust-items">
+        <div class="trust-item"><span class="check">&#10003;</span> Independent & Transparent</div>
+        <div class="trust-item"><span class="check">&#10003;</span> Flat-Rate Pricing</div>
+        <div class="trust-item"><span class="check">&#10003;</span> No Hidden Fees</div>
+        <div class="trust-item"><span class="check">&#10003;</span> Satisfaction Guaranteed</div>
+    </div>
+</div>
+
+<!-- Services Grid -->
+<div class="services-section">
+    <h2>Services We Support</h2>
+    <p class="section-sub">Select a service below for dedicated setup and activation help</p>
+    <div class="services-grid">
+        <a href="paramount-plus.html" class="service-card">
+            <div class="service-icon">&#127909;</div>
+            <h3>Paramount+ Setup Help</h3>
+            <p>Activation, login issues, device setup, and troubleshooting for Paramount+ streaming.</p>
+            <span class="card-cta">Get Help &rarr;</span>
+        </a>
+        <a href="vizio-tv.html" class="service-card">
+            <div class="service-icon">&#128250;</div>
+            <h3>Vizio TV Setup Help</h3>
+            <p>Smart TV activation, app installation, connectivity, and remote setup assistance.</p>
+            <span class="card-cta">Get Help &rarr;</span>
+        </a>
+        <a href="peacock-tv.html" class="service-card">
+            <div class="service-icon">&#127912;</div>
+            <h3>Peacock TV Setup Help</h3>
+            <p>Account activation, device pairing, streaming quality, and login assistance.</p>
+            <span class="card-cta">Get Help &rarr;</span>
+        </a>
+        <a href="disney-plus.html" class="service-card">
+            <div class="service-icon">&#9733;</div>
+            <h3>Disney+ Setup Help</h3>
+            <p>Activation codes, device setup, parental controls, and streaming troubleshooting.</p>
+            <span class="card-cta">Get Help &rarr;</span>
+        </a>
+        <a href="hulu.html" class="service-card">
+            <div class="service-icon">&#127916;</div>
+            <h3>Hulu Setup Help</h3>
+            <p>Account activation, live TV setup, device compatibility, and streaming issues.</p>
+            <span class="card-cta">Get Help &rarr;</span>
+        </a>
+        <a href="fox-one.html" class="service-card">
+            <div class="service-icon">&#128225;</div>
+            <h3>FOX One Setup Help</h3>
+            <p>Channel activation, TV provider linking, app setup, and streaming support.</p>
+            <span class="card-cta">Get Help &rarr;</span>
+        </a>
+        <a href="fox-nation.html" class="service-card">
+            <div class="service-icon">&#127463;</div>
+            <h3>Fox Nation Setup Help</h3>
+            <p>Subscription activation, device setup, login assistance, and streaming support.</p>
+            <span class="card-cta">Get Help &rarr;</span>
+        </a>
+        <a href="fox-sports.html" class="service-card">
+            <div class="service-icon">&#9917;</div>
+            <h3>Fox Sports Setup Help</h3>
+            <p>Live sports streaming setup, TV provider authentication, and device activation.</p>
+            <span class="card-cta">Get Help &rarr;</span>
+        </a>
+        <a href="espn-plus.html" class="service-card">
+            <div class="service-icon">&#127936;</div>
+            <h3>ESPN+ Setup Help</h3>
+            <p>ESPN+ activation, bundle setup, live sports streaming, and device pairing.</p>
+            <span class="card-cta">Get Help &rarr;</span>
+        </a>
+        <a href="espn-unlimited.html" class="service-card">
+            <div class="service-icon">&#127941;</div>
+            <h3>ESPN Unlimited Setup Help</h3>
+            <p>Full ESPN access setup, multi-device streaming, and premium feature activation.</p>
+            <span class="card-cta">Get Help &rarr;</span>
+        </a>
+        <a href="starz.html" class="service-card">
+            <div class="service-icon">&#127902;</div>
+            <h3>STARZ Setup Help</h3>
+            <p>STARZ activation, add-on setup, device compatibility, and streaming support.</p>
+            <span class="card-cta">Get Help &rarr;</span>
+        </a>
+    </div>
+</div>
+
+<!-- How It Works -->
+<div class="how-it-works">
+    <h2>How Our Support Works</h2>
+    <div class="steps">
+        <div class="step">
+            <div class="step-number">1</div>
+            <h3>Call Us</h3>
+            <p>Reach our support team at the number above. Tell us which service you need help with.</p>
+        </div>
+        <div class="step">
+            <div class="step-number">2</div>
+            <h3>We Diagnose</h3>
+            <p>Our technician will walk you through the issue and identify the solution.</p>
+        </div>
+        <div class="step">
+            <div class="step-number">3</div>
+            <h3>Get Set Up</h3>
+            <p>We guide you step-by-step until your service is activated and working perfectly.</p>
+        </div>
+    </div>
+</div>
+
+
+<!-- Important Information -->
+<div class="content" style="max-width:800px; margin:0 auto; padding:30px 20px;">
+    <h2 style="font-size:1.3rem; margin-bottom:12px;">Important Information</h2>
+    <p style="color:#495057; font-size:0.92rem;"><strong>Digital Streaming Services</strong> is an independent, third-party technical support provider. We are not affiliated with, endorsed by, or connected to any streaming service or TV manufacturer listed on this site.</p>
+    <p style="color:#495057; font-size:0.92rem;">We provide paid technical assistance to help consumers set up and troubleshoot their streaming services. If you need official support from any of these services, please visit their official websites:</p>
+    <p style="color:#6c757d; font-size:0.85rem;">
+        <a href="https://www.paramountplus.com/help/" style="color:#0077b6;">Paramount+ Official Support</a> |
+        <a href="https://support.vizio.com/" style="color:#0077b6;">Vizio Official Support</a> |
+        <a href="https://www.peacocktv.com/help" style="color:#0077b6;">Peacock Official Support</a> |
+        <a href="https://help.disneyplus.com/" style="color:#0077b6;">Disney+ Official Support</a> |
+        <a href="https://help.hulu.com/" style="color:#0077b6;">Hulu Official Support</a> |
+        <a href="https://www.fox.com/help/" style="color:#0077b6;">FOX Official Support</a> |
+        <a href="https://help.foxnation.com/" style="color:#0077b6;">Fox Nation Official Support</a> |
+        <a href="https://www.foxsports.com/help" style="color:#0077b6;">Fox Sports Official Support</a> |
+        <a href="https://support.espn.com/" style="color:#0077b6;">ESPN Official Support</a> |
+        <a href="https://www.starz.com/help" style="color:#0077b6;">STARZ Official Support</a>
+    </p>
+    <p style="color:#495057; font-size:0.92rem;">Our service charges a flat fee for technical assistance. This fee is separate from any subscription costs charged by the streaming service itself. We do not sell subscriptions, accounts, or access to any streaming service.</p>
+</div>
+
+<!-- Bottom CTA -->
+<div class="bottom-cta">
+    <h2>Ready to Get Your Streaming Working?</h2>
+    <p>Our independent support team is standing by to help.</p>
+    <a href="tel:+1 888 779 1904" class="cta-phone">
+        <span class="phone-icon">&#9742;</span> Call +1 888 779 1904
+    </a>
+</div>
+
+<!-- Footer -->
+<div class="footer">
+    <div class="footer-links">
+        <a href="privacy-policy.html">Privacy Policy</a>
+        <a href="terms-of-service.html">Terms of Service</a>
+    </div>
+    <p>&copy; 2026 Digital Streaming Services. All rights reserved.</p>
+    <p>Contact us for address details | +1 888 779 1904 | info@entermytvcode.com</p>
+    <div class="disclaimer-full">
+        <strong>DISCLAIMER:</strong> Digital Streaming Services is an independent third-party technical support provider. We are NOT affiliated with, endorsed by, sponsored by, or in any way officially connected with Paramount+, Vizio, Peacock, NBC Universal, Disney+, The Walt Disney Company, Hulu, FOX, Fox Corporation, Fox Nation, Fox Sports, ESPN, ESPN+, The Walt Disney Company, STARZ, Lionsgate, or any of their subsidiaries or affiliates. All product names, logos, and brands are the property of their respective owners. Use of these names, logos, and brands does not imply endorsement. We provide independent paid technical support services to help consumers set up and troubleshoot their streaming services and devices. For official support, please visit the respective service's official website.
+    </div>
+</div>
+
+</body>
+</html>

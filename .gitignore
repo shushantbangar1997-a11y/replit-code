@@ -1,0 +1,8 @@
+node_modules/
+.cache/
+.agents/
+.replit
+replit.nix
+zipFile.zip
+.env
+*.log

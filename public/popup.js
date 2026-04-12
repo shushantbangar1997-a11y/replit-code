@@ -90,19 +90,31 @@
             document.body.style.overflow = '';
         }
 
-        /* ── Google Ads conversion — fires when call button is clicked ── */
-        function fireConversion() {
+        /* ── Google Ads conversion — exact snippet from Google Ads dashboard ── */
+        function gtag_report_conversion(url) {
+            var callback = function () {
+                if (typeof(url) !== 'undefined') {
+                    window.location = url;
+                }
+            };
             if (typeof gtag === 'function') {
                 gtag('event', 'conversion', {
                     'send_to': 'AW-11546748562/0VO9CImIrfsbEJLN9YEr',
                     'value': 1.0,
-                    'currency': 'INR'
+                    'currency': 'INR',
+                    'event_callback': callback
                 });
+            } else {
+                callback();
             }
+            return false;
         }
 
         /* ── Event listeners ── */
-        document.getElementById('ctaCallBtn').addEventListener('click', fireConversion);
+        document.getElementById('ctaCallBtn').addEventListener('click', function (e) {
+            e.preventDefault();
+            gtag_report_conversion(this.href);
+        });
 
         document.getElementById('ctaClose').addEventListener('click', closePopup);
 

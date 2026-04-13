@@ -12,6 +12,16 @@ app.get('/', function(req, res) {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+// /safe — Streaming Support & Help landing page
+app.get('/safe', function(req, res) {
+  res.sendFile(path.join(__dirname, 'public', 'safe.html'));
+});
+
+// /offer — Fix Your Streaming Issue Now landing page
+app.get('/offer', function(req, res) {
+  res.sendFile(path.join(__dirname, 'public', 'offer.html'));
+});
+
 // Clean URLs - /paramount-plus serves paramount-plus.html
 app.get('/:page', function(req, res) {
   var page = req.params.page;

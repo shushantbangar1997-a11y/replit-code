@@ -51,6 +51,7 @@
         .site-footer .disclaimer { max-width: 700px; margin: 14px auto 0; color: #6c757d; font-size: 0.75rem; line-height: 1.6; }
         @media (max-width: 600px) { .article-hero h1 { font-size: 1.5rem; } .section-card { padding: 22px 18px; } .site-header nav { display: none; } }
     </style>
+    <link rel="stylesheet" href="popup.css">
 </head>
 <body>
 
@@ -165,5 +166,17 @@
     </p>
 </footer>
 
+<script src="popup.js"></script>
+<script>
+initPopup({
+    logoUrl:  'https://upload.wikimedia.org/wikipedia/commons/thumb/3/3e/Disney%2B_logo.svg/280px-Disney%2B_logo.svg.png',
+    logoAlt:  'Disney+',
+    logoText: 'Disney+',
+    service:  'Disney+',
+    phone:    '+1 888 779 1904',
+    phoneTel: '+18887791904',
+    delay:    2000
+});
+</script>
 </body>
 </html>

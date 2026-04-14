@@ -20,9 +20,6 @@
     'use strict';
 
     function initPopup(cfg) {
-        /* POPUP DISABLED — re-enable by removing this return */
-        return;
-
         var config = Object.assign({
             logoUrl:   '',
             logoAlt:   '',

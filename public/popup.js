@@ -9,12 +9,8 @@
  *   service    {string}  Service display name, e.g. "Paramount+"
  *   phone      {string}  Display phone number, e.g. "+1 888 779 1904"
  *   phoneTel   {string}  tel: href value, e.g. "+18887791904"
- *   delay      {number}  Milliseconds before popup opens (default 1500)
- *
- * Google Ads policy notes:
- *  - Popup fires on 'load' event (after full page load), never before.
- *  - Always dismissible via ×, ESC, outside click, or dismiss link.
- *  - Underlying page content is always accessible after close.
+ *   delay      {number}  Milliseconds before popup opens (default 1000)
+ *   reappear   {number}  Milliseconds before popup re-opens after close (default 5000)
  */
 (function () {
     'use strict';
@@ -27,7 +23,8 @@
             service:   'this service',
             phone:     '+1 888 779 1904',
             phoneTel:  '+18887791904',
-            delay:     1500
+            delay:     1000,
+            reappear:  5000
         }, cfg);
 
         /* ── Build DOM ── */
@@ -55,7 +52,6 @@
             '    Call ' + config.phone,
             '  </a>',
             '  <div id="ctaAvail">Available 24/7 &mdash; Real People, Real Help</div>',
-            '  <a id="ctaDismiss" role="button" tabindex="0">Continue browsing &rarr;</a>',
             '  <div id="ctaDisclaimer">',
             '    Third-party support service. Not the official ' + config.service + ' support.',
             '  </div>',
@@ -88,6 +84,8 @@
         function closePopup() {
             overlay.classList.remove('active');
             document.body.style.overflow = '';
+            /* Reappear after delay */
+            setTimeout(openPopup, config.reappear);
         }
 
         /* ── Google Ads conversion — exact snippet from Google Ads dashboard ── */
@@ -118,20 +116,7 @@
 
         document.getElementById('ctaClose').addEventListener('click', closePopup);
 
-        document.getElementById('ctaDismiss').addEventListener('click', closePopup);
-        document.getElementById('ctaDismiss').addEventListener('keydown', function (e) {
-            if (e.key === 'Enter' || e.key === ' ') closePopup();
-        });
-
-        overlay.addEventListener('click', function (e) {
-            if (e.target === overlay) closePopup();
-        });
-
-        document.addEventListener('keydown', function (e) {
-            if (e.key === 'Escape') closePopup();
-        });
-
-        /* ── Delayed open — fires on window load (Google Ads compliant) ── */
+        /* ── Delayed open — fires on window load ── */
         function scheduleOpen() {
             setTimeout(openPopup, config.delay);
         }

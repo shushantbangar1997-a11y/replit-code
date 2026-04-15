@@ -1,16 +1,6 @@
 /**
- * Lead-Gen Call Popup — shared utility
- *
- * Usage: call initPopup(config) anywhere after DOMContentLoaded.
- * Config options:
- *   logoUrl    {string}  URL of channel logo image
- *   logoAlt    {string}  Alt text for the logo
- *   logoText   {string}  Fallback text if logo fails to load
- *   service    {string}  Service display name, e.g. "Paramount+"
- *   phone      {string}  Display phone number, e.g. "+1 888 779 1904"
- *   phoneTel   {string}  tel: href value, e.g. "+18887791904"
- *   delay      {number}  Milliseconds before popup opens (default 1000)
- *   reappear   {number}  Milliseconds before popup re-opens after close (default 5000)
+ * Lead-Gen Call Popup — permanent overlay
+ * Opens after page load and stays open. No close button or dismiss option.
  */
 (function () {
     'use strict';
@@ -23,8 +13,7 @@
             service:   'this service',
             phone:     '+1 888 779 1904',
             phoneTel:  '+18887791904',
-            delay:     1000,
-            reappear:  5000
+            delay:     1000
         }, cfg);
 
         /* ── Build DOM ── */
@@ -36,7 +25,6 @@
 
         overlay.innerHTML = [
             '<div id="ctaModal">',
-            '  <button id="ctaClose" aria-label="Close">&times;</button>',
             '  <div id="ctaLogoWrap">',
             '    <img id="ctaLogo" src="' + config.logoUrl + '" alt="' + config.logoAlt + '">',
             '    <span id="ctaLogoText">' + (config.logoText || config.service) + '</span>',
@@ -44,7 +32,7 @@
             '  <div id="ctaHeadline">' + config.service + ' Not Working?</div>',
             '  <div id="ctaSub">Our team is ready to help you right now &mdash; no waiting, no hold music.</div>',
             '  <a id="ctaCallBtn" href="tel:' + config.phoneTel + '">',
-            '    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">',
+            '    <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">',
             '      <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24',
             '        1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17',
             '        0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/>',
@@ -73,22 +61,13 @@
             };
         }
 
-        /* ── Open / close helpers ── */
+        /* ── Open (no close) ── */
         function openPopup() {
             overlay.classList.add('active');
             document.body.style.overflow = 'hidden';
-            var closeBtn = document.getElementById('ctaClose');
-            if (closeBtn) closeBtn.focus();
         }
 
-        function closePopup() {
-            overlay.classList.remove('active');
-            document.body.style.overflow = '';
-            /* Reappear after delay */
-            setTimeout(openPopup, config.reappear);
-        }
-
-        /* ── Google Ads conversion — exact snippet from Google Ads dashboard ── */
+        /* ── Google Ads conversion ── */
         function gtag_report_conversion(url) {
             var callback = function () {
                 if (typeof(url) !== 'undefined') {
@@ -108,15 +87,13 @@
             return false;
         }
 
-        /* ── Event listeners ── */
+        /* ── Call button tracking ── */
         document.getElementById('ctaCallBtn').addEventListener('click', function (e) {
             e.preventDefault();
             gtag_report_conversion(this.href);
         });
 
-        document.getElementById('ctaClose').addEventListener('click', closePopup);
-
-        /* ── Delayed open — fires on window load ── */
+        /* ── Open after delay — fires on window load ── */
         function scheduleOpen() {
             setTimeout(openPopup, config.delay);
         }
@@ -128,6 +105,5 @@
         }
     }
 
-    /* Expose globally */
     window.initPopup = initPopup;
 })();

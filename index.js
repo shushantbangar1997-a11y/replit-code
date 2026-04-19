@@ -712,11 +712,11 @@ tr:hover td{background:rgba(124,58,237,0.07)}
     <div class="card">
       <h2>Blocked IPs</h2>
       <div class="tc-meta">
-        <div class="tc-chip">Currently blocked: <strong>${blockedIpsList.length}</strong> IP${blockedIpsList.length !== 1 ? 's' : ''}</div>
-        <div class="tc-chip">Repeat clicks (24h): <strong>${repeatClicksIn24h}</strong></div>
-        <div class="tc-chip">IPs tracked (24h): <strong>${freqStoreSize}</strong>
-          &nbsp;<form method="POST" action="/admin/clear-frequency" class="inline" onsubmit="return confirm('Reset frequency tracker?')">
-            <button type="submit" class="btn-danger btn-sm" style="padding:2px 8px;font-size:0.7rem">Reset</button>
+        <div class="tc-chip">Permanently blocked: <strong>${blockedIpsList.length}</strong> IP${blockedIpsList.length !== 1 ? 's' : ''}</div>
+        <div class="tc-chip" title="Logged repeat-click blocks in last 24h — does not reset when tracker is cleared">Repeat-click blocks (log, 24h): <strong>${repeatClicksIn24h}</strong></div>
+        <div class="tc-chip">Active tracker (unique IPs): <strong>${freqStoreSize}</strong>
+          &nbsp;<form method="POST" action="/admin/clear-frequency" class="inline" onsubmit="return confirm('Reset the repeat-click tracker? Tracked IPs will be allowed once more, but log counts are unchanged.')">
+            <button type="submit" class="btn-danger btn-sm" style="padding:2px 8px;font-size:0.7rem">Reset Tracker</button>
           </form>
         </div>
       </div>

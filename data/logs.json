@@ -1,5 +1,45 @@
 [
   {
+    "ts": "2026-04-19T22:22:49.500Z",
+    "ip": "127.0.0.1",
+    "country": "XX",
+    "ua": "curl/8.14.1",
+    "decision": "block",
+    "reason": "bot-ua"
+  },
+  {
+    "ts": "2026-04-19T22:22:49.454Z",
+    "ip": "127.0.0.1",
+    "country": "XX",
+    "ua": "curl/8.14.1",
+    "decision": "block",
+    "reason": "bot-ua"
+  },
+  {
+    "ts": "2026-04-19T22:22:49.412Z",
+    "ip": "127.0.0.1",
+    "country": "XX",
+    "ua": "curl/8.14.1",
+    "decision": "block",
+    "reason": "bot-ua"
+  },
+  {
+    "ts": "2026-04-19T22:22:49.368Z",
+    "ip": "127.0.0.1",
+    "country": "XX",
+    "ua": "curl/8.14.1",
+    "decision": "block",
+    "reason": "bot-ua"
+  },
+  {
+    "ts": "2026-04-19T22:22:49.320Z",
+    "ip": "127.0.0.1",
+    "country": "XX",
+    "ua": "curl/8.14.1",
+    "decision": "block",
+    "reason": "bot-ua"
+  },
+  {
     "ts": "2026-04-19T22:06:46.508Z",
     "ip": "127.0.0.1",
     "country": "XX",

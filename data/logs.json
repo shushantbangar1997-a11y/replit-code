@@ -1,0 +1,66 @@
+[
+  {
+    "ts": "2026-04-19T21:46:22.197Z",
+    "ip": "127.0.0.1",
+    "country": "XX",
+    "ua": "curl/8.14.1",
+    "decision": "block",
+    "reason": "bot-ua"
+  },
+  {
+    "ts": "2026-04-19T21:46:22.159Z",
+    "ip": "127.0.0.1",
+    "country": "XX",
+    "ua": "curl/8.14.1",
+    "decision": "block",
+    "reason": "bot-ua"
+  },
+  {
+    "ts": "2026-04-19T21:46:22.122Z",
+    "ip": "127.0.0.1",
+    "country": "XX",
+    "ua": "curl/8.14.1",
+    "decision": "block",
+    "reason": "bot-ua"
+  },
+  {
+    "ts": "2026-04-19T21:46:22.082Z",
+    "ip": "127.0.0.1",
+    "country": "XX",
+    "ua": "curl/8.14.1",
+    "decision": "block",
+    "reason": "bot-ua"
+  },
+  {
+    "ts": "2026-04-19T21:46:22.045Z",
+    "ip": "127.0.0.1",
+    "country": "XX",
+    "ua": "curl/8.14.1",
+    "decision": "block",
+    "reason": "bot-ua"
+  },
+  {
+    "ts": "2026-04-19T21:46:22.008Z",
+    "ip": "127.0.0.1",
+    "country": "XX",
+    "ua": "curl/8.14.1",
+    "decision": "block",
+    "reason": "bot-ua"
+  },
+  {
+    "ts": "2026-04-19T21:45:48.488Z",
+    "ip": "127.0.0.1",
+    "country": "XX",
+    "ua": "curl/8.14.1",
+    "decision": "block",
+    "reason": "bot-ua"
+  },
+  {
+    "ts": "2026-04-19T21:45:47.479Z",
+    "ip": "127.0.0.1",
+    "country": "XX",
+    "ua": "curl/8.14.1",
+    "decision": "block",
+    "reason": "bot-ua"
+  }
+]

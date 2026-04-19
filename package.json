@@ -10,6 +10,8 @@
     "node": ">=18.0.0"
   },
   "dependencies": {
-    "express": "^4.22.1"
+    "bcryptjs": "^3.0.3",
+    "express": "^4.22.1",
+    "express-session": "^1.19.0"
   }
 }

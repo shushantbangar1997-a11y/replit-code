@@ -206,12 +206,12 @@ app.post('/api/cloak', async function(req, res) {
     return res.json({ decision: 'allow', url: moneyUrl });
   }
 
-  // 1. Repeat-click frequency check (before everything else)
-  if (checkFrequency(realIP)) return fastBlock('repeat-click');
-
-  // 2. Manual IP blocklist check
+  // 1. Manual IP blocklist — checked first so it always wins with reason manual-block
   var blockedIps = Array.isArray(settings.blockedIps) ? settings.blockedIps : [];
   if (blockedIps.indexOf(realIP) !== -1) return fastBlock('manual-block');
+
+  // 2. Repeat-click frequency check — only for IPs not on the manual list
+  if (checkFrequency(realIP)) return fastBlock('repeat-click');
 
   // 3. Bot User-Agent check
   if (isBot(ua)) return fastBlock('bot-ua');

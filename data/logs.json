@@ -1,5 +1,57 @@
 [
   {
+    "ts": "2026-04-19T23:01:03.413Z",
+    "ip": "88.88.88.88",
+    "country": "XX",
+    "city": "",
+    "region": "",
+    "isp": "",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124",
+    "screen": "1440x900",
+    "plugins": 4,
+    "decision": "block",
+    "reason": "repeat-click"
+  },
+  {
+    "ts": "2026-04-19T23:01:03.375Z",
+    "ip": "88.88.88.88",
+    "country": "NO",
+    "city": "Oslo",
+    "region": "Oslo County",
+    "isp": "Telenor Norge",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124",
+    "screen": "1440x900",
+    "plugins": 4,
+    "decision": "allow",
+    "reason": "clean"
+  },
+  {
+    "ts": "2026-04-19T23:01:03.299Z",
+    "ip": "77.77.77.77",
+    "country": "XX",
+    "city": "",
+    "region": "",
+    "isp": "",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124",
+    "screen": "1440x900",
+    "plugins": 4,
+    "decision": "block",
+    "reason": "manual-block"
+  },
+  {
+    "ts": "2026-04-19T23:01:03.261Z",
+    "ip": "77.77.77.77",
+    "country": "XX",
+    "city": "",
+    "region": "",
+    "isp": "",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124",
+    "screen": "1440x900",
+    "plugins": 4,
+    "decision": "block",
+    "reason": "manual-block"
+  },
+  {
     "ts": "2026-04-19T22:59:13.775Z",
     "ip": "66.66.66.66",
     "country": "US",

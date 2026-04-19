@@ -35,8 +35,20 @@ function appendLog(entry) {
 }
 
 // ─── Admin password ───────────────────────────────────────────────────────────
-var ADMIN_PASSWORD_PLAIN = process.env.ADMIN_PASSWORD || 'admin123';
-var ADMIN_PASSWORD_HASH = bcrypt.hashSync(ADMIN_PASSWORD_PLAIN, 10);
+var ADMIN_PASSWORD_HASH;
+(function() {
+  var pwd = process.env.ADMIN_PASSWORD;
+  if (!pwd) {
+    var crypto = require('crypto');
+    pwd = crypto.randomBytes(9).toString('base64'); // 12-char base64
+    console.warn('');
+    console.warn('⚠️  WARNING: ADMIN_PASSWORD env var is not set.');
+    console.warn('   One-time admin password for this session: ' + pwd);
+    console.warn('   Set ADMIN_PASSWORD in your environment to make it permanent.');
+    console.warn('');
+  }
+  ADMIN_PASSWORD_HASH = bcrypt.hashSync(pwd, 10);
+})();
 
 // ─── Per-IP frequency store (in-memory, 24-hour window) ──────────────────────
 // Map<ip, lastVisitTimestamp>
@@ -486,6 +498,13 @@ function adminDashboardPage(settings, logs) {
   }).length;
 
   // ── Log rows ──────────────────────────────────────────────────────────────
+  function deviceType(ua) {
+    if (!ua) return '—';
+    var u = ua.toLowerCase();
+    if (/ipad|tablet|kindle|playbook|(android(?!.*mobile))/i.test(ua)) return 'Tablet';
+    if (/mobile|iphone|ipod|android|blackberry|opera mini|iemobile|wpdesktop/i.test(ua)) return 'Mobile';
+    return 'Desktop';
+  }
   function locationStr(l) {
     if (!l.city) return escHtml(l.country || 'XX');
     var parts = [escHtml(l.city)];
@@ -508,12 +527,14 @@ function adminDashboardPage(settings, logs) {
     var ts     = l.ts ? l.ts.replace('T',' ').slice(0,19) : '';
     var isp    = (l.isp || '').slice(0, 22);
     var screen = (!l.screen || l.screen === '0x0') ? '—' : escHtml(l.screen);
+    var device = deviceType(l.ua || '');
     return '<tr>'
       + '<td class="mono">' + ts + '</td>'
       + '<td class="mono">' + escHtml(l.ip || '') + '</td>'
       + '<td>' + locationStr(l) + '</td>'
       + '<td class="isp" title="' + escHtml(l.isp || '') + '">' + escHtml(isp) + '</td>'
       + '<td class="mono">' + screen + '</td>'
+      + '<td>' + escHtml(device) + '</td>'
       + '<td class="ua">' + escHtml((l.ua || '').slice(0, 50)) + '</td>'
       + '<td class="' + cls + '">' + escHtml(l.decision || '') + '</td>'
       + '<td>' + reasonPill(l.reason) + '</td>'
@@ -772,13 +793,14 @@ tr:hover td{background:rgba(124,58,237,0.07)}
             <th>Location</th>
             <th>ISP</th>
             <th>Screen</th>
+            <th>Device</th>
             <th>User Agent</th>
             <th>Decision</th>
             <th>Reason</th>
           </tr>
         </thead>
         <tbody>
-          ${logRows || '<tr><td colspan="8" style="text-align:center;color:#444;padding:24px">No entries yet</td></tr>'}
+          ${logRows || '<tr><td colspan="9" style="text-align:center;color:#444;padding:24px">No entries yet</td></tr>'}
         </tbody>
       </table>
     </div>

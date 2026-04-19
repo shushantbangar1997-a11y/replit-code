@@ -500,7 +500,6 @@ function adminDashboardPage(settings, logs) {
   // ── Log rows ──────────────────────────────────────────────────────────────
   function deviceType(ua) {
     if (!ua) return '—';
-    var u = ua.toLowerCase();
     if (/ipad|tablet|kindle|playbook|(android(?!.*mobile))/i.test(ua)) return 'Tablet';
     if (/mobile|iphone|ipod|android|blackberry|opera mini|iemobile|wpdesktop/i.test(ua)) return 'Mobile';
     return 'Desktop';

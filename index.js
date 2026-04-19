@@ -362,7 +362,7 @@ function adminDashboardPage(settings, logs) {
   var flags = { US:'🇺🇸',GB:'🇬🇧',CA:'🇨🇦',AU:'🇦🇺',IN:'🇮🇳',DE:'🇩🇪',FR:'🇫🇷',PH:'🇵🇭',MX:'🇲🇽',BR:'🇧🇷',NL:'🇳🇱',SG:'🇸🇬',JP:'🇯🇵',NG:'🇳🇬',PK:'🇵🇰',ZA:'🇿🇦',XX:'🌐' };
   var topCountries = Object.keys(countryCounts)
     .sort(function(a,b){ return countryCounts[b]-countryCounts[a]; })
-    .slice(0, 6);
+    .slice(0, 5);
   var maxCC = topCountries.length > 0 ? countryCounts[topCountries[0]] : 1;
   var countryRows = topCountries.map(function(cc) {
     var cnt = countryCounts[cc];
@@ -393,8 +393,8 @@ function adminDashboardPage(settings, logs) {
 
   // ── Log rows ──────────────────────────────────────────────────────────────
   function locationStr(l) {
-    var parts = [];
-    if (l.city)   parts.push(escHtml(l.city));
+    if (!l.city) return escHtml(l.country || 'XX');
+    var parts = [escHtml(l.city)];
     if (l.region) parts.push(escHtml(l.region));
     parts.push(escHtml(l.country || 'XX'));
     return parts.join(', ');
@@ -406,16 +406,14 @@ function adminDashboardPage(settings, logs) {
   var logRows = logs.slice(0, 150).map(function(l) {
     var cls     = l.decision === 'allow' ? 'allow' : 'block';
     var ts      = l.ts ? l.ts.replace('T',' ').slice(0,19) : '';
-    var isp     = (l.isp || '').slice(0, 22);
-    var screen  = (!l.screen || l.screen === '0x0') ? '—' : escHtml(l.screen);
-    var plugins = (l.plugins !== undefined && l.plugins !== null) ? l.plugins : '—';
+    var isp    = (l.isp || '').slice(0, 22);
+    var screen = (!l.screen || l.screen === '0x0') ? '—' : escHtml(l.screen);
     return '<tr>'
       + '<td class="mono">' + ts + '</td>'
       + '<td class="mono">' + escHtml(l.ip || '') + '</td>'
       + '<td>' + locationStr(l) + '</td>'
       + '<td class="isp" title="' + escHtml(l.isp || '') + '">' + escHtml(isp) + '</td>'
       + '<td class="mono">' + screen + '</td>'
-      + '<td>' + plugins + '</td>'
       + '<td class="ua">' + escHtml((l.ua || '').slice(0, 50)) + '</td>'
       + '<td class="' + cls + '">' + escHtml(l.decision || '') + '</td>'
       + '<td>' + reasonPill(l.reason) + '</td>'
@@ -611,14 +609,13 @@ tr:hover td{background:rgba(124,58,237,0.07)}
             <th>Location</th>
             <th>ISP</th>
             <th>Screen</th>
-            <th>Plugins</th>
             <th>User Agent</th>
             <th>Decision</th>
             <th>Reason</th>
           </tr>
         </thead>
         <tbody>
-          ${logRows || '<tr><td colspan="9" style="text-align:center;color:#444;padding:24px">No entries yet</td></tr>'}
+          ${logRows || '<tr><td colspan="8" style="text-align:center;color:#444;padding:24px">No entries yet</td></tr>'}
         </tbody>
       </table>
     </div>

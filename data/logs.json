@@ -1,5 +1,44 @@
 [
   {
+    "ts": "2026-04-19T22:33:32.733Z",
+    "ip": "127.0.0.1",
+    "country": "XX",
+    "city": "",
+    "region": "",
+    "isp": "local",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko)",
+    "screen": "1440x900",
+    "plugins": 4,
+    "decision": "allow",
+    "reason": "clean"
+  },
+  {
+    "ts": "2026-04-19T22:33:32.675Z",
+    "ip": "127.0.0.1",
+    "country": "XX",
+    "city": "",
+    "region": "",
+    "isp": "local",
+    "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Mobi",
+    "screen": "390x844",
+    "plugins": 0,
+    "decision": "allow",
+    "reason": "clean"
+  },
+  {
+    "ts": "2026-04-19T22:33:32.615Z",
+    "ip": "127.0.0.1",
+    "country": "XX",
+    "city": "",
+    "region": "",
+    "isp": "",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124",
+    "screen": "0x0",
+    "plugins": 5,
+    "decision": "block",
+    "reason": "no-screen"
+  },
+  {
     "ts": "2026-04-19T22:30:54.310Z",
     "ip": "127.0.0.1",
     "country": "XX",

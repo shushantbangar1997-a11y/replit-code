@@ -15,7 +15,7 @@ const MAX_LOG_ENTRIES = 500;
 
 function readSettings() {
   try { return JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8')); } catch (e) {
-    return { moneyUrl: '', safeUrl: '/safe', enabled: true };
+    return { moneyUrl: '', safeUrl: '/safe', enabled: true, blockedIps: [], allowedCountries: [] };
   }
 }
 
@@ -37,6 +37,43 @@ function appendLog(entry) {
 // ─── Admin password ───────────────────────────────────────────────────────────
 var ADMIN_PASSWORD_PLAIN = process.env.ADMIN_PASSWORD || 'admin123';
 var ADMIN_PASSWORD_HASH = bcrypt.hashSync(ADMIN_PASSWORD_PLAIN, 10);
+
+// ─── Per-IP frequency store (in-memory, 24-hour window) ──────────────────────
+// Map<ip, lastVisitTimestamp>
+var ipFreqStore = new Map();
+var IP_FREQ_MAX = 10000;
+var IP_FREQ_WINDOW_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+function checkFrequency(ip) {
+  var now = Date.now();
+  var last = ipFreqStore.get(ip);
+  if (last && (now - last) < IP_FREQ_WINDOW_MS) {
+    // Seen within 24h — it's a repeat click
+    ipFreqStore.set(ip, now);
+    return true;
+  }
+  // First visit (or >24h ago) — record and allow
+  // Evict oldest entry if store is full
+  if (!last && ipFreqStore.size >= IP_FREQ_MAX) {
+    var firstKey = ipFreqStore.keys().next().value;
+    ipFreqStore.delete(firstKey);
+  }
+  ipFreqStore.set(ip, now);
+  return false;
+}
+
+function clearFrequencyStore() {
+  ipFreqStore.clear();
+}
+
+function repeatClickCount24h() {
+  var cutoff = Date.now() - IP_FREQ_WINDOW_MS;
+  var count = 0;
+  ipFreqStore.forEach(function(ts) { if (ts > cutoff) count++; });
+  // subtract 1 because first-timers are also in the store
+  // Actually just return the store size as "tracked IPs in window"
+  return ipFreqStore.size;
+}
 
 // ─── Bot / crawler UA blocklist ───────────────────────────────────────────────
 var BOT_PATTERNS = [
@@ -178,24 +215,31 @@ app.post('/api/cloak', async function(req, res) {
     return res.json({ decision: 'allow', url: moneyUrl });
   }
 
-  // 1. Bot User-Agent check
+  // 1. Repeat-click frequency check (before everything else)
+  if (checkFrequency(realIP)) return fastBlock('repeat-click');
+
+  // 2. Manual IP blocklist check
+  var blockedIps = Array.isArray(settings.blockedIps) ? settings.blockedIps : [];
+  if (blockedIps.indexOf(realIP) !== -1) return fastBlock('manual-block');
+
+  // 3. Bot User-Agent check
   if (isBot(ua)) return fastBlock('bot-ua');
 
-  // 2. Webdriver flag
+  // 4. Webdriver flag
   if (wd) return fastBlock('webdriver');
 
-  // 3. Screen size checks
+  // 5. Screen size checks
   if (sw === 0 || sh === 0) return fastBlock('no-screen');
   if ((sw === 800 && sh === 600) || (sw === 1024 && sh === 768)) {
     if (pl === 0) return fastBlock('headless-screen');
   }
 
-  // 4. Plugin count + desktop UA check
+  // 6. Plugin count + desktop UA check
   var isMobile = /iPhone|Android|iPad|Mobile/i.test(ua);
   var isDesktop = /Windows|Macintosh/i.test(ua);
   if (!isMobile && isDesktop && pl === 0) return fastBlock('no-plugins-desktop');
 
-  // 5. IP reputation check (includes city/region/ISP)
+  // 7. IP reputation check (includes city/region/ISP/country)
   var ipData;
   try { ipData = await checkIP(realIP); } catch (e) {
     ipData = { proxy: false, hosting: false, country: 'XX', city: '', regionName: '', isp: '', org: '' };
@@ -204,13 +248,25 @@ app.post('/api/cloak', async function(req, res) {
   var decision = 'allow';
   var reason   = 'clean';
 
-  // 6. Suspicious ISP/org check
-  if (isSuspiciousISP(ipData.isp, ipData.org)) {
+  // 8. Country/geo filter (after IP lookup, before other network checks)
+  var allowedCountries = Array.isArray(settings.allowedCountries) ? settings.allowedCountries : [];
+  if (allowedCountries.length > 0) {
+    var visitorCC = (ipData.country || 'XX').toUpperCase();
+    var allowed = allowedCountries.some(function(cc) { return cc.toUpperCase() === visitorCC; });
+    if (!allowed) {
+      decision = 'block';
+      reason   = 'country-block';
+    }
+  }
+
+  // 9. Suspicious ISP/org check
+  if (decision === 'allow' && isSuspiciousISP(ipData.isp, ipData.org)) {
     decision = 'block';
     reason   = 'suspicious-isp';
   }
-  // 7. Proxy / hosting check
-  else if (ipData.proxy || ipData.hosting) {
+
+  // 10. Proxy / hosting check
+  if (decision === 'allow' && (ipData.proxy || ipData.hosting)) {
     decision = 'block';
     reason   = ipData.proxy ? 'proxy-vpn' : 'datacenter';
   }
@@ -265,7 +321,7 @@ app.get('/admin', requireAdmin, function(req, res) {
   res.send(adminDashboardPage(settings, logs));
 });
 
-// ─── Admin settings save ──────────────────────────────────────────────────────
+// ─── Admin settings save (URLs) ───────────────────────────────────────────────
 app.post('/admin/settings', requireAdmin, function(req, res) {
   var settings = readSettings();
   settings.moneyUrl = (req.body.moneyUrl || '').trim();
@@ -285,6 +341,36 @@ app.post('/admin/toggle', requireAdmin, function(req, res) {
 // ─── Admin clear logs ─────────────────────────────────────────────────────────
 app.post('/admin/clear-logs', requireAdmin, function(req, res) {
   fs.writeFileSync(LOGS_FILE, '[]');
+  res.redirect('/admin');
+});
+
+// ─── Admin save blocked IPs ───────────────────────────────────────────────────
+app.post('/admin/blocked-ips', requireAdmin, function(req, res) {
+  var settings = readSettings();
+  var raw = (req.body.blockedIps || '').trim();
+  settings.blockedIps = raw
+    .split(/[\n,]+/)
+    .map(function(s) { return s.trim(); })
+    .filter(function(s) { return s.length > 0; });
+  writeSettings(settings);
+  res.redirect('/admin');
+});
+
+// ─── Admin save allowed countries ────────────────────────────────────────────
+app.post('/admin/allowed-countries', requireAdmin, function(req, res) {
+  var settings = readSettings();
+  var raw = (req.body.allowedCountries || '').trim();
+  settings.allowedCountries = raw
+    .split(/[\n,\s]+/)
+    .map(function(s) { return s.trim().toUpperCase(); })
+    .filter(function(s) { return s.length === 2; });
+  writeSettings(settings);
+  res.redirect('/admin');
+});
+
+// ─── Admin clear frequency store ─────────────────────────────────────────────
+app.post('/admin/clear-frequency', requireAdmin, function(req, res) {
+  clearFrequencyStore();
   res.redirect('/admin');
 });
 
@@ -371,14 +457,22 @@ function adminDashboardPage(settings, logs) {
     return '<div class="cc-row"><span class="cc-flag">' + flag + '</span><span class="cc-code">' + escHtml(cc) + '</span><div class="cc-bar-wrap"><div class="cc-bar" style="width:' + pct + '%"></div></div><span class="cc-cnt">' + cnt + '</span></div>';
   }).join('') || '<p class="empty">No data yet</p>';
 
-  // ── Block reasons ─────────────────────────────────────────────────────────
+  // ── Block reasons (including new ones) ────────────────────────────────────
   var reasonCounts = {};
   logs.filter(function(l){ return l.decision === 'block'; }).forEach(function(l) {
     var r = l.reason || 'unknown';
     reasonCounts[r] = (reasonCounts[r] || 0) + 1;
   });
-  var reasonOrder = ['bot-ua','datacenter','proxy-vpn','suspicious-isp','webdriver','no-screen','headless-screen','no-plugins-desktop'];
-  var reasonColors = { 'bot-ua':'amber','webdriver':'amber','no-screen':'amber','headless-screen':'amber','no-plugins-desktop':'amber','datacenter':'red','proxy-vpn':'red','suspicious-isp':'red' };
+  var reasonOrder = [
+    'repeat-click','manual-block','country-block',
+    'bot-ua','datacenter','proxy-vpn','suspicious-isp',
+    'webdriver','no-screen','headless-screen','no-plugins-desktop'
+  ];
+  var reasonColors = {
+    'repeat-click':'orange','manual-block':'orange','country-block':'orange',
+    'bot-ua':'amber','webdriver':'amber','no-screen':'amber','headless-screen':'amber','no-plugins-desktop':'amber',
+    'datacenter':'red','proxy-vpn':'red','suspicious-isp':'red'
+  };
   var reasonPills = reasonOrder.filter(function(r){ return reasonCounts[r] > 0; }).map(function(r) {
     var col = reasonColors[r] || 'grey';
     return '<span class="pill pill-' + col + '">' + escHtml(r) + ' <strong>' + reasonCounts[r] + '</strong></span>';
@@ -391,6 +485,15 @@ function adminDashboardPage(settings, logs) {
     ? pulseDot + '<span class="badge on">ENABLED</span>'
     : '<span class="badge off">DISABLED</span>';
 
+  // ── Current traffic control state ────────────────────────────────────────
+  var blockedIpsList    = Array.isArray(settings.blockedIps) ? settings.blockedIps : [];
+  var allowedCountriesList = Array.isArray(settings.allowedCountries) ? settings.allowedCountries : [];
+  var freqStoreSize     = ipFreqStore.size;
+  var repeatClicksIn24h = logs.filter(function(l) {
+    return l.decision === 'block' && l.reason === 'repeat-click' && l.ts &&
+      (Date.now() - new Date(l.ts).getTime()) < IP_FREQ_WINDOW_MS;
+  }).length;
+
   // ── Log rows ──────────────────────────────────────────────────────────────
   function locationStr(l) {
     if (!l.city) return escHtml(l.country || 'XX');
@@ -400,12 +503,18 @@ function adminDashboardPage(settings, logs) {
     return parts.join(', ');
   }
   function reasonPill(r) {
-    var col = { clean:'green', 'bot-ua':'amber', webdriver:'amber', 'no-screen':'amber', 'headless-screen':'amber', 'no-plugins-desktop':'amber', datacenter:'red', 'proxy-vpn':'red', 'suspicious-isp':'red', disabled:'grey' }[r] || 'grey';
+    var col = {
+      clean:'green',
+      'repeat-click':'orange','manual-block':'orange','country-block':'orange',
+      'bot-ua':'amber',webdriver:'amber','no-screen':'amber','headless-screen':'amber','no-plugins-desktop':'amber',
+      datacenter:'red','proxy-vpn':'red','suspicious-isp':'red',
+      disabled:'grey'
+    }[r] || 'grey';
     return '<span class="rpill rpill-' + col + '">' + escHtml(r || '') + '</span>';
   }
   var logRows = logs.slice(0, 150).map(function(l) {
-    var cls     = l.decision === 'allow' ? 'allow' : 'block';
-    var ts      = l.ts ? l.ts.replace('T',' ').slice(0,19) : '';
+    var cls    = l.decision === 'allow' ? 'allow' : 'block';
+    var ts     = l.ts ? l.ts.replace('T',' ').slice(0,19) : '';
     var isp    = (l.isp || '').slice(0, 22);
     var screen = (!l.screen || l.screen === '0x0') ? '—' : escHtml(l.screen);
     return '<tr>'
@@ -445,7 +554,6 @@ header{background:#120824;border-bottom:1px solid #2e1655;padding:14px 28px;disp
 /* ── Grid layouts ── */
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:18px}
 .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px;margin-bottom:18px}
-.full{grid-column:1/-1}
 @media(max-width:900px){.grid2,.grid3{grid-template-columns:1fr}}
 
 /* ── Card ── */
@@ -459,7 +567,7 @@ header{background:#120824;border-bottom:1px solid #2e1655;padding:14px 28px;disp
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.25}}
 .pulse-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#4ade80;animation:pulse 1.5s infinite;margin-right:7px;vertical-align:middle}
 
-/* ── Toggle section ── */
+/* ── Buttons ── */
 .toggle-row{display:flex;align-items:center;gap:14px;margin-bottom:14px;flex-wrap:wrap}
 .toggle-row p{font-size:0.82rem;color:#777}
 form.inline{display:inline}
@@ -488,14 +596,22 @@ button{padding:9px 18px;border:none;border-radius:8px;font-size:0.85rem;font-wei
 .pills-wrap{display:flex;flex-wrap:wrap;gap:8px}
 .pill{display:inline-flex;align-items:center;gap:5px;padding:5px 12px;border-radius:20px;font-size:0.78rem}
 .pill strong{font-size:0.88rem}
+.pill-orange{background:#431407;color:#fb923c}
 .pill-amber{background:#451a03;color:#fbbf24}
 .pill-red{background:#450a0a;color:#f87171}
 .pill-grey{background:#1c1c2e;color:#888}
 
-/* ── URL settings ── */
+/* ── Form inputs ── */
 label{display:block;font-size:0.78rem;color:#aaa;margin-bottom:5px;margin-top:14px}
-input[type=text],input[type=url]{width:100%;padding:9px 12px;background:#0d0018;border:1px solid #2e1655;border-radius:8px;color:#e0e0e0;font-size:0.85rem;outline:none}
-input:focus{border-color:#a855f7}
+label:first-child{margin-top:0}
+input[type=text],input[type=url],textarea{width:100%;padding:9px 12px;background:#0d0018;border:1px solid #2e1655;border-radius:8px;color:#e0e0e0;font-size:0.85rem;outline:none;font-family:inherit}
+input:focus,textarea:focus{border-color:#a855f7}
+textarea{resize:vertical;font-size:0.78rem;font-family:'SF Mono',Menlo,monospace;line-height:1.5}
+
+/* ── Traffic controls counters ── */
+.tc-meta{display:flex;gap:12px;margin-bottom:14px;flex-wrap:wrap}
+.tc-chip{background:#0d0018;border:1px solid #2e1655;border-radius:8px;padding:8px 12px;font-size:0.76rem;color:#888}
+.tc-chip strong{color:#c084fc}
 
 /* ── Log table ── */
 .log-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
@@ -512,11 +628,13 @@ tr:hover td{background:rgba(124,58,237,0.07)}
 /* ── Reason pills (table) ── */
 .rpill{display:inline-block;padding:2px 9px;border-radius:12px;font-size:0.7rem;font-weight:600}
 .rpill-green{background:#14532d;color:#4ade80}
+.rpill-orange{background:#431407;color:#fb923c}
 .rpill-amber{background:#451a03;color:#fbbf24}
 .rpill-red{background:#450a0a;color:#f87171}
 .rpill-grey{background:#1c1c2e;color:#888}
 
 .empty{font-size:0.82rem;color:#444;font-style:italic}
+.hint{font-size:0.72rem;color:#555;margin-top:6px}
 </style>
 </head>
 <body>
@@ -593,6 +711,60 @@ tr:hover td{background:rgba(124,58,237,0.07)}
         <input type="text" id="safeUrl" name="safeUrl" value="${escHtml(settings.safeUrl || '/safe')}" placeholder="/safe">
         <button type="submit" class="btn-primary" style="margin-top:16px;width:100%">Save URLs</button>
       </form>
+    </div>
+
+  </div>
+
+  <!-- Row 3: Traffic Controls (full width) -->
+  <div class="grid3" style="margin-bottom:18px">
+
+    <div class="card">
+      <h2>Blocked IPs</h2>
+      <div class="tc-meta">
+        <div class="tc-chip">Currently blocked: <strong>${blockedIpsList.length}</strong> IP${blockedIpsList.length !== 1 ? 's' : ''}</div>
+        <div class="tc-chip">Repeat clicks (24h): <strong>${repeatClicksIn24h}</strong></div>
+        <div class="tc-chip">IPs tracked (24h): <strong>${freqStoreSize}</strong>
+          &nbsp;<form method="POST" action="/admin/clear-frequency" class="inline" onsubmit="return confirm('Reset frequency tracker?')">
+            <button type="submit" class="btn-danger btn-sm" style="padding:2px 8px;font-size:0.7rem">Reset</button>
+          </form>
+        </div>
+      </div>
+      <form method="POST" action="/admin/blocked-ips">
+        <label for="blockedIps">Paste IPs to permanently block (one per line)</label>
+        <textarea id="blockedIps" name="blockedIps" rows="6" placeholder="1.2.3.4&#10;5.6.7.8&#10;...">${escHtml(blockedIpsList.join('\n'))}</textarea>
+        <p class="hint">Get these from your Google Ads campaign &rarr; Audiences tab &rarr; IP addresses column</p>
+        <button type="submit" class="btn-primary" style="margin-top:12px;width:100%">Save Blocked IPs</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <h2>Country Filter</h2>
+      <div class="tc-meta">
+        <div class="tc-chip">
+          ${allowedCountriesList.length > 0
+            ? 'Allowing: <strong>' + escHtml(allowedCountriesList.join(', ')) + '</strong>'
+            : '<strong>All countries</strong> allowed (no filter)'}
+        </div>
+      </div>
+      <form method="POST" action="/admin/allowed-countries">
+        <label for="allowedCountries">Allowed country codes (comma or space separated)</label>
+        <input type="text" id="allowedCountries" name="allowedCountries"
+          value="${escHtml(allowedCountriesList.join(', '))}"
+          placeholder="US, CA, GB — leave blank to allow all">
+        <p class="hint">Use 2-letter ISO codes. Leave blank to allow all countries. Example: US CA GB AU</p>
+        <button type="submit" class="btn-primary" style="margin-top:12px;width:100%">Save Country Filter</button>
+      </form>
+      ${allowedCountriesList.length > 0 ? '<form method="POST" action="/admin/allowed-countries" class="inline" style="margin-top:8px;display:block"><input type="hidden" name="allowedCountries" value=""><button type="submit" class="btn-danger btn-sm" style="width:100%;margin-top:8px" onclick="return confirm(\'Remove country filter?\')">Remove Filter (Allow All)</button></form>' : ''}
+    </div>
+
+    <div class="card">
+      <h2>How Click Fraud Protection Works</h2>
+      <div style="font-size:0.78rem;color:#777;line-height:1.7">
+        <p style="margin-bottom:8px"><span style="color:#fb923c;font-weight:600">Repeat Click</span> — same IP within 24 hours is automatically blocked. Resets daily.</p>
+        <p style="margin-bottom:8px"><span style="color:#fb923c;font-weight:600">Manual Block</span> — IPs you paste above are permanently refused. Find them in Google Ads &rarr; Reports &rarr; IP addresses.</p>
+        <p style="margin-bottom:8px"><span style="color:#fb923c;font-weight:600">Country Block</span> — if you set a country filter, all other countries are blocked before any IP lookup, saving request quota.</p>
+        <p style="color:#555;font-size:0.7rem">Tip: also add competitor IPs directly to Google Ads under Campaign Settings &rarr; IP Exclusions — this blocks them before they even click your ad.</p>
+      </div>
     </div>
 
   </div>

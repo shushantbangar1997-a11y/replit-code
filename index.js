@@ -66,15 +66,6 @@ function clearFrequencyStore() {
   ipFreqStore.clear();
 }
 
-function repeatClickCount24h() {
-  var cutoff = Date.now() - IP_FREQ_WINDOW_MS;
-  var count = 0;
-  ipFreqStore.forEach(function(ts) { if (ts > cutoff) count++; });
-  // subtract 1 because first-timers are also in the store
-  // Actually just return the store size as "tracked IPs in window"
-  return ipFreqStore.size;
-}
-
 // ─── Bot / crawler UA blocklist ───────────────────────────────────────────────
 var BOT_PATTERNS = [
   /googlebot/i, /adsbot/i, /bingbot/i, /slurp/i, /duckduckbot/i,
@@ -762,7 +753,7 @@ tr:hover td{background:rgba(124,58,237,0.07)}
       <div style="font-size:0.78rem;color:#777;line-height:1.7">
         <p style="margin-bottom:8px"><span style="color:#fb923c;font-weight:600">Repeat Click</span> — same IP within 24 hours is automatically blocked. Resets daily.</p>
         <p style="margin-bottom:8px"><span style="color:#fb923c;font-weight:600">Manual Block</span> — IPs you paste above are permanently refused. Find them in Google Ads &rarr; Reports &rarr; IP addresses.</p>
-        <p style="margin-bottom:8px"><span style="color:#fb923c;font-weight:600">Country Block</span> — if you set a country filter, all other countries are blocked before any IP lookup, saving request quota.</p>
+        <p style="margin-bottom:8px"><span style="color:#fb923c;font-weight:600">Country Block</span> — if you set a country filter, visitors whose country does not match are blocked after geolocation. Use this to restrict traffic to countries where your customers actually are.</p>
         <p style="color:#555;font-size:0.7rem">Tip: also add competitor IPs directly to Google Ads under Campaign Settings &rarr; IP Exclusions — this blocks them before they even click your ad.</p>
       </div>
     </div>

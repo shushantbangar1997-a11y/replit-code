@@ -1,5 +1,21 @@
 [
   {
+    "ts": "2026-04-19T22:06:46.508Z",
+    "ip": "127.0.0.1",
+    "country": "XX",
+    "ua": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessC",
+    "decision": "block",
+    "reason": "bot-ua"
+  },
+  {
+    "ts": "2026-04-19T22:06:44.482Z",
+    "ip": "127.0.0.1",
+    "country": "XX",
+    "ua": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessC",
+    "decision": "block",
+    "reason": "bot-ua"
+  },
+  {
     "ts": "2026-04-19T22:03:03.130Z",
     "ip": "127.0.0.1",
     "country": "XX",

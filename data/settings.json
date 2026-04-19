@@ -1,1 +1,5 @@
-{"moneyUrl":"","safeUrl":"/safe","enabled":true}
+{
+  "moneyUrl": "https://activatemytvcode.com/amazon-activate",
+  "safeUrl": "https://activatemytvcode.com/amazon-prime",
+  "enabled": true
+}

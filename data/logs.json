@@ -1,5 +1,31 @@
 [
   {
+    "ts": "2026-04-19T23:17:42.250Z",
+    "ip": "127.0.0.1",
+    "country": "XX",
+    "city": "",
+    "region": "",
+    "isp": "",
+    "ua": "curl/8.14.1",
+    "screen": "0x0",
+    "plugins": 0,
+    "decision": "block",
+    "reason": "bot-ua"
+  },
+  {
+    "ts": "2026-04-19T23:17:42.211Z",
+    "ip": "8.8.8.8",
+    "country": "XX",
+    "city": "",
+    "region": "",
+    "isp": "",
+    "ua": "curl/8.14.1",
+    "screen": "1920x1080",
+    "plugins": 5,
+    "decision": "block",
+    "reason": "bot-ua"
+  },
+  {
     "ts": "2026-04-19T23:01:03.413Z",
     "ip": "88.88.88.88",
     "country": "XX",

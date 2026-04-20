@@ -11,8 +11,8 @@
             logoAlt:   '',
             logoText:  '',
             service:   'this service',
-            phone:     '+1 888 779 1904',
-            phoneTel:  '+18887791904',
+            phone:     '+1 888-608-8345',
+            phoneTel:  '+18886088345',
             delay:     1000
         }, cfg);
 

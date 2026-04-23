@@ -456,7 +456,26 @@ app.post('/admin/allowed-countries', requireAdmin, function(req, res) {
   res.redirect('/admin');
 });
 
-// ─── Admin clear frequency store ─────────────────────────────────────────────
+// ─── Admin export blocked IPs for Google Ads ──────────────────────────────────
+app.get('/admin/blocked-ips-export', requireAdmin, function(req, res) {
+  var settings  = readSettings();
+  var logs      = readLogs();
+  var seen      = {};
+  var unique    = [];
+  var privateRe = /^(127\.|10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|::1$|fd)/;
+
+  function add(ip) {
+    if (ip && !seen[ip] && !privateRe.test(ip)) { seen[ip] = true; unique.push(ip); }
+  }
+
+  (settings.blockedIps || []).forEach(add);
+  logs.filter(function(l) { return l.decision === 'block'; }).forEach(function(l) { add(l.ip); });
+
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+  res.setHeader('Content-Disposition', 'attachment; filename="blocked-ips.txt"');
+  res.send(unique.join('\n'));
+});
+
 app.post('/admin/clear-frequency', requireAdmin, function(req, res) {
   clearFrequencyStore();
   res.redirect('/admin');
@@ -626,6 +645,14 @@ function adminDashboardPage(settings, logs, leads) {
       + '</tr>';
   }).join('');
 
+  // ── Blocked IP export count (for Google Ads card) ────────────────────────
+  var exportSeen = {};
+  var privateRe  = /^(127\.|10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|::1$|fd)/;
+  (blockedIpsList).forEach(function(ip) { if (ip && !privateRe.test(ip)) exportSeen[ip] = true; });
+  logs.filter(function(l){ return l.decision === 'block' && l.ip; })
+      .forEach(function(l){ if (!privateRe.test(l.ip)) exportSeen[l.ip] = true; });
+  var exportCount = Object.keys(exportSeen).length;
+
   // ── Leads stats ───────────────────────────────────────────────────────────
   var submits     = leads.filter(function(l) { return l.type === 'code_submit'; });
   var todaySubmits = submits.filter(function(l) { return l.ts && l.ts.startsWith(today); });
@@ -761,6 +788,8 @@ tr:hover td{background:rgba(124,58,237,0.07)}
 
 .empty{font-size:0.82rem;color:#444;font-style:italic}
 .hint{font-size:0.72rem;color:#555;margin-top:6px}
+.dl-btn{display:inline-block;padding:10px 20px;background:#1a0d2e;border:1px solid #7c3aed;border-radius:9px;color:#c084fc;font-size:0.85rem;font-weight:700;text-decoration:none;transition:background .2s,border-color .2s}
+.dl-btn:hover{background:#2d1060;border-color:#a855f7}
 </style>
 </head>
 <body>
@@ -896,6 +925,35 @@ tr:hover td{background:rgba(124,58,237,0.07)}
       </div>
     </div>
 
+  </div>
+
+  <!-- Google Ads IP Export -->
+  <div class="card" style="margin-bottom:18px">
+    <h2>Stop Bad Visitors — Export &amp; Block Options</h2>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">
+
+      <div>
+        <p style="font-size:0.82rem;color:#ccc;margin-bottom:10px">
+          Download every IP this system has ever blocked — both manually added ones and auto-detected bots/fraud — as a plain text file. Then paste the list into Google Ads to stop those visitors from ever seeing your ad again.
+        </p>
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px">
+          <span style="font-size:0.78rem;color:#888">Unique public IPs ready to export:</span>
+          <span style="font-size:1.3rem;font-weight:800;color:#f87171">${exportCount}</span>
+        </div>
+        <a href="/admin/blocked-ips-export" download="blocked-ips.txt" class="dl-btn">&#8681; Download blocked-ips.txt</a>
+      </div>
+
+      <div style="font-size:0.78rem;color:#777;line-height:1.8">
+        <p style="color:#a78bfa;font-weight:700;margin-bottom:8px;font-size:0.8rem">How to use the downloaded file</p>
+        <p style="margin-bottom:6px"><span style="color:#fb923c;font-weight:600">Google Ads (most effective)</span><br>
+          Ads &rarr; your campaign &rarr; Settings &rarr; <em>IP exclusions</em>. Paste the IPs one per line. This stops fraud clicks <em>before</em> they reach your site and saves your ad budget.</p>
+        <p style="margin-bottom:6px"><span style="color:#fb923c;font-weight:600">Manual block on this site</span><br>
+          Paste the same IPs into the "Blocked IPs" card above — they'll be instantly refused at the door.</p>
+        <p><span style="color:#fb923c;font-weight:600">Railway firewall (optional)</span><br>
+          In Railway &rarr; your service &rarr; Networking you can block IPs at the infrastructure level, before they touch the server.</p>
+      </div>
+
+    </div>
   </div>
 
   <!-- Leads -->

@@ -1,1 +1,22 @@
-[]
+[
+  {
+    "type": "code_submit",
+    "ts": "2026-04-23T15:35:29.664Z",
+    "ip": "223.178.210.70",
+    "country": "IN",
+    "city": "Chandigarh",
+    "region": "Chandigarh",
+    "isp": "Bharti Airtel",
+    "ua": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36",
+    "code": "12413",
+    "screen": "1920x1080",
+    "tz": "America/Los_Angeles",
+    "referrer": "https://29e38fb1-9f32-4421-905c-91a7a0e5a6a2-00-2e0h4h1qbd38q.spock.replit.dev/amazon-prime",
+    "utm_source": "",
+    "utm_campaign": "",
+    "utm_term": "",
+    "utm_content": "",
+    "gclid": "",
+    "called": false
+  }
+]

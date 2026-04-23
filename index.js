@@ -914,7 +914,9 @@ app.post('/admin/sites/:id/settings', requireAdmin, async function(req, res) {
   site.railwayServiceId = (req.body.railwayServiceId !== undefined) ? req.body.railwayServiceId.trim() : site.railwayServiceId;
   site.moneyUrl         = (req.body.moneyUrl !== undefined) ? req.body.moneyUrl.trim() : site.moneyUrl;
   site.safeUrl          = (req.body.safeUrl  !== undefined && req.body.safeUrl.trim()) ? req.body.safeUrl.trim() : site.safeUrl;
-  site.enabled          = req.body.enabled !== 'false';
+  if (req.body.enabled !== undefined) {
+    site.enabled = req.body.enabled !== 'false';
+  }
 
   var raw = req.body.blockedIps || '';
   if (typeof raw === 'string') {
@@ -2021,7 +2023,7 @@ textarea{resize:vertical;min-height:80px}
             ${countryRows}
             <div class="mt12" style="font-size:.69rem;color:var(--text3)">
               ${exportCount} unique IPs available for Google Ads exclusion
-              &nbsp;<a href="/admin/blocked-ips/export" style="color:var(--pri-l)">Export →</a>
+              &nbsp;<a href="/admin/blocked-ips-export" style="color:var(--pri-l)">Export →</a>
             </div>
           </div>
         </div>
@@ -2080,7 +2082,7 @@ textarea{resize:vertical;min-height:80px}
             <div class="sec-title">Traffic Logs</div>
             <div class="sec-sub">${logTotal} records &nbsp;·&nbsp; Timestamps in <strong>${escHtml(displayTz)}</strong></div>
           </div>
-          <a href="/admin/blocked-ips/export" class="btn-ghost btn-sm">⬇ Export Blocked IPs</a>
+          <a href="/admin/blocked-ips-export" class="btn-ghost btn-sm">⬇ Export Blocked IPs</a>
         </div>
 
         <div class="filter-bar">
@@ -2211,7 +2213,7 @@ textarea{resize:vertical;min-height:80px}
         <div class="stab-content" id="stab-ips">
           <div class="f-card">
             <div class="f-card-title">Permanently Blocked IPs
-              <a href="/admin/blocked-ips/export" class="btn-ghost btn-sm">⬇ Export for Google Ads</a>
+              <a href="/admin/blocked-ips-export" class="btn-ghost btn-sm">⬇ Export for Google Ads</a>
             </div>
             <p class="hint mb12">These IPs are always blocked, regardless of geo or fingerprint checks. ${exportCount} unique IPs ready for export.</p>
             <form method="POST" action="/admin/blocked-ips">
@@ -2675,8 +2677,9 @@ window.addEventListener('DOMContentLoaded', function() {
   if (!window.EventSource) return;
   var es = new EventSource('/admin/events');
   es.onmessage = function(e) {
-    var entry;
-    try { entry = JSON.parse(e.data); } catch(x) { return; }
+    var payload, entry;
+    try { payload = JSON.parse(e.data); } catch(x) { return; }
+    entry = payload.entry || payload;
     if (entry.ip) activeTimes[entry.ip] = Date.now();
     updateCount();
 

@@ -3589,7 +3589,7 @@ document.addEventListener('DOMContentLoaded', function() {
         var vals = Array.from(cells).map(function(c){ return '"' + (c.textContent || '').replace(/"/g,'""').trim() + '"'; });
         csv.push(vals.join(','));
       });
-      var blob = new Blob([csv.join('\n')], { type: 'text/csv' });
+      var blob = new Blob([csv.join('\\n')], { type: 'text/csv' });
       var url = URL.createObjectURL(blob);
       var a = document.createElement('a'); a.href = url; a.download = 'leads.csv'; a.click();
       URL.revokeObjectURL(url);

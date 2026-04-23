@@ -11,10 +11,11 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // ─── Data file paths ──────────────────────────────────────────────────────────
-const SETTINGS_FILE = path.join(__dirname, 'data', 'settings.json');
-const LOGS_FILE     = path.join(__dirname, 'data', 'logs.json');
-const LEADS_FILE    = path.join(__dirname, 'data', 'leads.json');
-const SITES_FILE    = path.join(__dirname, 'data', 'sites.json');
+const SETTINGS_FILE   = path.join(__dirname, 'data', 'settings.json');
+const LOGS_FILE       = path.join(__dirname, 'data', 'logs.json');
+const LEADS_FILE      = path.join(__dirname, 'data', 'leads.json');
+const SITES_FILE      = path.join(__dirname, 'data', 'sites.json');
+const ADMIN_HASH_FILE = path.join(__dirname, 'data', 'admin_hash');
 const MAX_LOG_ENTRIES  = 10000;
 const MAX_LEAD_ENTRIES = 5000;
 
@@ -22,9 +23,20 @@ const EventEmitter = require('events');
 const logEmitter = new EventEmitter();
 logEmitter.setMaxListeners(200);
 
+var SETTINGS_DEFAULTS = {
+  moneyUrl: '', safeUrl: '/safe', enabled: true, blockedIps: [], allowedCountries: [],
+  vpnBlocking: true, proxyBlocking: true, botUaBlocking: true,
+  repeatClickBlocking: true, ispBlocking: true, countryBlockingEnabled: true,
+  suspiciousIspKeywords: [],
+  blockedIpsMeta: {}
+};
+
 function readSettings() {
-  try { return JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8')); } catch (e) {
-    return { moneyUrl: '', safeUrl: '/safe', enabled: true, blockedIps: [], allowedCountries: [] };
+  try {
+    var raw = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8'));
+    return Object.assign({}, SETTINGS_DEFAULTS, raw);
+  } catch (e) {
+    return Object.assign({}, SETTINGS_DEFAULTS);
   }
 }
 
@@ -151,7 +163,16 @@ function getSiteSettings(apiKey) {
     safeUrl:          site.isDefault ? (global.safeUrl  || '/safe') : (site.safeUrl || '/safe'),
     enabled:          site.isDefault ? (global.enabled !== false) : (site.enabled !== false),
     blockedIps:       site.isDefault ? (global.blockedIps || []) : (Array.isArray(site.blockedIps) ? site.blockedIps : []),
-    allowedCountries: site.isDefault ? (global.allowedCountries || []) : (Array.isArray(site.allowedCountries) ? site.allowedCountries : [])
+    allowedCountries: site.isDefault ? (global.allowedCountries || []) : (Array.isArray(site.allowedCountries) ? site.allowedCountries : []),
+    // Global security feature flags — always read from settings.json regardless of site
+    vpnBlocking:             global.vpnBlocking             !== false,
+    proxyBlocking:           global.proxyBlocking           !== false,
+    botUaBlocking:           global.botUaBlocking           !== false,
+    repeatClickBlocking:     global.repeatClickBlocking     !== false,
+    ispBlocking:             global.ispBlocking             !== false,
+    countryBlockingEnabled:  global.countryBlockingEnabled  !== false,
+    suspiciousIspKeywords:   Array.isArray(global.suspiciousIspKeywords) ? global.suspiciousIspKeywords : [],
+    blockedIpsMeta:          (global.blockedIpsMeta && typeof global.blockedIpsMeta === 'object') ? global.blockedIpsMeta : {}
   };
 }
 
@@ -413,6 +434,11 @@ async function getRailwayStatus(site) {
 // ─── Admin password ───────────────────────────────────────────────────────────
 var ADMIN_PASSWORD_HASH;
 (function() {
+  // Prefer persisted hash from previous change-password call
+  try {
+    var saved = fs.readFileSync(ADMIN_HASH_FILE, 'utf8').trim();
+    if (saved && saved.startsWith('$2')) { ADMIN_PASSWORD_HASH = saved; return; }
+  } catch(e) {}
   var pwd = process.env.ADMIN_PASSWORD;
   if (!pwd) {
     var crypto = require('crypto');
@@ -478,9 +504,10 @@ var SUSPICIOUS_ISP = [
   'linode', 'vultr', 'ovh', 'hetzner', 'facebook', 'apple'
 ];
 
-function isSuspiciousISP(isp, org) {
+function isSuspiciousISP(isp, org, extraKeywords) {
   var combined = ((isp || '') + ' ' + (org || '')).toLowerCase();
-  return SUSPICIOUS_ISP.some(function(k) { return combined.indexOf(k) !== -1; });
+  var allKeywords = SUSPICIOUS_ISP.concat(Array.isArray(extraKeywords) ? extraKeywords : []);
+  return allKeywords.some(function(k) { return k && combined.indexOf(k.toLowerCase()) !== -1; });
 }
 
 // ─── IP reputation check via ip-api.com ──────────────────────────────────────
@@ -602,10 +629,10 @@ app.post('/api/cloak', async function(req, res) {
   if (blockedIps.indexOf(realIP) !== -1) return fastBlock('manual-block');
 
   // 2. Repeat-click frequency check — only for IPs not on the manual list
-  if (checkFrequency(realIP)) return fastBlock('repeat-click');
+  if (settings.repeatClickBlocking !== false && checkFrequency(realIP)) return fastBlock('repeat-click');
 
   // 3. Bot User-Agent check
-  if (isBot(ua)) return fastBlock('bot-ua');
+  if (settings.botUaBlocking !== false && isBot(ua)) return fastBlock('bot-ua');
 
   // 4. Webdriver flag
   if (wd) return fastBlock('webdriver');
@@ -632,7 +659,7 @@ app.post('/api/cloak', async function(req, res) {
 
   // 8. Country/geo filter (after IP lookup, before other network checks)
   var allowedCountries = Array.isArray(settings.allowedCountries) ? settings.allowedCountries : [];
-  if (allowedCountries.length > 0) {
+  if (settings.countryBlockingEnabled !== false && allowedCountries.length > 0) {
     var visitorCC = (ipData.country || 'XX').toUpperCase();
     var allowed = allowedCountries.some(function(cc) { return cc.toUpperCase() === visitorCC; });
     if (!allowed) {
@@ -642,15 +669,18 @@ app.post('/api/cloak', async function(req, res) {
   }
 
   // 9. Suspicious ISP/org check
-  if (decision === 'allow' && isSuspiciousISP(ipData.isp, ipData.org)) {
+  if (settings.ispBlocking !== false && decision === 'allow' && isSuspiciousISP(ipData.isp, ipData.org, settings.suspiciousIspKeywords)) {
     decision = 'block';
     reason   = 'suspicious-isp';
   }
 
   // 10. Proxy / hosting check
-  if (decision === 'allow' && (ipData.proxy || ipData.hosting)) {
-    decision = 'block';
-    reason   = ipData.proxy ? 'proxy-vpn' : 'datacenter';
+  if (decision === 'allow') {
+    if (settings.vpnBlocking !== false && ipData.proxy) {
+      decision = 'block'; reason = 'proxy-vpn';
+    } else if (settings.proxyBlocking !== false && ipData.hosting) {
+      decision = 'block'; reason = 'datacenter';
+    }
   }
 
   appendLog({
@@ -751,7 +781,7 @@ var LOG_PAGE_SIZE  = 100;
 var LEAD_PAGE_SIZE = 50;
 
 app.get('/admin', requireAdmin, function(req, res) {
-  var settings   = readSettings();
+  var globalSettings = readSettings();
   var sites      = readSites();
   var siteFilter = req.query.site || '';
   var siteCreated = req.query.siteCreated === '1';
@@ -759,7 +789,8 @@ app.get('/admin', requireAdmin, function(req, res) {
   // Find selected site object (null = All Sites)
   var selectedSite = siteFilter ? sites.find(function(s) { return s.id === siteFilter; }) : null;
 
-  // Merge default site settings into settings for backwards compat display
+  // Per-site view: use site-specific URL/enabled/blocked values for display, but keep globalSettings intact
+  var settings = globalSettings;
   if (selectedSite) {
     settings = {
       moneyUrl: selectedSite.moneyUrl, safeUrl: selectedSite.safeUrl,
@@ -829,7 +860,9 @@ app.get('/admin', requireAdmin, function(req, res) {
     siteCreated: siteCreated,
     hasGithubToken: !!process.env.GITHUB_TOKEN,
     hasRailwayToken: !!getRailwayToken(),
-    displayTz: req.session.displayTz || 'UTC'
+    displayTz: req.session.displayTz || 'UTC',
+    tzAutoDetected: !!req.session.tzAutoDetected,
+    globalSettings: globalSettings
   }));
 });
 
@@ -976,13 +1009,22 @@ app.post('/admin/set-timezone', requireAdmin, function(req, res) {
     return res.json({ ok: false, error: 'Invalid timezone' });
   }
   req.session.displayTz = tz;
+  if (req.body.source === 'auto') req.session.tzAutoDetected = true;
   res.json({ ok: true, tz: tz });
 });
+
+function isValidIp(ip) {
+  if (/^(\d{1,3}\.){3}\d{1,3}$/.test(ip)) {
+    return ip.split('.').every(function(p) { return parseInt(p, 10) <= 255; });
+  }
+  return /^[\da-fA-F:]{2,39}$/.test(ip) && ip.includes(':');
+}
 
 app.post('/admin/block-ip-ajax', requireAdmin, function(req, res) {
   var ip     = (req.body.ip || '').trim();
   var siteId = (req.body.siteId || 'default').trim();
   if (!ip) return res.json({ ok: false, error: 'No IP' });
+  if (!isValidIp(ip)) return res.json({ ok: false, error: 'Invalid IP address' });
   if (siteId && siteId !== 'default') {
     var ss = readSites();
     var idx = ss.findIndex(function(s) { return s.id === siteId; });
@@ -993,9 +1035,77 @@ app.post('/admin/block-ip-ajax', requireAdmin, function(req, res) {
   } else {
     var cfg = readSettings();
     if (!Array.isArray(cfg.blockedIps)) cfg.blockedIps = [];
-    if (!cfg.blockedIps.includes(ip)) { cfg.blockedIps.push(ip); writeSettings(cfg); }
+    if (!cfg.blockedIps.includes(ip)) {
+      cfg.blockedIps.push(ip);
+      if (!cfg.blockedIpsMeta || typeof cfg.blockedIpsMeta !== 'object') cfg.blockedIpsMeta = {};
+      cfg.blockedIpsMeta[ip] = { at: new Date().toISOString(), reason: 'manual' };
+      writeSettings(cfg);
+    }
   }
   res.json({ ok: true, ip: ip });
+});
+
+// ─── Admin unblock IP (AJAX) ──────────────────────────────────────────────────
+app.post('/admin/unblock-ip-ajax', requireAdmin, function(req, res) {
+  var ip     = (req.body.ip || '').trim();
+  var siteId = (req.body.siteId || 'default').trim();
+  if (!ip) return res.json({ ok: false, error: 'No IP' });
+  if (!isValidIp(ip)) return res.json({ ok: false, error: 'Invalid IP address' });
+  if (siteId && siteId !== 'default') {
+    var ss = readSites();
+    var idx = ss.findIndex(function(s) { return s.id === siteId; });
+    if (idx !== -1 && Array.isArray(ss[idx].blockedIps)) {
+      ss[idx].blockedIps = ss[idx].blockedIps.filter(function(i) { return i !== ip; });
+      writeSites(ss);
+    }
+  } else {
+    var cfg = readSettings();
+    if (Array.isArray(cfg.blockedIps)) {
+      cfg.blockedIps = cfg.blockedIps.filter(function(i) { return i !== ip; });
+      if (cfg.blockedIpsMeta) delete cfg.blockedIpsMeta[ip];
+      writeSettings(cfg);
+    }
+  }
+  res.json({ ok: true, ip: ip });
+});
+
+// ─── Admin change password ────────────────────────────────────────────────────
+app.post('/admin/change-password', requireAdmin, function(req, res) {
+  var currentPwd = req.body.currentPassword || '';
+  var newPwd     = req.body.newPassword     || '';
+  var confirmPwd = req.body.confirmPassword || '';
+  if (!bcrypt.compareSync(currentPwd, ADMIN_PASSWORD_HASH)) {
+    return res.json({ ok: false, error: 'Current password is incorrect' });
+  }
+  if (newPwd.length < 8) {
+    return res.json({ ok: false, error: 'New password must be at least 8 characters' });
+  }
+  if (newPwd !== confirmPwd) {
+    return res.json({ ok: false, error: 'New passwords do not match' });
+  }
+  ADMIN_PASSWORD_HASH = bcrypt.hashSync(newPwd, 10);
+  try { fs.writeFileSync(ADMIN_HASH_FILE, ADMIN_PASSWORD_HASH, { mode: 0o600 }); } catch(e) {}
+  res.json({ ok: true });
+});
+
+// ─── Admin save feature toggles + ISP keywords ────────────────────────────────
+app.post('/admin/settings/features', requireAdmin, function(req, res) {
+  var cfg = readSettings();
+  function boolField(name) {
+    var v = req.body[name];
+    if (Array.isArray(v)) return v.includes('true') || v.includes('on');
+    return v === 'true' || v === 'on';
+  }
+  cfg.vpnBlocking          = boolField('vpnBlocking');
+  cfg.proxyBlocking        = boolField('proxyBlocking');
+  cfg.botUaBlocking        = boolField('botUaBlocking');
+  cfg.repeatClickBlocking  = boolField('repeatClickBlocking');
+  cfg.ispBlocking          = boolField('ispBlocking');
+  cfg.countryBlockingEnabled = boolField('countryBlockingEnabled');
+  var kw = (req.body.suspiciousIspKeywords || '').split(/[\n,]+/).map(function(s) { return s.trim().toLowerCase(); }).filter(Boolean);
+  cfg.suspiciousIspKeywords = kw;
+  writeSettings(cfg);
+  res.redirect('/admin?stab=security#settings');
 });
 
 // ─── Admin sites management ───────────────────────────────────────────────────
@@ -1364,6 +1474,8 @@ function adminDashboardPage(settings, logs, leads, opts) {
   var hasGithubToken  = opts.hasGithubToken || false;
   var hasRailwayToken = opts.hasRailwayToken || false;
   var displayTz       = opts.displayTz || 'UTC';
+  var tzAutoDetected  = opts.tzAutoDetected || false;
+  var globalSettings  = opts.globalSettings || settings;
   var now = new Date();
   var today = now.toISOString().slice(0, 10);
   var timeStr = now.toUTCString().slice(17, 25);
@@ -1425,7 +1537,8 @@ function adminDashboardPage(settings, logs, leads, opts) {
     : '<span class="badge off">DISABLED</span>';
 
   // ── Current traffic control state ────────────────────────────────────────
-  var blockedIpsList    = Array.isArray(settings.blockedIps) ? settings.blockedIps : [];
+  var blockedIpsList    = Array.isArray(globalSettings.blockedIps) ? globalSettings.blockedIps : [];
+  var blockedIpsMeta    = (globalSettings.blockedIpsMeta && typeof globalSettings.blockedIpsMeta === 'object') ? globalSettings.blockedIpsMeta : {};
   var allowedCountriesList = Array.isArray(settings.allowedCountries) ? settings.allowedCountries : [];
   var freqStoreSize     = ipFreqStore.size;
   var repeatClicksIn24h = statsLogs.filter(function(l) {
@@ -2035,6 +2148,11 @@ textarea{resize:vertical;min-height:80px}
         <span class="sb-cnt">${leadTotal}</span>
       </button>
 
+      <button class="sb-link" data-section="blocked-ips" onclick="navTo('blocked-ips',this)">
+        <span class="sb-icon">🛡</span> Blocked IPs
+        <span class="sb-cnt">${blockedIpsList.length}</span>
+      </button>
+
       <div class="sb-sec-lbl" style="margin-top:6px">Config</div>
       <button class="sb-link" data-section="settings" onclick="navTo('settings',this)">
         <span class="sb-icon">⚙</span> Settings
@@ -2329,6 +2447,50 @@ textarea{resize:vertical;min-height:80px}
         </div>
       </div>
 
+      <!-- ── BLOCKED IPs ───────────────────────────────── -->
+      <div class="f-section" id="sec-blocked-ips">
+        <div class="sec-header">
+          <div>
+            <div class="sec-title">Blocked IPs</div>
+            <div class="sec-sub">${blockedIpsList.length} IPs manually blocked &nbsp;·&nbsp; <a href="/admin/blocked-ips-export" style="color:var(--pri-l)">Export for Google Ads →</a></div>
+          </div>
+          <div class="flex-gap8">
+            <input type="text" id="manualBlockIpInput" placeholder="Enter IP to block…" style="background:var(--bg2);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-size:.82rem;padding:7px 12px;outline:none;width:190px" onkeydown="if(event.key==='Enter')manualBlockIpBtn()">
+            <button class="btn-pri" onclick="manualBlockIpBtn()">+ Block IP</button>
+          </div>
+        </div>
+
+        <div class="f-card" style="padding:0">
+          <div class="f-table-wrap">
+            <table id="blockedIpsTable">
+              <thead>
+                <tr>
+                  <th>IP Address</th>
+                  <th>Date Blocked (${escHtml(displayTz)})</th>
+                  <th>Reason</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="blockedIpsBody">
+                ${blockedIpsList.length === 0
+                  ? '<tr><td colspan="4" class="empty-state">No manually blocked IPs. Blocked IPs from fingerprint checks appear in Traffic Logs.</td></tr>'
+                  : blockedIpsList.map(function(ip) {
+                      var meta = blockedIpsMeta[ip] || {};
+                      var dateStr = meta.at ? new Date(meta.at).toLocaleString('en-US', {timeZone: displayTz, month:'short', day:'numeric', year:'numeric', hour:'2-digit', minute:'2-digit'}) : '—';
+                      var reason  = meta.reason || 'manual';
+                      return '<tr id="bip-' + escHtml(ip.replace(/\./g,'_').replace(/:/g,'_')) + '">'
+                        + '<td class="t-mono t-ip">' + escHtml(ip) + '</td>'
+                        + '<td style="font-size:.78rem;color:var(--text2)">' + escHtml(dateStr) + '</td>'
+                        + '<td><span class="pill pill-grey">' + escHtml(reason) + '</span></td>'
+                        + '<td style="text-align:right"><button class="btn-danger btn-sm unblock-ip-btn" data-ip="' + escHtml(ip) + '" data-site="default">Unblock</button></td>'
+                        + '</tr>';
+                    }).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
       <!-- ── SETTINGS ──────────────────────────────────── -->
       <div class="f-section" id="sec-settings">
         <div class="sec-header mb16">
@@ -2337,11 +2499,106 @@ textarea{resize:vertical;min-height:80px}
 
         <div class="stabs">
           <button class="stab active" data-tab="engine" onclick="switchTab(this,'stab-engine')">⚡ Engine</button>
+          <button class="stab" data-tab="security" onclick="switchTab(this,'stab-security')">🔒 Security</button>
           <button class="stab" data-tab="ips" onclick="switchTab(this,'stab-ips')">🛡 Blocked IPs</button>
           <button class="stab" data-tab="countries" onclick="switchTab(this,'stab-countries')">🌍 Countries</button>
           <button class="stab" data-tab="integrations" onclick="switchTab(this,'stab-integrations')">🔗 Integrations</button>
           <button class="stab" data-tab="tz" onclick="switchTab(this,'stab-tz')">🕐 Timezone</button>
+          <button class="stab" data-tab="password" onclick="switchTab(this,'stab-password')">🔑 Password</button>
           <button class="stab" data-tab="danger" onclick="switchTab(this,'stab-danger')">⚠ Danger Zone</button>
+        </div>
+
+        <!-- Security toggles tab -->
+        <div class="stab-content" id="stab-security">
+          <div class="f-card mb16">
+            <div class="f-card-title">Detection Modules</div>
+            <p class="hint mb16">Toggle individual detection checks. Disabled checks are skipped; all visitors still pass through active checks.</p>
+            <form method="POST" action="/admin/settings/features">
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:18px">
+                <div>
+                  <label class="ts-wrap" style="margin-bottom:12px;cursor:pointer">
+                    <input type="hidden" name="vpnBlocking" value="false">
+                    <input type="checkbox" class="ts-input" name="vpnBlocking" value="true" ${globalSettings.vpnBlocking !== false ? 'checked' : ''} onchange="this.previousSibling.disabled=this.checked">
+                    <span class="ts-track"></span>
+                    <span class="ts-label" style="font-size:.83rem;font-weight:600">VPN / Proxy Blocking</span>
+                  </label>
+                  <p class="hint" style="margin-left:50px">Block visitors on detected VPN or anonymous proxies.</p>
+                </div>
+                <div>
+                  <label class="ts-wrap" style="margin-bottom:12px;cursor:pointer">
+                    <input type="hidden" name="proxyBlocking" value="false">
+                    <input type="checkbox" class="ts-input" name="proxyBlocking" value="true" ${globalSettings.proxyBlocking !== false ? 'checked' : ''} onchange="this.previousSibling.disabled=this.checked">
+                    <span class="ts-track"></span>
+                    <span class="ts-label" style="font-size:.83rem;font-weight:600">Datacenter / Hosting Blocking</span>
+                  </label>
+                  <p class="hint" style="margin-left:50px">Block visitors on datacenter / cloud IP ranges.</p>
+                </div>
+                <div>
+                  <label class="ts-wrap" style="margin-bottom:12px;cursor:pointer">
+                    <input type="hidden" name="botUaBlocking" value="false">
+                    <input type="checkbox" class="ts-input" name="botUaBlocking" value="true" ${globalSettings.botUaBlocking !== false ? 'checked' : ''} onchange="this.previousSibling.disabled=this.checked">
+                    <span class="ts-track"></span>
+                    <span class="ts-label" style="font-size:.83rem;font-weight:600">Bot User-Agent Detection</span>
+                  </label>
+                  <p class="hint" style="margin-left:50px">Block well-known crawlers, scrapers, and headless browsers.</p>
+                </div>
+                <div>
+                  <label class="ts-wrap" style="margin-bottom:12px;cursor:pointer">
+                    <input type="hidden" name="repeatClickBlocking" value="false">
+                    <input type="checkbox" class="ts-input" name="repeatClickBlocking" value="true" ${globalSettings.repeatClickBlocking !== false ? 'checked' : ''} onchange="this.previousSibling.disabled=this.checked">
+                    <span class="ts-track"></span>
+                    <span class="ts-label" style="font-size:.83rem;font-weight:600">Repeat-Click Blocking</span>
+                  </label>
+                  <p class="hint" style="margin-left:50px">Block IPs that visit more than once within 24 hours.</p>
+                </div>
+                <div>
+                  <label class="ts-wrap" style="margin-bottom:12px;cursor:pointer">
+                    <input type="hidden" name="ispBlocking" value="false">
+                    <input type="checkbox" class="ts-input" name="ispBlocking" value="true" ${globalSettings.ispBlocking !== false ? 'checked' : ''} onchange="this.previousSibling.disabled=this.checked">
+                    <span class="ts-track"></span>
+                    <span class="ts-label" style="font-size:.83rem;font-weight:600">Suspicious ISP Blocking</span>
+                  </label>
+                  <p class="hint" style="margin-left:50px">Block traffic from known tech-company and cloud ISPs.</p>
+                </div>
+                <div>
+                  <label class="ts-wrap" style="margin-bottom:12px;cursor:pointer">
+                    <input type="hidden" name="countryBlockingEnabled" value="false">
+                    <input type="checkbox" class="ts-input" name="countryBlockingEnabled" value="true" ${globalSettings.countryBlockingEnabled !== false ? 'checked' : ''} onchange="this.previousSibling.disabled=this.checked">
+                    <span class="ts-track"></span>
+                    <span class="ts-label" style="font-size:.83rem;font-weight:600">Country / Geo Blocking</span>
+                  </label>
+                  <p class="hint" style="margin-left:50px">Enforce the allowed-countries list (Settings → Countries tab). Disable to bypass geo-filter globally.</p>
+                </div>
+              </div>
+              <div class="form-row">
+                <label>Custom ISP Keyword Blocklist <span class="hint" style="display:inline">(one per line — appended to the built-in list)</span></label>
+                <textarea name="suspiciousIspKeywords" rows="5" placeholder="e.g.&#10;comcast&#10;spectrum&#10;verizon">${escHtml((Array.isArray(globalSettings.suspiciousIspKeywords) ? globalSettings.suspiciousIspKeywords : []).join('\n'))}</textarea>
+              </div>
+              <button type="submit" class="btn-pri mt12">Save Security Settings</button>
+            </form>
+          </div>
+        </div>
+
+        <!-- Password tab -->
+        <div class="stab-content" id="stab-password">
+          <div class="f-card" style="max-width:460px">
+            <div class="f-card-title">Change Admin Password</div>
+            <p class="hint mb16">Password must be at least 8 characters.</p>
+            <div class="form-row">
+              <label>Current Password</label>
+              <input type="password" id="pwCurrent" autocomplete="current-password" placeholder="Enter current password">
+            </div>
+            <div class="form-row">
+              <label>New Password</label>
+              <input type="password" id="pwNew" autocomplete="new-password" placeholder="At least 8 characters">
+            </div>
+            <div class="form-row">
+              <label>Confirm New Password</label>
+              <input type="password" id="pwConfirm" autocomplete="new-password" placeholder="Repeat new password">
+            </div>
+            <div id="pwMsg" style="font-size:.78rem;margin-bottom:10px;display:none"></div>
+            <button class="btn-pri mt8" onclick="changePassword()">Update Password</button>
+          </div>
         </div>
 
         <!-- Engine tab -->
@@ -2599,7 +2856,7 @@ textarea{resize:vertical;min-height:80px}
 
 <script>
 // ── Section routing ─────────────────────────────────────────────────────────
-var sectionMap = { dashboard:'Dashboard', sites:'Sites', logs:'Traffic Logs', leads:'Leads', settings:'Settings' };
+var sectionMap = { dashboard:'Dashboard', sites:'Sites', logs:'Traffic Logs', leads:'Leads', 'blocked-ips':'Blocked IPs', settings:'Settings' };
 function navTo(id, btn) {
   document.querySelectorAll('.f-section').forEach(function(s){ s.classList.remove('active'); });
   var el = document.getElementById('sec-' + id);
@@ -2618,7 +2875,35 @@ function initSection() {
   navTo(hash, btn);
 }
 window.addEventListener('hashchange', function() { initSection(); });
-document.addEventListener('DOMContentLoaded', function() { initSection(); });
+document.addEventListener('DOMContentLoaded', function() {
+  initSection();
+  // Auto-open specific settings sub-tab via ?stab= query param (e.g., after feature-settings save)
+  (function() {
+    var stab = new URLSearchParams(location.search).get('stab');
+    if (stab) {
+      var btn = document.querySelector('.stab[data-tab="' + stab + '"]');
+      if (btn) switchTab(btn, 'stab-' + stab);
+    }
+  })();
+  // Auto-detect browser timezone on first admin session load (step 10)
+  // Only runs when timezone hasn't been auto-detected yet (tzAutoDetected = false)
+  (function() {
+    if (${JSON.stringify(tzAutoDetected)}) return; // already set this session
+    try {
+      var detected = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      var current  = ${JSON.stringify(displayTz)};
+      if (detected && detected !== current) {
+        fetch('/admin/set-timezone', {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({tz: detected, source: 'auto'})
+        }).then(function(r){return r.json();}).then(function(d){
+          if (d.ok) location.reload();
+        }).catch(function(){});
+      }
+    } catch(e) {}
+  })();
+});
 
 // ── Mobile sidebar ──────────────────────────────────────────────────────────
 function toggleSidebar() {
@@ -2746,6 +3031,99 @@ function quickBlockIp(btn) {
       btn.textContent = '🚫';
       showToast('IP ' + ip + ' blocked', 'success');
     } else showToast('Failed to block IP', 'error');
+  }).catch(function(){ showToast('Network error', 'error'); });
+}
+
+// ── Unblock IP (called by event delegation on .unblock-ip-btn) ────────────────
+function unblockIp(ip, siteId, btn) {
+  if (!confirm('Remove ' + ip + ' from the block list?')) return;
+  fetch('/admin/unblock-ip-ajax', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ip: ip, siteId: siteId || 'default' })
+  }).then(function(r){ return r.json(); }).then(function(d) {
+    if (d.ok) {
+      var row = btn.closest('tr');
+      if (row) row.remove();
+      showToast('IP ' + ip + ' unblocked', 'success');
+      var body = document.getElementById('blockedIpsBody');
+      if (body && body.querySelectorAll('tr').length === 0) {
+        var emptyRow = body.insertRow();
+        var emptyCell = emptyRow.insertCell();
+        emptyCell.colSpan = 4;
+        emptyCell.className = 'empty-state';
+        emptyCell.textContent = 'No manually blocked IPs.';
+      }
+    } else showToast(d.error || 'Failed to unblock IP', 'error');
+  }).catch(function(){ showToast('Network error', 'error'); });
+}
+// Event delegation for unblock buttons (avoids inline JS with interpolated IP strings)
+document.addEventListener('click', function(e) {
+  var btn = e.target.closest('.unblock-ip-btn');
+  if (!btn) return;
+  var ip   = btn.dataset.ip   || '';
+  var site = btn.dataset.site || 'default';
+  unblockIp(ip, site, btn);
+});
+
+// ── Manual block IP from Blocked IPs page ─────────────────────────────────────
+function manualBlockIpBtn() {
+  var input = document.getElementById('manualBlockIpInput');
+  var ip = (input ? input.value : '').trim();
+  if (!ip) return showToast('Enter an IP address first', 'error');
+  fetch('/admin/block-ip-ajax', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ip: ip, siteId: 'default' })
+  }).then(function(r){ return r.json(); }).then(function(d) {
+    if (d.ok) {
+      var body = document.getElementById('blockedIpsBody');
+      if (body) {
+        var empty = body.querySelector('td[colspan]');
+        if (empty) empty.closest('tr').remove();
+        // Build row using safe DOM methods (no innerHTML with user-supplied values)
+        var now = new Date().toLocaleString('en-US', {month:'short', day:'numeric', year:'numeric', hour:'2-digit', minute:'2-digit'});
+        var row = body.insertRow(0);
+        row.id = 'bip-' + ip.replace(/[^a-zA-Z0-9]/g,'_');
+        var td1 = row.insertCell(); td1.className = 't-mono t-ip'; td1.textContent = ip;
+        var td2 = row.insertCell(); td2.style.cssText = 'font-size:.78rem;color:var(--text2)'; td2.textContent = now;
+        var td3 = row.insertCell();
+        var pill = document.createElement('span'); pill.className = 'pill pill-grey'; pill.textContent = 'manual'; td3.appendChild(pill);
+        var td4 = row.insertCell(); td4.style.textAlign = 'right';
+        var ubtn = document.createElement('button');
+        ubtn.className = 'btn-danger btn-sm unblock-ip-btn';
+        ubtn.dataset.ip   = ip;
+        ubtn.dataset.site = 'default';
+        ubtn.textContent  = 'Unblock';
+        td4.appendChild(ubtn);
+      }
+      if (input) input.value = '';
+      showToast('IP ' + ip + ' blocked', 'success');
+    } else showToast(d.error || 'Failed to block IP', 'error');
+  }).catch(function(){ showToast('Network error', 'error'); });
+}
+
+// ── Change password ───────────────────────────────────────────────────────────
+function changePassword() {
+  var cur  = document.getElementById('pwCurrent').value;
+  var nw   = document.getElementById('pwNew').value;
+  var conf = document.getElementById('pwConfirm').value;
+  var msg  = document.getElementById('pwMsg');
+  fetch('/admin/change-password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ currentPassword: cur, newPassword: nw, confirmPassword: conf })
+  }).then(function(r){ return r.json(); }).then(function(d) {
+    if (d.ok) {
+      if (msg) { msg.style.display='block'; msg.style.color='var(--green)'; msg.textContent='Password updated successfully.'; }
+      document.getElementById('pwCurrent').value = '';
+      document.getElementById('pwNew').value = '';
+      document.getElementById('pwConfirm').value = '';
+      showToast('Password updated', 'success');
+    } else {
+      if (msg) { msg.style.display='block'; msg.style.color='var(--red)'; msg.textContent=d.error || 'Failed to update password'; }
+      showToast(d.error || 'Failed to update password', 'error');
+    }
   }).catch(function(){ showToast('Network error', 'error'); });
 }
 

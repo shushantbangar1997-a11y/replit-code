@@ -63,14 +63,17 @@ The `/api/track/lead` endpoint:
 - Accessible at `/admin`, protected by session-based auth (bcrypt, 8h cookie)
 - Password set via `ADMIN_PASSWORD` environment variable (required — no hardcoded fallback)
 - Session secret from `SESSION_SECRET` environment variable (required)
-- **FILTER UI** — left sidebar nav, hash-based section routing (#dashboard, #sites, #logs, #leads, #settings)
+- **FILTER UI** — left sidebar nav, hash-based section routing (#dashboard, #sites, #logs, #leads, #blocked-ips, #settings)
 - Dashboard: 5 KPI cards, donut chart (allow/block split), hourly bar chart, live SSE feed, block reasons table, top countries
 - Sites: per-site expandable rows with toggle switches, tabbed settings panels (General/Security/Script/Railway), API key copy, rotate/delete
 - Logs: searchable/filterable traffic table with quick-block button and country flags
 - Leads: leads table with CSV export
-- Settings: tabbed (Engine, Blocked IPs, Countries, Integrations, Timezone, Danger Zone)
+- Blocked IPs: dedicated page showing each blocked IP in a table with per-row Unblock button; "Block IP" input at top
+- Settings: tabbed (Engine, Security, Blocked IPs, Countries, Integrations, Timezone, Password, Danger Zone)
+  - Security tab: individual feature toggles (VPN/proxy/datacenter/bot-UA/repeat-click/ISP blocking) + custom ISP keyword textarea
+  - Password tab: change admin password with current-password verification
 - Timezone: configurable display timezone (default UTC) — saved to session via POST /admin/set-timezone
-- New routes: `POST /admin/set-timezone` (JSON), `POST /admin/block-ip-ajax` (JSON quick-block)
+- New routes: `POST /admin/set-timezone`, `POST /admin/block-ip-ajax`, `POST /admin/unblock-ip-ajax`, `POST /admin/change-password`, `POST /admin/settings/features`
 
 ## Environment Variables
 | Variable | Purpose |

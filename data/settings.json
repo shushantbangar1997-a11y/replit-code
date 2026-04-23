@@ -3,5 +3,11 @@
   "safeUrl": "https://activatemytvcode.com/amazon-prime",
   "enabled": true,
   "blockedIps": [],
-  "allowedCountries": []
+  "allowedCountries": [],
+  "vpnBlocking": true,
+  "proxyBlocking": true,
+  "botUaBlocking": true,
+  "repeatClickBlocking": true,
+  "ispBlocking": true,
+  "suspiciousIspKeywords": []
 }

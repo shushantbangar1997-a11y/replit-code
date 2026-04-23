@@ -1491,22 +1491,41 @@ function adminDashboardPage(settings, logs, leads, opts) {
   var blockRate    = allTotal > 0 ? Math.round(allBlock / allTotal * 100) : 0;
 
   // ── Top countries ─────────────────────────────────────────────────────────
-  var countryCounts = {};
+  var countryStats = {};
   statsLogs.forEach(function(l) {
     var cc = l.country || 'XX';
-    countryCounts[cc] = (countryCounts[cc] || 0) + 1;
+    if (!countryStats[cc]) countryStats[cc] = { hits: 0, allow: 0, block: 0 };
+    countryStats[cc].hits++;
+    if (l.decision === 'allow') countryStats[cc].allow++;
+    else countryStats[cc].block++;
   });
   var flags = { US:'🇺🇸',GB:'🇬🇧',CA:'🇨🇦',AU:'🇦🇺',IN:'🇮🇳',DE:'🇩🇪',FR:'🇫🇷',PH:'🇵🇭',MX:'🇲🇽',BR:'🇧🇷',NL:'🇳🇱',SG:'🇸🇬',JP:'🇯🇵',NG:'🇳🇬',PK:'🇵🇰',ZA:'🇿🇦',XX:'🌐' };
-  var topCountries = Object.keys(countryCounts)
-    .sort(function(a,b){ return countryCounts[b]-countryCounts[a]; })
-    .slice(0, 5);
-  var maxCC = topCountries.length > 0 ? countryCounts[topCountries[0]] : 1;
-  var countryRows = topCountries.map(function(cc) {
-    var cnt = countryCounts[cc];
-    var pct = Math.round(cnt / maxCC * 100);
-    var flag = flags[cc] || '🌐';
-    return '<div class="cc-row"><span class="cc-flag">' + flag + '</span><span class="cc-code">' + escHtml(cc) + '</span><div class="cc-bar-wrap"><div class="cc-bar" style="width:' + pct + '%"></div></div><span class="cc-cnt">' + cnt + '</span></div>';
-  }).join('') || '<p class="empty">No data yet</p>';
+  var topCountries = Object.keys(countryStats)
+    .sort(function(a,b){ return countryStats[b].hits - countryStats[a].hits; })
+    .slice(0, 8);
+  var countryRows = topCountries.length ? (
+    '<table style="width:100%;border-collapse:collapse;font-size:.73rem">'
+    + '<thead><tr>'
+    + '<th style="text-align:left;padding:5px 6px;color:var(--text3);font-size:.63rem;text-transform:uppercase;letter-spacing:.5px;font-weight:700">Country</th>'
+    + '<th style="text-align:right;padding:5px 6px;color:var(--text3);font-size:.63rem;text-transform:uppercase;letter-spacing:.5px;font-weight:700">Hits</th>'
+    + '<th style="text-align:right;padding:5px 6px;color:var(--text3);font-size:.63rem;text-transform:uppercase;letter-spacing:.5px;font-weight:700">Allow</th>'
+    + '<th style="text-align:right;padding:5px 6px;color:var(--text3);font-size:.63rem;text-transform:uppercase;letter-spacing:.5px;font-weight:700">Block</th>'
+    + '<th style="text-align:right;padding:5px 6px;color:var(--text3);font-size:.63rem;text-transform:uppercase;letter-spacing:.5px;font-weight:700">Rate</th>'
+    + '</tr></thead><tbody>'
+    + topCountries.map(function(cc) {
+        var s = countryStats[cc];
+        var flag = flags[cc] || '🌐';
+        var rate = s.hits > 0 ? Math.round(s.block / s.hits * 100) : 0;
+        return '<tr style="border-top:1px solid var(--border)">'
+          + '<td style="padding:6px 6px;display:flex;align-items:center;gap:6px"><span style="font-size:.88rem">' + flag + '</span><span style="color:var(--text2);font-family:\'SF Mono\',monospace">' + escHtml(cc) + '</span></td>'
+          + '<td style="padding:6px 6px;text-align:right;color:var(--text);font-weight:600">' + s.hits + '</td>'
+          + '<td style="padding:6px 6px;text-align:right;color:var(--green)">' + s.allow + '</td>'
+          + '<td style="padding:6px 6px;text-align:right;color:var(--red)">' + s.block + '</td>'
+          + '<td style="padding:6px 6px;text-align:right;color:var(--text3)">' + rate + '%</td>'
+          + '</tr>';
+      }).join('')
+    + '</tbody></table>'
+  ) : '<p style="font-size:.8rem;color:var(--text3);padding:16px 0;text-align:center">No geo data</p>';
 
   // ── Block reasons (including new ones) ────────────────────────────────────
   var reasonCounts = {};
@@ -1569,6 +1588,29 @@ function adminDashboardPage(settings, logs, leads, opts) {
     } catch(e) { return ''; }
   }
 
+  // ── Risk score (0–100) ────────────────────────────────────────────────────
+  function calcScore(l) {
+    if (l.decision !== 'block') {
+      // Allowed: score 5–20 based on minor signals
+      var s = 5;
+      if (l.wd) s += 10;
+      if (!l.screen || l.screen === '0x0') s += 8;
+      if (l.plugins === 0) s += 5;
+      return Math.min(s, 25);
+    }
+    var scoreMap = {
+      'repeat-click': 40, 'country-block': 45, 'manual-block': 50,
+      'suspicious-isp': 60, 'bot-ua': 68, 'no-screen': 65,
+      'no-plugins-desktop': 65, 'headless-screen': 75, 'webdriver': 75,
+      'datacenter': 80, 'proxy-vpn': 88
+    };
+    return scoreMap[l.reason] || 50;
+  }
+  function scoreBadge(score) {
+    var cls = score < 30 ? 'score-low' : score < 65 ? 'score-mid' : 'score-high';
+    return '<span class="score-badge ' + cls + '">' + score + '</span>';
+  }
+
   // ── Log rows ──────────────────────────────────────────────────────────────
   function deviceType(ua) {
     if (!ua) return '—';
@@ -1606,15 +1648,16 @@ function adminDashboardPage(settings, logs, leads, opts) {
     var org = escHtml(l.org || '—');
     var pl = l.plugins !== undefined ? l.plugins : '—';
     var wd = l.wd !== undefined ? (l.wd ? 'Yes' : 'No') : '—';
+    var score = calcScore(l);
     return '<tr class="log-main-row" onclick="toggleLogRow(\'' + detailId + '\')" title="Click to expand details" style="cursor:pointer">'
       + '<td class="t-mono t-ts">' + escHtml(ts) + '</td>'
+      + '<td><span class="' + decCls + '">' + escHtml(l.decision || '') + '</span></td>'
       + '<td class="t-mono t-ip" data-ip="' + escHtml(l.ip || '') + '">' + escHtml(l.ip || '') + '</td>'
+      + '<td>' + scoreBadge(score) + '</td>'
       + '<td><span class="t-flag">' + flag + '</span> ' + escHtml(l.country || 'XX') + '</td>'
-      + '<td class="t-loc">' + escHtml(l.city || '') + '</td>'
       + '<td class="t-isp" title="' + escHtml(l.isp || '') + '">' + isp + '</td>'
       + '<td class="t-mono t-screen">' + screen + '</td>'
       + '<td class="t-tz">' + visitorTz + '</td>'
-      + '<td><span class="' + decCls + '">' + escHtml(l.decision || '') + '</span></td>'
       + '<td>' + reasonPill(l.reason) + '</td>'
       + '<td><button class="quick-block-btn" data-ip="' + escHtml(l.ip || '') + '" data-site="' + escHtml(sId) + '" onclick="event.stopPropagation();quickBlockIp(this)" title="Block this IP">&#9940;</button></td>'
       + '</tr>'
@@ -1860,37 +1903,51 @@ function adminDashboardPage(settings, logs, leads, opts) {
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>FILTER — Traffic Management</title>
 <style>
-:root{--bg:#070010;--bg2:#0d001e;--bg3:#130028;--card:#0f0022;--border:#1e0840;--border2:#2e1260;--pri:#7c3aed;--pri-h:#6d28d9;--pri-l:#a855f7;--text:#e2d9f3;--text2:#9983b8;--text3:#4e3d70;--green:#22c55e;--red:#ef4444;--amber:#f59e0b;--blue:#60a5fa;--sidebar:240px;--topbar:56px}
+:root{--bg:#0a0a0f;--bg2:#0d1117;--bg3:#161b22;--card:#0d1117;--border:#21262d;--border2:#30363d;--pri:#7c3aed;--pri-h:#6d28d9;--pri-l:#a855f7;--text:#e6edf3;--text2:#8b949e;--text3:#484f58;--green:#3fb950;--red:#f85149;--amber:#d29922;--blue:#58a6ff;--sidebar:240px;--topbar:52px}
+body.light{--bg:#f6f8fa;--bg2:#ffffff;--bg3:#f0f1f3;--card:#ffffff;--border:#d0d7de;--border2:#afb8c1;--text:#1c2128;--text2:#57606a;--text3:#8c959f}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.5;overflow:hidden;height:100vh}
 /* Layout */
 .f-app{display:flex;height:100vh;overflow:hidden}
-.f-sidebar{width:var(--sidebar);min-width:var(--sidebar);background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;height:100vh;overflow-y:auto;z-index:200;transition:transform .3s;flex-shrink:0}
+.f-sidebar{width:var(--sidebar);min-width:var(--sidebar);background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;height:100vh;overflow-y:auto;z-index:200;transition:width .22s,min-width .22s,transform .3s;flex-shrink:0}
+.f-sidebar.collapsed{width:64px;min-width:64px}
 .f-main{flex:1;min-width:0;display:flex;flex-direction:column;height:100vh;overflow:hidden}
 .f-topbar{height:var(--topbar);background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;padding:0 20px;flex-shrink:0}
 .f-content{flex:1;overflow-y:auto;padding:24px;background:var(--bg)}
 /* Sidebar brand */
-.sb-brand{padding:18px 16px 14px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border)}
-.sb-logo{width:30px;height:30px;flex-shrink:0}
-.sb-name{font-size:1.05rem;font-weight:800;color:var(--text);letter-spacing:-0.5px}
-.sb-tagline{font-size:0.58rem;color:var(--text3);text-transform:uppercase;letter-spacing:1.2px;margin-top:1px}
+.sb-brand{padding:16px 14px 12px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border);overflow:hidden;flex-shrink:0}
+.sb-logo{width:28px;height:28px;flex-shrink:0}
+.sb-brand-text{overflow:hidden;flex:1;min-width:0}
+.sb-name{font-size:1rem;font-weight:800;color:var(--text);letter-spacing:-0.5px;white-space:nowrap}
+.sb-tagline{font-size:0.56rem;color:var(--text3);text-transform:uppercase;letter-spacing:1.2px;margin-top:1px;white-space:nowrap}
+.f-sidebar.collapsed .sb-brand-text{display:none}
 /* Nav */
-.sb-nav{flex:1;padding:10px 8px;display:flex;flex-direction:column;gap:1px}
-.sb-sec-lbl{font-size:0.59rem;color:var(--text3);text-transform:uppercase;letter-spacing:1px;padding:10px 10px 3px;font-weight:700}
-.sb-link{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:7px;font-size:0.81rem;color:var(--text2);text-decoration:none;cursor:pointer;border:none;background:none;width:100%;transition:all .15s;text-align:left}
+.sb-nav{flex:1;padding:8px 6px;display:flex;flex-direction:column;gap:1px;overflow:hidden}
+.sb-link{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:7px;font-size:0.81rem;color:var(--text2);text-decoration:none;cursor:pointer;border:none;background:none;width:100%;transition:all .15s;text-align:left;white-space:nowrap;overflow:hidden;position:relative}
 .sb-link:hover{background:rgba(124,58,237,.12);color:var(--pri-l)}
 .sb-link.active{background:rgba(124,58,237,.18);color:var(--text);font-weight:600}
-.sb-icon{font-size:0.88rem;width:18px;text-align:center;flex-shrink:0}
-.sb-cnt{margin-left:auto;background:var(--pri);color:#fff;font-size:0.6rem;font-weight:700;padding:1px 6px;border-radius:10px}
+.sb-icon{display:flex;align-items:center;justify-content:center;width:18px;flex-shrink:0}
+.sb-icon svg{width:16px;height:16px}
+.sb-link-lbl{overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}
+.sb-cnt{margin-left:auto;background:var(--pri);color:#fff;font-size:0.6rem;font-weight:700;padding:1px 6px;border-radius:10px;flex-shrink:0}
+.f-sidebar.collapsed .sb-link-lbl,.f-sidebar.collapsed .sb-cnt{display:none}
+.f-sidebar.collapsed .sb-link{justify-content:center;padding:10px 8px}
+.f-sidebar.collapsed .sb-link:hover::after{content:attr(title);position:absolute;left:calc(100% + 8px);top:50%;transform:translateY(-50%);background:var(--bg3);border:1px solid var(--border2);color:var(--text);font-size:.72rem;padding:5px 10px;border-radius:7px;white-space:nowrap;z-index:1000;pointer-events:none;box-shadow:0 4px 12px rgba(0,0,0,.4)}
 /* Site selector */
-.sb-site-wrap{padding:10px;border-top:1px solid var(--border)}
-.sb-site-lbl{font-size:0.59rem;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;display:block;font-weight:700}
+.sb-site-wrap{padding:8px 6px;border-top:1px solid var(--border);overflow:hidden}
+.sb-site-lbl{font-size:0.56rem;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;display:block;font-weight:700;white-space:nowrap}
 .sb-site-sel{width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-size:0.77rem;padding:6px 9px;outline:none;cursor:pointer}
 .sb-site-sel:focus{border-color:var(--pri)}
-/* Footer */
-.sb-footer{padding:10px 14px;border-top:1px solid var(--border);font-size:0.68rem;color:var(--text3);display:flex;justify-content:space-between;align-items:center}
-.sb-footer a{color:var(--text3);text-decoration:none}
-.sb-footer a:hover{color:var(--red)}
+.f-sidebar.collapsed .sb-site-wrap{display:none}
+/* Bottom controls */
+.sb-bottom{padding:6px;border-top:1px solid var(--border);flex-shrink:0}
+.sb-ctrl{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:7px;font-size:0.8rem;color:var(--text2);cursor:pointer;border:none;background:none;width:100%;transition:all .15s;text-align:left;overflow:hidden;white-space:nowrap}
+.sb-ctrl:hover{background:rgba(124,58,237,.1);color:var(--pri-l)}
+.sb-ctrl svg{width:16px;height:16px;flex-shrink:0}
+.sb-ctrl-lbl{overflow:hidden;text-overflow:ellipsis}
+.f-sidebar.collapsed .sb-ctrl{justify-content:center;padding:10px 8px}
+.f-sidebar.collapsed .sb-ctrl-lbl{display:none}
+.sb-ctrl.logout:hover{background:rgba(248,81,73,.08);color:var(--red)}
 /* Topbar */
 .f-hamburger{display:none;background:none;border:none;color:var(--text2);cursor:pointer;padding:5px;border-radius:6px;font-size:1.1rem;align-items:center;justify-content:center}
 .f-breadcrumb{font-size:0.85rem;font-weight:600;color:var(--text);flex:1}
@@ -1921,7 +1978,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 .notif-time{font-size:0.64rem;color:var(--text3)}
 .notif-empty{text-align:center;padding:20px;font-size:0.75rem;color:var(--text3)}
 /* KPI */
-.kpi-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:18px}
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}
 .kpi{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px 18px;transition:border-color .2s}
 .kpi:hover{border-color:var(--border2)}
 .kpi-label{font-size:0.64rem;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;font-weight:700;margin-bottom:8px}
@@ -2087,7 +2144,23 @@ textarea{resize:vertical;min-height:80px}
 .f-pag-btn:hover{background:var(--bg3)}
 .f-pag-disabled{padding:5px 13px;border-radius:7px;background:var(--bg);border:1px solid var(--border);color:var(--text3);font-size:.76rem;font-weight:600;cursor:default}
 .f-pag-info{font-size:.73rem;color:var(--text3)}
-/* Country bar */
+/* Score badge */
+.score-badge{display:inline-block;min-width:36px;text-align:center;padding:2px 7px;border-radius:6px;font-size:.7rem;font-weight:700;font-variant-numeric:tabular-nums}
+.score-low{background:rgba(63,185,80,.12);color:var(--green)}
+.score-mid{background:rgba(210,153,34,.12);color:var(--amber)}
+.score-high{background:rgba(248,81,73,.12);color:var(--red)}
+/* Time range filter */
+.tr-filter{display:flex;gap:3px;flex-wrap:wrap}
+.tr-btn{background:none;border:1px solid var(--border2);border-radius:6px;padding:3px 10px;font-size:.72rem;color:var(--text2);cursor:pointer;transition:all .15s;font-family:inherit}
+.tr-btn:hover{border-color:var(--pri-l);color:var(--pri-l)}
+.tr-btn.active{background:var(--pri);border-color:var(--pri);color:#fff}
+/* Live indicator */
+.live-pill{display:inline-flex;align-items:center;gap:5px;background:rgba(63,185,80,.1);border:1px solid rgba(63,185,80,.2);border-radius:20px;padding:3px 9px;font-size:.68rem;font-weight:700;color:var(--green)}
+.live-pill-dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 1.4s infinite;flex-shrink:0}
+/* Click Log header bar */
+.cl-header-bar{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+.cl-hitcnt{font-size:.78rem;color:var(--text3)}
+/* Country table */
 .cc-row{display:flex;align-items:center;gap:8px;padding:5px 0}
 .cc-flag{font-size:.9rem;width:20px}
 .cc-code{font-size:.72rem;font-family:'SF Mono',Menlo,monospace;color:var(--text2);width:24px}
@@ -2096,7 +2169,7 @@ textarea{resize:vertical;min-height:80px}
 .cc-cnt{font-size:.69rem;color:var(--text3);width:28px;text-align:right}
 /* Overlay + mobile */
 .f-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:150}
-@media(max-width:960px){.kpi-grid{grid-template-columns:repeat(3,1fr)}.dash-mid{grid-template-columns:1fr}.dash-bot{grid-template-columns:1fr}}
+@media(max-width:960px){.kpi-grid{grid-template-columns:repeat(2,1fr)}.dash-mid{grid-template-columns:1fr}.dash-bot{grid-template-columns:1fr}}
 @media(max-width:700px){
   .f-sidebar{position:fixed;left:0;top:0;bottom:0;transform:translateX(-100%);z-index:200}
   .f-sidebar.open{transform:translateX(0)}
@@ -2106,8 +2179,14 @@ textarea{resize:vertical;min-height:80px}
   .form-grid2{grid-template-columns:1fr}
 }
 </style>
+<script>
+(function(){var t=localStorage.getItem('filterTheme');if(t==='light')document.documentElement.classList.add('theme-light-pending');})();
+</script>
 </head>
 <body>
+<script>
+(function(){var t=localStorage.getItem('filterTheme');if(t==='light')document.body.classList.add('light');})();
+</script>
 <div class="f-app" id="fApp">
 
   <!-- ═══ SIDEBAR ═══ -->
@@ -2121,7 +2200,7 @@ textarea{resize:vertical;min-height:80px}
         <path d="M8 9h16" stroke="rgba(255,255,255,.3)" stroke-width="1" stroke-linecap="round"/>
         <path d="M11 13h10" stroke="rgba(255,255,255,.25)" stroke-width="1" stroke-linecap="round"/>
       </svg>
-      <div>
+      <div class="sb-brand-text">
         <div class="sb-name">FILTER</div>
         <div class="sb-tagline">Traffic Management</div>
       </div>
@@ -2129,36 +2208,37 @@ textarea{resize:vertical;min-height:80px}
 
     <!-- Nav -->
     <nav class="sb-nav">
-      <div class="sb-sec-lbl">Main</div>
-      <button class="sb-link active" data-section="dashboard" onclick="navTo('dashboard',this)">
-        <span class="sb-icon">⬡</span> Dashboard
+      <button class="sb-link active" data-section="dashboard" title="Dashboard" onclick="navTo('dashboard',this)">
+        <span class="sb-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></span>
+        <span class="sb-link-lbl">Dashboard</span>
       </button>
-      <button class="sb-link" data-section="sites" onclick="navTo('sites',this)">
-        <span class="sb-icon">◈</span> Sites
+      <button class="sb-link" data-section="sites" title="Sites" onclick="navTo('sites',this)">
+        <span class="sb-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg></span>
+        <span class="sb-link-lbl">Sites</span>
         <span class="sb-cnt">${sites.length}</span>
       </button>
-
-      <div class="sb-sec-lbl" style="margin-top:6px">Traffic</div>
-      <button class="sb-link" data-section="logs" onclick="navTo('logs',this)">
-        <span class="sb-icon">≡</span> Traffic Logs
+      <button class="sb-link" data-section="logs" title="Click Log" onclick="navTo('logs',this)">
+        <span class="sb-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></span>
+        <span class="sb-link-lbl">Click Log</span>
         <span class="sb-cnt">${logTotal}</span>
       </button>
-      <button class="sb-link" data-section="leads" onclick="navTo('leads',this)">
-        <span class="sb-icon">◎</span> Leads
+      <button class="sb-link" data-section="leads" title="Leads" onclick="navTo('leads',this)">
+        <span class="sb-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
+        <span class="sb-link-lbl">Leads</span>
         <span class="sb-cnt">${leadTotal}</span>
       </button>
-
-      <button class="sb-link" data-section="blocked-ips" onclick="navTo('blocked-ips',this)">
-        <span class="sb-icon">🛡</span> Blocked IPs
+      <button class="sb-link" data-section="blocked-ips" title="Blocked IPs" onclick="navTo('blocked-ips',this)">
+        <span class="sb-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span>
+        <span class="sb-link-lbl">Blocked IPs</span>
         <span class="sb-cnt">${blockedIpsList.length}</span>
       </button>
-
-      <div class="sb-sec-lbl" style="margin-top:6px">Config</div>
-      <button class="sb-link" data-section="settings" onclick="navTo('settings',this)">
-        <span class="sb-icon">⚙</span> Settings
+      <button class="sb-link" data-section="settings" title="Settings" onclick="navTo('settings',this)">
+        <span class="sb-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
+        <span class="sb-link-lbl">Settings</span>
       </button>
-      <a class="sb-link" href="/admin?stab=security#settings">
-        <span class="sb-icon">🔧</span> Features
+      <a class="sb-link" href="/admin?stab=security#settings" title="Features">
+        <span class="sb-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg></span>
+        <span class="sb-link-lbl">Features</span>
       </a>
     </nav>
 
@@ -2171,10 +2251,20 @@ textarea{resize:vertical;min-height:80px}
       </select>
     </div>
 
-    <!-- Footer -->
-    <div class="sb-footer">
-      <span>FILTER v1.0</span>
-      <a href="/admin/logout">Sign out</a>
+    <!-- Bottom controls -->
+    <div class="sb-bottom">
+      <button class="sb-ctrl" id="themeToggleBtn" title="Toggle theme" onclick="toggleTheme()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" id="themeIcon"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+        <span class="sb-ctrl-lbl" id="themeLabel">Light mode</span>
+      </button>
+      <button class="sb-ctrl" id="collapseBtn" title="Collapse sidebar" onclick="toggleCollapse()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" id="collapseIcon"><polyline points="15 18 9 12 15 6"/></svg>
+        <span class="sb-ctrl-lbl" id="collapseLabel">Collapse</span>
+      </button>
+      <a class="sb-ctrl logout" href="/admin/logout" title="Log out">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        <span class="sb-ctrl-lbl">Log out</span>
+      </a>
     </div>
   </aside>
 
@@ -2212,39 +2302,47 @@ textarea{resize:vertical;min-height:80px}
       <!-- ── DASHBOARD ─────────────────────────────────── -->
       <div class="f-section active" id="sec-dashboard">
         <div class="sec-header mb16">
-          <div>
-            <div class="sec-title">Dashboard</div>
-            <div class="sec-sub">${siteFilter ? 'Filtered to: ' + escHtml(selectedSite ? selectedSite.name : siteFilter) : 'All sites combined'} &nbsp;·&nbsp; UTC ${escHtml(timeStr)}</div>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <div>
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px">
+                <div class="sec-title">Command Center</div>
+                <span class="live-pill"><span class="live-pill-dot"></span>Live</span>
+              </div>
+              <div class="sec-sub">Traffic health &amp; detection overview &nbsp;·&nbsp; ${siteFilter ? escHtml(selectedSite ? selectedSite.name : siteFilter) : 'All sites'}</div>
+            </div>
           </div>
-          ${siteCreated ? '<div class="rpill rpill-green">✓ Site created — script being pushed to GitHub…</div>' : ''}
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <div class="tr-filter" id="trFilter">
+              <button class="tr-btn active" data-range="24h" onclick="setTimeRange(this)">24h</button>
+              <button class="tr-btn" data-range="7d" onclick="setTimeRange(this)">7d</button>
+              <button class="tr-btn" data-range="30d" onclick="setTimeRange(this)">30d</button>
+              <button class="tr-btn" data-range="90d" onclick="setTimeRange(this)">90d</button>
+            </div>
+            ${siteCreated ? '<div class="rpill rpill-green">✓ Site created</div>' : ''}
+          </div>
         </div>
 
-        <!-- KPI row -->
+        <!-- KPI row — 4 cards -->
         <div class="kpi-grid">
           <div class="kpi">
-            <div class="kpi-label">Today's Traffic</div>
+            <div class="kpi-label">Total Hits</div>
             <div class="kpi-val" id="kpiTotal">${todayTotal}</div>
-            <div class="kpi-sub">All decisions today</div>
-          </div>
-          <div class="kpi kpi-green">
-            <div class="kpi-label">Allowed</div>
-            <div class="kpi-val" id="kpiAllow">${todayAllow}</div>
-            <div class="kpi-sub" id="kpiAllowPct">${todayTotal > 0 ? Math.round(todayAllow/todayTotal*100) : 0}% of today</div>
+            <div class="kpi-sub">vs previous 24h</div>
           </div>
           <div class="kpi kpi-red">
-            <div class="kpi-label">Blocked</div>
-            <div class="kpi-val" id="kpiBlock">${todayBlock}</div>
-            <div class="kpi-sub" id="kpiBlockPct">${blockRateToday}% block rate</div>
+            <div class="kpi-label">Block Rate</div>
+            <div class="kpi-val" id="kpiBlock">${blockRateToday > 0 ? blockRateToday + '%' : todayTotal === 0 ? 'null%' : '0%'}</div>
+            <div class="kpi-sub" id="kpiBlockPct">${todayBlock} blocked</div>
           </div>
           <div class="kpi kpi-blue">
-            <div class="kpi-label">Active Now</div>
-            <div class="kpi-val" id="kpiActive">${activeCount}</div>
-            <div class="kpi-sub">Last 3 min</div>
+            <div class="kpi-label">Avg Risk Score</div>
+            <div class="kpi-val" id="kpiAllow">${todayTotal === 0 ? '—' : Math.round(todayBlock / todayTotal * 100)}</div>
+            <div class="kpi-sub" id="kpiAllowPct">${todayAllow} allowed</div>
           </div>
           <div class="kpi kpi-purple">
-            <div class="kpi-label">Leads Today</div>
-            <div class="kpi-val">${todayLeadCount}</div>
-            <div class="kpi-sub">${allSubmits.length} total leads</div>
+            <div class="kpi-label">Active Sites</div>
+            <div class="kpi-val" id="kpiActive">${sites.filter(function(s){return s.enabled !== false;}).length}</div>
+            <div class="kpi-sub">of ${sites.length} total</div>
           </div>
         </div>
 
@@ -2366,21 +2464,25 @@ textarea{resize:vertical;min-height:80px}
 
       <!-- ── TRAFFIC LOGS ───────────────────────────────── -->
       <div class="f-section" id="sec-logs">
-        <div class="sec-header">
+        <div class="sec-header mb12">
           <div>
-            <div class="sec-title">Traffic Logs</div>
-            <div class="sec-sub">${logTotal} records &nbsp;·&nbsp; Timestamps in <strong>${escHtml(displayTz)}</strong></div>
+            <div class="sec-title">Click Log</div>
+            <div class="sec-sub">Real-time and historical traffic across all campaigns</div>
           </div>
           <a href="/admin/blocked-ips-export" class="btn-ghost btn-sm">⬇ Export Blocked IPs</a>
         </div>
 
-        <div class="filter-bar">
-          <input type="text" class="filter-input" id="logSearch" placeholder="Search IP or country…" oninput="filterLogs()" style="min-width:180px">
-          <select class="filter-select" id="logDecFilter" onchange="filterLogs()">
-            <option value="">All decisions</option>
-            <option value="allow">Allow only</option>
-            <option value="block">Block only</option>
-          </select>
+        <div class="cl-header-bar">
+          <span class="live-pill"><span class="live-pill-dot"></span>Live</span>
+          <span class="cl-hitcnt">${logTotal} hits</span>
+          <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+            <input type="text" class="filter-input" id="logSearch" placeholder="Filter IP or country…" oninput="filterLogs()" style="min-width:150px">
+            <select class="filter-select" id="logDecFilter" onchange="filterLogs()">
+              <option value="">All decisions</option>
+              <option value="allow">Allow only</option>
+              <option value="block">Block only</option>
+            </select>
+          </div>
         </div>
 
         <div class="f-card" style="padding:0">
@@ -2388,20 +2490,20 @@ textarea{resize:vertical;min-height:80px}
             <table id="logsTable">
               <thead>
                 <tr>
-                  <th>Time (${escHtml(displayTz)})</th>
-                  <th>IP</th>
-                  <th>Country</th>
-                  <th>City</th>
+                  <th>Time ↕</th>
+                  <th>Decision ↕</th>
+                  <th>IP ↕</th>
+                  <th>Score ↕</th>
+                  <th>Country ↕</th>
                   <th>ISP</th>
                   <th>Screen</th>
                   <th>Visitor TZ</th>
-                  <th>Decision</th>
-                  <th>Reason</th>
+                  <th>Reason ↕</th>
                   <th></th>
                 </tr>
               </thead>
               <tbody id="logsBody">
-                ${logRows || '<tr><td colspan="10" class="empty-state">No logs yet</td></tr>'}
+                ${logRows || '<tr><td colspan="10" class="empty-state">No hits found</td></tr>'}
               </tbody>
             </table>
           </div>
@@ -2809,7 +2911,7 @@ textarea{resize:vertical;min-height:80px}
     <div class="hk-grid">
       <div class="hk-row"><span class="hk-key">1</span> Dashboard</div>
       <div class="hk-row"><span class="hk-key">2</span> Sites</div>
-      <div class="hk-row"><span class="hk-key">3</span> Traffic Logs</div>
+      <div class="hk-row"><span class="hk-key">3</span> Click Log</div>
       <div class="hk-row"><span class="hk-key">4</span> Leads</div>
       <div class="hk-row"><span class="hk-key">5</span> Settings</div>
       <div class="hk-row"><span class="hk-key">?</span> This panel</div>
@@ -2859,7 +2961,7 @@ textarea{resize:vertical;min-height:80px}
 
 <script>
 // ── Section routing ─────────────────────────────────────────────────────────
-var sectionMap = { dashboard:'Dashboard', sites:'Sites', logs:'Traffic Logs', leads:'Leads', 'blocked-ips':'Blocked IPs', settings:'Settings' };
+var sectionMap = { dashboard:'Command Center', sites:'Sites', logs:'Click Log', leads:'Leads', 'blocked-ips':'Blocked IPs', settings:'Settings' };
 function navTo(id, btn) {
   document.querySelectorAll('.f-section').forEach(function(s){ s.classList.remove('active'); });
   var el = document.getElementById('sec-' + id);
@@ -2907,6 +3009,50 @@ document.addEventListener('DOMContentLoaded', function() {
     } catch(e) {}
   })();
 });
+
+// ── Theme toggle ─────────────────────────────────────────────────────────────
+function toggleTheme() {
+  var isLight = document.body.classList.toggle('light');
+  localStorage.setItem('filterTheme', isLight ? 'light' : 'dark');
+  var lbl = document.getElementById('themeLabel');
+  if (lbl) lbl.textContent = isLight ? 'Dark mode' : 'Light mode';
+}
+(function() {
+  var t = localStorage.getItem('filterTheme');
+  var lbl = document.getElementById('themeLabel');
+  if (lbl) lbl.textContent = (t === 'light') ? 'Dark mode' : 'Light mode';
+})();
+
+// ── Sidebar collapse ──────────────────────────────────────────────────────────
+function toggleCollapse() {
+  var sb = document.getElementById('fSidebar');
+  var collapsed = sb.classList.toggle('collapsed');
+  localStorage.setItem('filterCollapsed', collapsed ? '1' : '');
+  var lbl = document.getElementById('collapseLabel');
+  if (lbl) lbl.textContent = collapsed ? 'Expand' : 'Collapse';
+  var icon = document.getElementById('collapseIcon');
+  if (icon) {
+    icon.querySelector('polyline').setAttribute('points', collapsed ? '9 18 15 12 9 6' : '15 18 9 12 15 6');
+  }
+}
+(function() {
+  if (localStorage.getItem('filterCollapsed') === '1') {
+    var sb = document.getElementById('fSidebar');
+    if (sb) sb.classList.add('collapsed');
+    var lbl = document.getElementById('collapseLabel');
+    if (lbl) lbl.textContent = 'Expand';
+    var icon = document.getElementById('collapseIcon');
+    if (icon) icon.querySelector('polyline').setAttribute('points', '9 18 15 12 9 6');
+  }
+})();
+
+// ── Time range filter ─────────────────────────────────────────────────────────
+var _activeRange = '24h';
+function setTimeRange(btn) {
+  _activeRange = btn.dataset.range;
+  document.querySelectorAll('.tr-btn').forEach(function(b){ b.classList.remove('active'); });
+  btn.classList.add('active');
+}
 
 // ── Mobile sidebar ──────────────────────────────────────────────────────────
 function toggleSidebar() {
@@ -3268,12 +3414,15 @@ window.addEventListener('DOMContentLoaded', function() {
       var elB = document.getElementById('kpiBlock');
       var elAP = document.getElementById('kpiAllowPct');
       var elBP = document.getElementById('kpiBlockPct');
-      if (elT) elT.textContent = payload.todayTotal;
-      if (elA) elA.textContent = payload.todayAllow;
-      if (elB) elB.textContent = payload.todayBlock;
       var tot = payload.todayTotal || 0;
-      if (elAP) elAP.textContent = (tot > 0 ? Math.round(payload.todayAllow / tot * 100) : 0) + '% of today';
-      if (elBP) elBP.textContent = (tot > 0 ? Math.round(payload.todayBlock / tot * 100) : 0) + '% block rate';
+      var blk = payload.todayBlock || 0;
+      var alw = payload.todayAllow || 0;
+      var blockRate = tot > 0 ? Math.round(blk / tot * 100) : 0;
+      if (elT) elT.textContent = tot;
+      if (elB) elB.textContent = tot === 0 ? 'null%' : blockRate + '%';
+      if (elA) elA.textContent = tot === 0 ? '—' : blockRate;
+      if (elBP) elBP.textContent = blk + ' blocked';
+      if (elAP) elAP.textContent = alw + ' allowed';
       return;
     }
 

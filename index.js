@@ -15,7 +15,6 @@ const SETTINGS_FILE = path.join(__dirname, 'data', 'settings.json');
 const LOGS_FILE     = path.join(__dirname, 'data', 'logs.json');
 const LEADS_FILE    = path.join(__dirname, 'data', 'leads.json');
 const SITES_FILE    = path.join(__dirname, 'data', 'sites.json');
-const CONFIG_FILE   = path.join(__dirname, 'data', 'config.json');
 const MAX_LOG_ENTRIES  = 10000;
 const MAX_LEAD_ENTRIES = 5000;
 
@@ -29,14 +28,24 @@ function readSettings() {
   }
 }
 
-function readConfig() {
-  try { return JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8')); } catch (e) { return {}; }
-}
-function writeConfig(data) {
-  fs.writeFileSync(CONFIG_FILE, JSON.stringify(data, null, 2));
-}
 function getRailwayToken() {
-  return process.env.RAILWAY_API_TOKEN || readConfig().railwayToken || '';
+  return process.env.RAILWAY_API_TOKEN || '';
+}
+
+function setDeployStatus(siteId, status) {
+  var sites = readSites();
+  var changed = false;
+  for (var i = 0; i < sites.length; i++) {
+    if (sites[i].id === siteId && sites[i].deployStatus !== status) {
+      sites[i].deployStatus = status;
+      changed = true;
+      break;
+    }
+  }
+  if (changed) {
+    writeSites(sites);
+    logEmitter.emit('siteStatus', { siteId: siteId, status: status });
+  }
 }
 
 function writeSettings(data) {
@@ -253,7 +262,7 @@ async function githubInject(site, hubUrl) {
 
     if (!injected.length) return { ok: false, reason: 'inject-failed' };
 
-    // Update site deploy status
+    // Update site deploy status and notify SSE subscribers
     var sites = readSites();
     for (var j = 0; j < sites.length; j++) {
       if (sites[j].id === site.id) {
@@ -264,10 +273,51 @@ async function githubInject(site, hubUrl) {
       }
     }
     writeSites(sites);
+    logEmitter.emit('siteStatus', { siteId: site.id, status: 'pushed' });
     return { ok: true, injected: injected };
   } catch (e) {
     return { ok: false, reason: 'error', message: e.message };
   }
+}
+
+async function autoDiscoverRailwayIds(githubRepoUrl) {
+  var token = getRailwayToken();
+  if (!token || !githubRepoUrl) return null;
+  // Normalize: extract "owner/repo" from full GitHub URL
+  var repoPath = githubRepoUrl.replace(/^https?:\/\/github\.com\//, '').replace(/\.git$/, '').toLowerCase().trim();
+  if (!repoPath) return null;
+  try {
+    var qStr = JSON.stringify({ query: 'query { projects { edges { node { id name services { edges { node { id name repoTriggers { edges { node { repository } } } } } } } } } }' });
+    return new Promise(function(resolve) {
+      var opts = { hostname:'backboard.railway.app', path:'/graphql/v2', method:'POST', headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json','Content-Length':Buffer.byteLength(qStr)} };
+      var rq = https.request(opts, function(rs) {
+        var d = ''; rs.on('data', c => d += c);
+        rs.on('end', function() {
+          try {
+            var parsed = JSON.parse(d);
+            var projects = (parsed.data && parsed.data.projects && parsed.data.projects.edges) || [];
+            for (var pi = 0; pi < projects.length; pi++) {
+              var proj = projects[pi].node;
+              var services = (proj.services && proj.services.edges) || [];
+              for (var si = 0; si < services.length; si++) {
+                var svc = services[si].node;
+                var triggers = (svc.repoTriggers && svc.repoTriggers.edges) || [];
+                for (var ti = 0; ti < triggers.length; ti++) {
+                  var repo = (triggers[ti].node && triggers[ti].node.repository || '').toLowerCase();
+                  if (repo === repoPath || repo.endsWith('/' + repoPath)) {
+                    return resolve({ projectId: proj.id, serviceId: svc.id });
+                  }
+                }
+              }
+            }
+            resolve(null);
+          } catch(err) { resolve(null); }
+        });
+      });
+      rq.on('error', () => resolve(null)); rq.setTimeout(10000, () => { rq.destroy(); resolve(null); });
+      rq.write(qStr); rq.end();
+    });
+  } catch(e) { return null; }
 }
 
 async function railwayDeploy(site) {
@@ -781,9 +831,13 @@ app.get('/admin/events', requireAdmin, function(req, res) {
   function onLead(entry) {
     res.write('data: ' + JSON.stringify({ type: 'lead', entry: entry }) + '\n\n');
   }
+  function onSiteStatus(payload) {
+    res.write('data: ' + JSON.stringify({ type: 'siteStatus', siteId: payload.siteId, status: payload.status }) + '\n\n');
+  }
 
   logEmitter.on('newLog', onLog);
   logEmitter.on('newLead', onLead);
+  logEmitter.on('siteStatus', onSiteStatus);
 
   var keepAlive = setInterval(function() {
     res.write(': ping\n\n');
@@ -792,6 +846,7 @@ app.get('/admin/events', requireAdmin, function(req, res) {
   req.on('close', function() {
     logEmitter.removeListener('newLog', onLog);
     logEmitter.removeListener('newLead', onLead);
+    logEmitter.removeListener('siteStatus', onSiteStatus);
     clearInterval(keepAlive);
   });
 });
@@ -803,19 +858,6 @@ app.post('/admin/settings', requireAdmin, function(req, res) {
   settings.safeUrl  = (req.body.safeUrl  || '/safe').trim();
   writeSettings(settings);
   res.redirect('/admin');
-});
-
-// ─── Railway token setup (stored in data/config.json, shadowed by env var) ───
-app.post('/admin/settings/railway-token', requireAdmin, function(req, res) {
-  var token = (req.body.railwayToken || '').trim();
-  var cfg = readConfig();
-  if (token) {
-    cfg.railwayToken = token;
-  } else {
-    delete cfg.railwayToken;
-  }
-  writeConfig(cfg);
-  res.redirect('/admin#settings');
 });
 
 // ─── Admin toggle cloaking ────────────────────────────────────────────────────
@@ -831,10 +873,7 @@ app.post('/admin/toggle', requireAdmin, async function(req, res) {
     githubInject(defSite, hubUrl).then(function(r) {
       if (r && r.ok) {
         railwayDeploy(defSite).then(function(dr) {
-          if (dr && dr.ok) {
-            var ss = readSites(); var si = ss.findIndex(function(x) { return x.isDefault; });
-            if (si !== -1) { ss[si].deployStatus = 'building'; writeSites(ss); }
-          }
+          if (dr && dr.ok) setDeployStatus(defSite.id, 'building');
           setTimeout(pollRailwayStatuses, 30000);
         }).catch(function() { setTimeout(pollRailwayStatuses, 30000); });
       }
@@ -958,24 +997,30 @@ app.post('/admin/sites', requireAdmin, async function(req, res) {
   sites.push(newSite);
   writeSites(sites);
 
-  // Fire GitHub inject in background — don't block redirect
+  // Background: auto-discover Railway IDs from GitHub repo URL, then inject + deploy
   if (githubRepo && process.env.GITHUB_TOKEN) {
-    githubInject(newSite, hubUrl).then(function(r) {
-      if (r && r.ok) {
+    // Auto-discover Railway projectId/serviceId from the provided GitHub repo URL
+    autoDiscoverRailwayIds(githubRepo).then(function(ids) {
+      if (ids) {
         var ss = readSites();
         for (var i = 0; i < ss.length; i++) {
-          if (ss[i].id === id) { ss[i].deployStatus = 'pushed'; break; }
+          if (ss[i].id === id) {
+            ss[i].railwayProjectId = ids.projectId;
+            ss[i].railwayServiceId = ids.serviceId;
+            newSite.railwayProjectId = ids.projectId;
+            newSite.railwayServiceId = ids.serviceId;
+            break;
+          }
         }
         writeSites(ss);
-        // Trigger Railway redeploy, update status to building, then poll
+        console.log('Auto-discovered Railway IDs for site ' + id + ': project=' + ids.projectId + ' service=' + ids.serviceId);
+      }
+      // Inject script into GitHub, then trigger Railway redeploy
+      return githubInject(newSite, hubUrl);
+    }).then(function(r) {
+      if (r && r.ok) {
         railwayDeploy(newSite).then(function(dr) {
-          if (dr && dr.ok) {
-            var ss2 = readSites();
-            for (var j = 0; j < ss2.length; j++) {
-              if (ss2[j].id === id) { ss2[j].deployStatus = 'building'; break; }
-            }
-            writeSites(ss2);
-          }
+          if (dr && dr.ok) setDeployStatus(id, 'building');
           setTimeout(pollRailwayStatuses, 30000);
         }).catch(function() { setTimeout(pollRailwayStatuses, 30000); });
       }
@@ -1019,15 +1064,9 @@ app.post('/admin/sites/:id/settings', requireAdmin, async function(req, res) {
   if (site.githubRepo && process.env.GITHUB_TOKEN) {
     githubInject(site, hubUrl).then(function(r) {
       if (r && r.ok) {
-        var ss = readSites();
-        var si = ss.findIndex(function(x) { return x.id === id; });
-        if (si !== -1) { ss[si].deployStatus = 'pushed'; writeSites(ss); }
-        // Trigger Railway redeploy, then poll for live status
+        // githubInject already set 'pushed' status + SSE emit; trigger Railway redeploy next
         railwayDeploy(site).then(function(dr) {
-          if (dr && dr.ok) {
-            var ss2 = readSites(); var si2 = ss2.findIndex(function(x) { return x.id === id; });
-            if (si2 !== -1) { ss2[si2].deployStatus = 'building'; writeSites(ss2); }
-          }
+          if (dr && dr.ok) setDeployStatus(id, 'building');
           setTimeout(pollRailwayStatuses, 30000);
         }).catch(function() { setTimeout(pollRailwayStatuses, 30000); });
       }
@@ -1054,13 +1093,9 @@ app.post('/admin/sites/:id/regenerate-key', requireAdmin, async function(req, re
     var siteSnapshot = sites[idx];
     githubInject(siteSnapshot, hubUrl).then(function(r) {
       if (r && r.ok) {
-        var ss = readSites(); var si = ss.findIndex(function(x) { return x.id === id; });
-        if (si !== -1) { ss[si].deployStatus = 'pushed'; writeSites(ss); }
+        // githubInject already set 'pushed' status + SSE emit
         railwayDeploy(siteSnapshot).then(function(dr) {
-          if (dr && dr.ok) {
-            var ss2 = readSites(); var si2 = ss2.findIndex(function(x) { return x.id === id; });
-            if (si2 !== -1) { ss2[si2].deployStatus = 'building'; writeSites(ss2); }
-          }
+          if (dr && dr.ok) setDeployStatus(id, 'building');
           setTimeout(pollRailwayStatuses, 30000);
         }).catch(function() { setTimeout(pollRailwayStatuses, 30000); });
       }
@@ -1090,13 +1125,14 @@ app.post('/admin/sites/:id/toggle', requireAdmin, async function(req, res) {
     // Re-inject script so GitHub/Railway picks up the change
     var hubUrl = 'https://' + (process.env.REPLIT_DEV_DOMAIN || req.headers.host || 'localhost');
     if (sites[idx].githubRepo && process.env.GITHUB_TOKEN) {
-      githubInject(sites[idx], hubUrl).then(function(r) {
+      var toggledSite = sites[idx];
+      githubInject(toggledSite, hubUrl).then(function(r) {
         if (r && r.ok) {
-          var ss = readSites(); var si = ss.findIndex(function(x) { return x.id === id; });
-          if (si !== -1) { ss[si].deployStatus = 'pushed'; writeSites(ss); }
-          // Trigger Railway redeploy and then poll status
-          railwayDeploy(sites[idx]).catch(function(){});
-          setTimeout(pollRailwayStatuses, 30000);
+          // githubInject already set 'pushed' status + SSE emit
+          railwayDeploy(toggledSite).then(function(dr) {
+            if (dr && dr.ok) setDeployStatus(id, 'building');
+            setTimeout(pollRailwayStatuses, 30000);
+          }).catch(function() { setTimeout(pollRailwayStatuses, 30000); });
         }
       }).catch(function() {});
     }
@@ -1183,6 +1219,7 @@ async function pollRailwayStatuses() {
         sites[i].deployStatus = mapped;
         changed = true;
         console.log('Railway status update: site=' + site.id + ' status=' + mapped);
+        logEmitter.emit('siteStatus', { siteId: site.id, status: mapped });
       }
     } catch (e) { /* silent — Railway token may not be set */ }
   }
@@ -1532,7 +1569,7 @@ function adminDashboardPage(settings, logs, leads, opts) {
     var sid = escHtml(s.id);
 
     return '<div style="margin-bottom:8px">'
-      + '<div class="sl-row">'
+      + '<div class="sl-row" data-site-id="' + sid + '" data-deploy-status="' + escHtml(s.deployStatus || 'pending') + '">'
       +   '<div class="sl-icon">🌐</div>'
       +   '<div class="sl-info">'
       +     '<div class="sl-name">' + escHtml(s.name) + (s.isDefault ? ' <span class="rpill rpill-grey" style="font-size:0.62rem">DEFAULT</span>' : '') + '</div>'
@@ -2304,18 +2341,16 @@ textarea{resize:vertical;min-height:80px}
             <div class="f-card-title">Railway Integration</div>
             <div class="flex-gap8 mb12">
               ${hasRailwayToken
-                ? '<span class="db-live">● Connected</span><span class="hint">Railway API token is set — deploy monitoring and auto-redeploy enabled</span>'
-                : '<span class="db-pending">○ Not connected</span><span class="hint" style="color:var(--amber)">Enter your Railway API token below to enable deploy monitoring</span>'}
+                ? '<span class="db-live">● Connected</span><span class="hint">Railway API token is set — auto-redeploy and deploy monitoring are active</span>'
+                : '<span class="db-pending">○ Not connected</span><span class="hint" style="color:var(--amber)">Set <strong>RAILWAY_API_TOKEN</strong> as an environment secret to enable</span>'}
             </div>
-            <p class="hint mb12">Your Railway API token allows FILTER to trigger redeployments and monitor live deploy status. It is stored securely on this server and never exposed to the browser. You can also set it via the <code>RAILWAY_API_TOKEN</code> environment secret (takes priority).</p>
-            <form method="POST" action="/admin/settings/railway-token">
-              <div class="form-row" style="gap:8px;align-items:center">
-                <input type="password" name="railwayToken" placeholder="${hasRailwayToken ? '••••••••••••••••' : 'Paste Railway API token here…'}" style="flex:1;background:#0d0018;border:1px solid #2e1655;color:#e2d9ff;padding:8px 12px;border-radius:8px;font-size:0.85rem">
-                <button type="submit" class="btn-primary" style="padding:8px 18px;font-size:0.85rem">Save Token</button>
-                ${hasRailwayToken ? '<button type="submit" name="railwayToken" value="" class="btn-sm" style="background:#1a0030;border:1px solid #7f1d1d;color:#f87171;padding:8px 12px;border-radius:8px;font-size:0.78rem">Clear</button>' : ''}
-              </div>
-            </form>
-            <p class="hint" style="margin-top:8px">After saving the token, add the <strong>Railway Project ID</strong> and <strong>Railway Service ID</strong> to each site in the Sites tab.</p>
+            <p class="hint">Your Railway API token is read from the <strong>RAILWAY_API_TOKEN</strong> environment secret. To set it:</p>
+            <ol class="hint" style="margin:8px 0 0 16px;line-height:1.8">
+              <li>Open <strong>Railway → Your Project → Variables</strong> (or Replit Secrets panel)</li>
+              <li>Add a secret named <code>RAILWAY_API_TOKEN</code> with your token value</li>
+              <li>Restart this hub service for the token to take effect</li>
+            </ol>
+            <p class="hint" style="margin-top:8px">Once connected, FILTER will <strong>auto-discover Railway project &amp; service IDs</strong> from the GitHub repo URL when you add a new site, and will trigger live redeployments and stream deploy status updates in real-time.</p>
           </div>
         </div>
 
@@ -2728,6 +2763,23 @@ window.addEventListener('DOMContentLoaded', function() {
   es.onmessage = function(e) {
     var payload, entry;
     try { payload = JSON.parse(e.data); } catch(x) { return; }
+
+    // Handle live deploy status badge updates for sites
+    if (payload.type === 'siteStatus') {
+      var dsCls = { live:'db-live', pushed:'db-pushed', building:'db-pushed', pending:'db-pending', failed:'db-failed', 'key-rotated':'db-rotated' };
+      var dsLabel = { live:'Live', pushed:'GitHub \u2713', building:'Deploying\u2026', pending:'Pending', failed:'Failed', 'key-rotated':'Key Rotated' };
+      var slRow = document.querySelector('.sl-row[data-site-id="' + payload.siteId + '"]');
+      if (slRow) {
+        var badge = slRow.querySelector('.db-live,.db-pushed,.db-pending,.db-failed,.db-rotated');
+        if (badge) {
+          badge.className = dsCls[payload.status] || 'db-pending';
+          badge.textContent = dsLabel[payload.status] || payload.status;
+        }
+        slRow.setAttribute('data-deploy-status', payload.status);
+      }
+      return;
+    }
+
     entry = payload.entry || payload;
     if (entry.ip) activeTimes[entry.ip] = Date.now();
     updateCount();

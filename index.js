@@ -823,6 +823,33 @@ header{background:#120824;border-bottom:1px solid #2e1655;padding:14px 28px;disp
 .hdr-right a{color:#888;font-size:0.8rem;text-decoration:none}
 .hdr-right a:hover{color:#c084fc}
 
+/* ── Notification bell ── */
+.notif-wrap{position:relative}
+.notif-btn{background:none;border:none;cursor:pointer;padding:5px 7px;border-radius:8px;transition:background .2s;display:flex;align-items:center;justify-content:center;color:#888}
+.notif-btn:hover{background:#1a0d2e;color:#c084fc}
+.notif-badge{position:absolute;top:-2px;right:-2px;background:#ef4444;color:#fff;font-size:0.6rem;font-weight:800;border-radius:10px;padding:1px 5px;min-width:16px;text-align:center;display:none;line-height:1.4}
+.notif-badge.show{display:block}
+.notif-dropdown{position:absolute;top:calc(100% + 10px);right:0;width:340px;background:#120824;border:1px solid #2e1655;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,0.6);z-index:999;display:none}
+.notif-dropdown.open{display:block}
+.notif-hdr{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid #2e1655}
+.notif-hdr span{font-size:0.78rem;font-weight:700;color:#a78bfa;text-transform:uppercase;letter-spacing:1px}
+.notif-clear{background:none;border:none;color:#555;font-size:0.72rem;cursor:pointer;padding:3px 7px;border-radius:6px;transition:color .2s}
+.notif-clear:hover{color:#f87171}
+.notif-list{max-height:320px;overflow-y:auto}
+.notif-item{padding:10px 16px;border-bottom:1px solid #160928;display:flex;flex-direction:column;gap:3px}
+.notif-item:last-child{border-bottom:none}
+.notif-item-top{display:flex;justify-content:space-between;align-items:center}
+.notif-ip{font-size:0.75rem;font-family:'SF Mono',Menlo,monospace;color:#c084fc}
+.notif-time{font-size:0.68rem;color:#444}
+.notif-loc{font-size:0.72rem;color:#777}
+.notif-dec-allow{color:#4ade80;font-size:0.72rem;font-weight:700}
+.notif-dec-block{color:#f87171;font-size:0.72rem;font-weight:700}
+.notif-empty{padding:20px 16px;text-align:center;color:#444;font-size:0.78rem;font-style:italic}
+/* ── Sound toggle ── */
+.sound-btn{background:none;border:none;cursor:pointer;padding:5px 7px;border-radius:8px;transition:background .2s;color:#888;display:flex;align-items:center}
+.sound-btn:hover{background:#1a0d2e;color:#c084fc}
+.sound-btn.muted{color:#444}
+
 .container{max-width:1260px;margin:0 auto;padding:24px 18px}
 
 /* ── Grid layouts ── */
@@ -958,6 +985,24 @@ tr:hover td{background:rgba(124,58,237,0.07)}
     <form method="POST" action="/admin/clear-logs" class="inline" onsubmit="return confirm('Clear all logs?')">
       <button type="submit" class="btn-danger btn-sm">Clear Logs</button>
     </form>
+    <button class="sound-btn" id="soundToggle" title="Toggle notification sound">
+      <svg id="soundIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path id="soundWave2" d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+    </button>
+    <div class="notif-wrap">
+      <button class="notif-btn" id="notifBtn" title="Notifications">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        <span class="notif-badge" id="notifBadge">0</span>
+      </button>
+      <div class="notif-dropdown" id="notifDropdown">
+        <div class="notif-hdr">
+          <span>Notifications</span>
+          <button class="notif-clear" id="notifClear">Clear all</button>
+        </div>
+        <div class="notif-list" id="notifList">
+          <div class="notif-empty">No notifications yet</div>
+        </div>
+      </div>
+    </div>
     <a href="/admin/logout">Sign out</a>
   </div>
 </header>
@@ -1174,10 +1219,9 @@ tr:hover td{background:rgba(124,58,237,0.07)}
 </div>
 <script>
 (function() {
-  var feed = document.getElementById('live-feed');
+  /* ── Live feed ─────────────────────────────────────────────────────────── */
+  var feed    = document.getElementById('live-feed');
   var countEl = document.getElementById('live-count');
-  if (!feed || !countEl || !window.EventSource) return;
-
   var activeTimes = {};
 
   function escH(s) {
@@ -1202,12 +1246,162 @@ tr:hover td{background:rgba(124,58,237,0.07)}
     var cutoff = Date.now() - 3 * 60 * 1000;
     var n = 0;
     for (var ip in activeTimes) { if (activeTimes[ip] > cutoff) n++; }
-    countEl.textContent = n;
+    if (countEl) countEl.textContent = n;
   }
 
   var seedTimes = ${activeIpTimesJson};
   for (var sip in seedTimes) { activeTimes[sip] = seedTimes[sip]; }
   updateCount();
+
+  /* ── Sound ─────────────────────────────────────────────────────────────── */
+  var soundEnabled = localStorage.getItem('sfx_sound') !== 'off';
+  var audioCtx = null;
+
+  function getAudioCtx() {
+    if (!audioCtx) {
+      try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {}
+    }
+    return audioCtx;
+  }
+
+  function playTing(type) {
+    if (!soundEnabled) return;
+    var ctx = getAudioCtx();
+    if (!ctx) return;
+    try {
+      var osc  = ctx.createOscillator();
+      var gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      if (type === 'allow') {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(1318, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(1046, ctx.currentTime + 0.15);
+        gain.gain.setValueAtTime(0.28, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.55);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 0.55);
+      } else {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(440, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(330, ctx.currentTime + 0.18);
+        gain.gain.setValueAtTime(0.22, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 0.4);
+      }
+    } catch(e) {}
+  }
+
+  /* ── Sound toggle button ────────────────────────────────────────────────── */
+  var soundBtn  = document.getElementById('soundToggle');
+  var soundWave = document.getElementById('soundWave2');
+
+  function applySoundUI() {
+    if (!soundBtn) return;
+    if (soundEnabled) {
+      soundBtn.classList.remove('muted');
+      soundBtn.title = 'Sound ON — click to mute';
+      if (soundWave) soundWave.style.display = '';
+    } else {
+      soundBtn.classList.add('muted');
+      soundBtn.title = 'Sound OFF — click to enable';
+      if (soundWave) soundWave.style.display = 'none';
+    }
+  }
+  applySoundUI();
+
+  if (soundBtn) {
+    soundBtn.addEventListener('click', function() {
+      soundEnabled = !soundEnabled;
+      localStorage.setItem('sfx_sound', soundEnabled ? 'on' : 'off');
+      applySoundUI();
+      if (soundEnabled) playTing('allow');
+    });
+  }
+
+  /* ── Notification bell ─────────────────────────────────────────────────── */
+  var notifBtn      = document.getElementById('notifBtn');
+  var notifDropdown = document.getElementById('notifDropdown');
+  var notifBadge    = document.getElementById('notifBadge');
+  var notifList     = document.getElementById('notifList');
+  var notifClear    = document.getElementById('notifClear');
+  var unread = 0;
+  var notifications = [];
+
+  function updateBadge() {
+    if (!notifBadge) return;
+    if (unread > 0) {
+      notifBadge.textContent = unread > 99 ? '99+' : unread;
+      notifBadge.classList.add('show');
+    } else {
+      notifBadge.classList.remove('show');
+    }
+  }
+
+  function renderNotifList() {
+    if (!notifList) return;
+    if (notifications.length === 0) {
+      notifList.innerHTML = '<div class="notif-empty">No notifications yet</div>';
+      return;
+    }
+    notifList.innerHTML = notifications.slice(0, 30).map(function(n) {
+      var decCls = n.decision === 'allow' ? 'notif-dec-allow' : 'notif-dec-block';
+      var decLabel = n.decision === 'allow' ? '✓ ALLOWED' : '✗ BLOCKED';
+      var loc = (n.city ? escH(n.city) + ', ' : '') + escH(n.country || 'XX');
+      return '<div class="notif-item">'
+        + '<div class="notif-item-top">'
+        +   '<span class="notif-ip">' + escH(n.ip || '') + '</span>'
+        +   '<span class="notif-time">' + escH((n.ts||'').replace('T',' ').slice(0,19)) + '</span>'
+        + '</div>'
+        + '<div style="display:flex;gap:10px;align-items:center">'
+        +   '<span class="notif-loc">' + loc + '</span>'
+        +   '<span class="' + decCls + '">' + decLabel + (n.reason ? ' · ' + escH(n.reason) : '') + '</span>'
+        + '</div>'
+        + '</div>';
+    }).join('');
+  }
+
+  if (notifBtn) {
+    notifBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      notifDropdown.classList.toggle('open');
+      if (notifDropdown.classList.contains('open')) {
+        unread = 0;
+        updateBadge();
+      }
+    });
+  }
+
+  document.addEventListener('click', function(e) {
+    if (notifDropdown && notifDropdown.classList.contains('open')) {
+      if (!notifDropdown.contains(e.target) && e.target !== notifBtn) {
+        notifDropdown.classList.remove('open');
+      }
+    }
+  });
+
+  if (notifClear) {
+    notifClear.addEventListener('click', function() {
+      notifications = [];
+      unread = 0;
+      updateBadge();
+      renderNotifList();
+    });
+  }
+
+  function addNotification(entry) {
+    notifications.unshift(entry);
+    if (notifications.length > 50) notifications.pop();
+    if (!notifDropdown || !notifDropdown.classList.contains('open')) {
+      unread++;
+      updateBadge();
+    }
+    renderNotifList();
+  }
+
+  /* ── SSE ───────────────────────────────────────────────────────────────── */
+  if (!window.EventSource) return;
 
   var es = new EventSource('/admin/events');
   es.onmessage = function(ev) {
@@ -1215,14 +1409,21 @@ tr:hover td{background:rgba(124,58,237,0.07)}
     try { msg = JSON.parse(ev.data); } catch(e) { return; }
     if (msg.type !== 'log') return;
     var entry = msg.entry;
+
     if (entry.ip) activeTimes[entry.ip] = Date.now();
     updateCount();
-    var placeholder = feed.querySelector('div[style]');
-    if (placeholder) placeholder.remove();
-    var row = makeRow(entry);
-    feed.insertBefore(row, feed.firstChild);
-    var rows = feed.querySelectorAll('.lf-row');
-    while (rows.length > 8) { feed.removeChild(feed.lastChild); rows = feed.querySelectorAll('.lf-row'); }
+
+    if (feed) {
+      var placeholder = feed.querySelector('div[style]');
+      if (placeholder) placeholder.remove();
+      var row = makeRow(entry);
+      feed.insertBefore(row, feed.firstChild);
+      var rows = feed.querySelectorAll('.lf-row');
+      while (rows.length > 8) { feed.removeChild(feed.lastChild); rows = feed.querySelectorAll('.lf-row'); }
+    }
+
+    playTing(entry.decision);
+    addNotification(entry);
   };
   es.onerror = function() {};
 })();

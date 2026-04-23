@@ -1421,28 +1421,31 @@ function adminLoginPage(errorHtml) {
 <title>FILTER — Sign In</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:#070010;min-height:100vh;display:flex;align-items:center;justify-content:center;color:#e2d9f3}
-.card{background:#0d001e;border:1px solid #1e0840;border-radius:16px;padding:44px 40px;width:100%;max-width:400px;box-shadow:0 16px 60px rgba(0,0,0,.7)}
-.logo-row{display:flex;align-items:center;gap:10px;margin-bottom:24px}
-.logo-svg{width:36px;height:36px}
-.brand-name{font-size:1.4rem;font-weight:800;color:#e2d9f3;letter-spacing:-.5px}
-.brand-tag{font-size:.62rem;color:#4e3d70;text-transform:uppercase;letter-spacing:1.2px;margin-top:1px}
-h1{font-size:.9rem;font-weight:600;color:#9983b8;margin-bottom:22px}
-label{display:block;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#4e3d70;margin-bottom:6px}
-input[type=password]{width:100%;padding:11px 14px;background:#070010;border:1px solid #2e1260;border-radius:9px;color:#e2d9f3;font-size:.9rem;outline:none;transition:border .2s;font-family:inherit}
-input[type=password]:focus{border-color:#7c3aed}
-button{width:100%;margin-top:18px;padding:13px;background:#7c3aed;color:#fff;border:none;border-radius:9px;font-size:.95rem;font-weight:700;cursor:pointer;transition:background .2s;font-family:inherit}
-button:hover{background:#6d28d9}
-.error{color:#f87171;font-size:.82rem;margin-top:12px;text-align:center}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:#f9fafb;min-height:100vh;display:flex;align-items:center;justify-content:center;color:#111827}
+.card{background:#ffffff;border:1px solid #e5e7eb;border-radius:16px;padding:44px 40px;width:100%;max-width:400px;box-shadow:0 1px 3px rgba(0,0,0,.08),0 8px 24px rgba(0,0,0,.06)}
+.logo-row{display:flex;align-items:center;gap:12px;margin-bottom:24px}
+.logo-box{width:42px;height:42px;border-radius:10px;background:linear-gradient(135deg,#3b82f6,#2563eb);display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(59,130,246,.4)}
+.logo-box svg{width:22px;height:22px}
+.brand-name{font-size:1.2rem;font-weight:800;color:#111827;letter-spacing:-.5px}
+.brand-tag{font-size:.65rem;color:#9ca3af;margin-top:1px}
+h1{font-size:.9rem;font-weight:600;color:#4b5563;margin-bottom:22px}
+label{display:block;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#9ca3af;margin-bottom:6px}
+input[type=password]{width:100%;padding:11px 14px;background:#f9fafb;border:1px solid #d1d5db;border-radius:9px;color:#111827;font-size:.9rem;outline:none;transition:border .2s,box-shadow .2s;font-family:inherit}
+input[type=password]:focus{border-color:#3b82f6;box-shadow:0 0 0 3px rgba(59,130,246,.12)}
+button{width:100%;margin-top:18px;padding:13px;background:#3b82f6;color:#fff;border:none;border-radius:9px;font-size:.95rem;font-weight:700;cursor:pointer;transition:background .2s;font-family:inherit}
+button:hover{background:#2563eb}
+.error{color:#dc2626;font-size:.82rem;margin-top:12px;text-align:center;background:rgba(220,38,38,.05);border:1px solid rgba(220,38,38,.15);padding:8px 12px;border-radius:7px}
 </style>
 </head>
 <body>
 <div class="card">
   <div class="logo-row">
-    <svg class="logo-svg" viewBox="0 0 36 36" fill="none">
-      <defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#a855f7"/><stop offset="100%" stop-color="#6d28d9"/></linearGradient></defs>
-      <path d="M4 5h28l-11 13.5V31l-6-3V18.5L4 5z" fill="url(#lg)" stroke="#7c3aed" stroke-width="1"/>
-    </svg>
+    <div class="logo-box">
+      <svg viewBox="0 0 50 39" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M16.4992 2H37.5808L22.0816 24.9729H1L16.4992 2Z" fill="white"/>
+        <path d="M17.4224 27.102L11.4192 36H33.5008L49 13.0271H32.7024L23.2064 27.102H17.4224Z" fill="white"/>
+      </svg>
+    </div>
     <div>
       <div class="brand-name">FILTER</div>
       <div class="brand-tag">Traffic Management</div>
@@ -1734,7 +1737,7 @@ function adminDashboardPage(settings, logs, leads, opts) {
       + '<td class="t-mono">' + escHtml(l.ip || '') + '</td>'
       + '<td><span class="t-flag">' + flag + '</span> ' + escHtml(l.country || 'XX') + '</td>'
       + '<td>' + escHtml(l.city || '') + '</td>'
-      + '<td class="t-mono" style="color:#a855f7;font-weight:700">' + escHtml(l.code || '') + '</td>'
+      + '<td class="t-mono" style="color:#3b82f6;font-weight:700">' + escHtml(l.code || '') + '</td>'
       + '<td>' + adSource(l) + '</td>'
       + '<td class="t-mono">' + escHtml((l.tz || '').slice(0, 30)) + '</td>'
       + '<td>' + calledToggle + '</td>'
@@ -1933,8 +1936,8 @@ function adminDashboardPage(settings, logs, leads, opts) {
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>FILTER — Traffic Management</title>
 <style>
-:root{--bg:#0a0a0f;--bg2:#0d1117;--bg3:#161b22;--card:#0d1117;--border:#21262d;--border2:#30363d;--pri:#7c3aed;--pri-h:#6d28d9;--pri-l:#a855f7;--text:#e6edf3;--text2:#8b949e;--text3:#484f58;--green:#3fb950;--red:#f85149;--amber:#d29922;--blue:#58a6ff;--sidebar:240px;--topbar:52px}
-body.light{--bg:#f6f8fa;--bg2:#ffffff;--bg3:#f0f1f3;--card:#ffffff;--border:#d0d7de;--border2:#afb8c1;--text:#1c2128;--text2:#57606a;--text3:#8c959f}
+:root{--bg:#f9fafb;--bg2:#ffffff;--bg3:#f3f4f6;--card:#ffffff;--border:#e5e7eb;--border2:#d1d5db;--pri:#3b82f6;--pri-h:#2563eb;--pri-l:#60a5fa;--text:#111827;--text2:#4b5563;--text3:#9ca3af;--green:#16a34a;--red:#dc2626;--amber:#d97706;--blue:#2563eb;--sidebar:256px;--topbar:60px;--shadow:0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.06)}
+body.dark{--bg:#030712;--bg2:#111827;--bg3:#1f2937;--card:#111827;--border:#1f2937;--border2:#374151;--pri:#3b82f6;--pri-h:#2563eb;--pri-l:#93c5fd;--text:#f9fafb;--text2:#d1d5db;--text3:#6b7280;--green:#4ade80;--red:#f87171;--amber:#fbbf24;--blue:#60a5fa;--shadow:0 1px 3px rgba(0,0,0,.4),0 1px 2px rgba(0,0,0,.3)}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.5;overflow:hidden;height:100vh}
 /* Layout */
@@ -1945,52 +1948,81 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 .f-topbar{height:var(--topbar);background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;padding:0 20px;flex-shrink:0}
 .f-content{flex:1;overflow-y:auto;padding:24px;background:var(--bg)}
 /* Sidebar brand */
-.sb-brand{padding:16px 14px 12px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border);overflow:hidden;flex-shrink:0}
-.sb-logo{width:28px;height:28px;flex-shrink:0}
+.sb-brand{padding:14px 12px 12px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border);overflow:hidden;flex-shrink:0;cursor:pointer;transition:background .15s;border-radius:6px 6px 0 0}
+.sb-brand:hover{background:var(--bg3)}
+.sb-logo-box{width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,#3b82f6,#2563eb);display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 1px 4px rgba(59,130,246,.35)}
+.sb-logo-box svg{width:20px;height:20px}
 .sb-brand-text{overflow:hidden;flex:1;min-width:0}
-.sb-name{font-size:1rem;font-weight:800;color:var(--text);letter-spacing:-0.5px;white-space:nowrap}
-.sb-tagline{font-size:0.56rem;color:var(--text3);text-transform:uppercase;letter-spacing:1.2px;margin-top:1px;white-space:nowrap}
-.f-sidebar.collapsed .sb-brand-text{display:none}
+.sb-name{font-size:0.88rem;font-weight:700;color:var(--text);letter-spacing:-0.3px;white-space:nowrap}
+.sb-tagline{font-size:0.7rem;color:var(--text3);margin-top:1px;white-space:nowrap}
+.f-sidebar.collapsed .sb-brand-text,.f-sidebar.collapsed .sb-brand-chevron{display:none}
+.f-sidebar.collapsed .sb-brand{justify-content:center;padding:12px 8px}
 /* Nav */
-.sb-nav{flex:1;padding:8px 6px;display:flex;flex-direction:column;gap:1px;overflow:hidden}
-.sb-link{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:7px;font-size:0.81rem;color:var(--text2);text-decoration:none;cursor:pointer;border:none;background:none;width:100%;transition:all .15s;text-align:left;white-space:nowrap;overflow:hidden;position:relative}
-.sb-link:hover{background:rgba(124,58,237,.12);color:var(--pri-l)}
-.sb-link.active{background:rgba(124,58,237,.18);color:var(--text);font-weight:600}
-.sb-icon{display:flex;align-items:center;justify-content:center;width:18px;flex-shrink:0}
+.sb-nav{flex:1;padding:8px 6px;display:flex;flex-direction:column;gap:2px;overflow:hidden}
+.sb-link{display:flex;align-items:center;gap:0;padding:0;border-radius:6px;font-size:0.82rem;color:var(--text2);text-decoration:none;cursor:pointer;border:none;background:none;width:100%;transition:background .15s,color .15s;text-align:left;white-space:nowrap;overflow:hidden;position:relative;height:44px;border-left:2px solid transparent}
+.sb-link:hover{background:var(--bg3);color:var(--text)}
+.sb-link.active{background:rgba(59,130,246,.1);color:var(--pri-h);font-weight:600;border-left-color:var(--pri)}
+body.dark .sb-link.active{background:rgba(59,130,246,.18);color:var(--pri-l)}
+.sb-icon{display:flex;align-items:center;justify-content:center;width:48px;height:44px;flex-shrink:0}
 .sb-icon svg{width:16px;height:16px}
-.sb-link-lbl{overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}
-.sb-cnt{margin-left:auto;background:var(--pri);color:#fff;font-size:0.6rem;font-weight:700;padding:1px 6px;border-radius:10px;flex-shrink:0}
+.sb-link-lbl{overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0;padding-right:8px}
+.sb-cnt{background:var(--pri);color:#fff;font-size:0.6rem;font-weight:700;padding:1px 7px;border-radius:10px;flex-shrink:0;margin-right:10px}
 .f-sidebar.collapsed .sb-link-lbl,.f-sidebar.collapsed .sb-cnt{display:none}
-.f-sidebar.collapsed .sb-link{justify-content:center;padding:10px 8px}
-.f-sidebar.collapsed .sb-link:hover::after{content:attr(title);position:absolute;left:calc(100% + 8px);top:50%;transform:translateY(-50%);background:var(--bg3);border:1px solid var(--border2);color:var(--text);font-size:.72rem;padding:5px 10px;border-radius:7px;white-space:nowrap;z-index:1000;pointer-events:none;box-shadow:0 4px 12px rgba(0,0,0,.4)}
+.f-sidebar.collapsed .sb-link{justify-content:center;border-left-color:transparent!important;border-radius:6px}
+.f-sidebar.collapsed .sb-link.active{background:rgba(59,130,246,.12);color:var(--pri)}
+.f-sidebar.collapsed .sb-icon{width:100%}
+.f-sidebar.collapsed .sb-link:hover::after{content:attr(title);position:absolute;left:calc(100% + 8px);top:50%;transform:translateY(-50%);background:var(--bg2);border:1px solid var(--border2);color:var(--text);font-size:.72rem;padding:5px 10px;border-radius:7px;white-space:nowrap;z-index:1000;pointer-events:none;box-shadow:var(--shadow)}
+/* Account section divider */
+.sb-section-lbl{font-size:0.67rem;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;padding:8px 14px 4px;white-space:nowrap;overflow:hidden}
+.f-sidebar.collapsed .sb-section-lbl{display:none}
+.sb-divider{height:1px;background:var(--border);margin:8px 6px}
 /* Site selector */
-.sb-site-wrap{padding:8px 6px;border-top:1px solid var(--border);overflow:hidden}
-.sb-site-lbl{font-size:0.56rem;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;display:block;font-weight:700;white-space:nowrap}
+.sb-site-wrap{padding:6px 6px 4px;overflow:hidden}
+.sb-site-lbl{font-size:0.62rem;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;display:block;font-weight:600;white-space:nowrap;padding:0 4px}
 .sb-site-sel{width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-size:0.77rem;padding:6px 9px;outline:none;cursor:pointer}
 .sb-site-sel:focus{border-color:var(--pri)}
 .f-sidebar.collapsed .sb-site-wrap{display:none}
 /* Bottom controls */
-.sb-bottom{padding:6px;border-top:1px solid var(--border);flex-shrink:0}
-.sb-ctrl{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:7px;font-size:0.8rem;color:var(--text2);cursor:pointer;border:none;background:none;width:100%;transition:all .15s;text-align:left;overflow:hidden;white-space:nowrap}
-.sb-ctrl:hover{background:rgba(124,58,237,.1);color:var(--pri-l)}
+.sb-bottom{padding:4px 6px 0;border-top:1px solid var(--border);flex-shrink:0}
+.sb-ctrl{display:flex;align-items:center;gap:0;padding:0;border-radius:6px;font-size:0.82rem;color:var(--text2);cursor:pointer;border:none;background:none;width:100%;transition:background .15s,color .15s;text-align:left;overflow:hidden;white-space:nowrap;height:44px;border-left:2px solid transparent}
+.sb-ctrl:hover{background:var(--bg3);color:var(--text)}
 .sb-ctrl svg{width:16px;height:16px;flex-shrink:0}
-.sb-ctrl-lbl{overflow:hidden;text-overflow:ellipsis}
-.f-sidebar.collapsed .sb-ctrl{justify-content:center;padding:10px 8px}
+.sb-ctrl .sb-icon{width:48px;height:44px;flex-shrink:0}
+.sb-ctrl-lbl{overflow:hidden;text-overflow:ellipsis;flex:1}
+.f-sidebar.collapsed .sb-ctrl{justify-content:center;border-radius:6px}
+.f-sidebar.collapsed .sb-ctrl .sb-icon{width:100%}
 .f-sidebar.collapsed .sb-ctrl-lbl{display:none}
-.sb-ctrl.logout:hover{background:rgba(248,81,73,.08);color:var(--red)}
+.sb-ctrl.logout:hover{background:rgba(220,38,38,.08);color:var(--red)}
+/* Collapse toggle at very bottom */
+.sb-collapse-btn{display:flex;align-items:center;width:100%;border:none;background:none;border-top:1px solid var(--border);cursor:pointer;padding:0;transition:background .15s;color:var(--text2);margin-top:4px}
+.sb-collapse-btn:hover{background:var(--bg3)}
+.sb-collapse-inner{display:flex;align-items:center;padding:10px 6px;width:100%}
+.sb-collapse-icon{width:40px;height:24px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.sb-collapse-icon svg{width:16px;height:16px;transition:transform .3s;color:var(--text3)}
+.f-sidebar:not(.collapsed) .sb-collapse-icon svg{transform:rotate(180deg)}
+.sb-collapse-lbl{font-size:0.82rem;font-weight:500;color:var(--text2)}
+.f-sidebar.collapsed .sb-collapse-lbl{display:none}
+.f-sidebar.collapsed .sb-collapse-inner{justify-content:center}
+.f-sidebar.collapsed .sb-collapse-icon{width:100%}
 /* Topbar */
 .f-hamburger{display:none;background:none;border:none;color:var(--text2);cursor:pointer;padding:5px;border-radius:6px;font-size:1.1rem;align-items:center;justify-content:center}
-.f-breadcrumb{font-size:0.85rem;font-weight:600;color:var(--text);flex:1}
-.f-topbar-right{display:flex;align-items:center;gap:8px}
-.f-clock{font-size:0.72rem;color:var(--text3);font-family:'SF Mono',Menlo,monospace;background:var(--bg3);padding:4px 9px;border-radius:6px;white-space:nowrap}
-.f-tz-badge{font-size:0.67rem;color:var(--pri-l);background:rgba(168,85,247,.1);border:1px solid rgba(168,85,247,.2);border-radius:6px;padding:3px 7px;cursor:pointer;white-space:nowrap}
-.f-tz-badge:hover{background:rgba(168,85,247,.18)}
+.f-topbar-left{flex:1;min-width:0}
+.f-topbar-title{font-size:1rem;font-weight:700;color:var(--text);line-height:1.2}
+.f-breadcrumb{font-size:0.78rem;color:var(--text3);margin-top:1px}
+.f-topbar-right{display:flex;align-items:center;gap:6px}
+.f-clock{font-size:0.72rem;color:var(--text3);font-family:'SF Mono',Menlo,monospace;background:var(--bg3);padding:4px 9px;border-radius:6px;white-space:nowrap;border:1px solid var(--border)}
+.f-tz-badge{font-size:0.67rem;color:var(--pri);background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.18);border-radius:6px;padding:3px 7px;cursor:pointer;white-space:nowrap;font-weight:600}
+.f-tz-badge:hover{background:rgba(59,130,246,.15)}
+.tb-icon-btn{display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:8px;border:1px solid var(--border);background:var(--bg2);color:var(--text2);cursor:pointer;transition:all .15s;position:relative;flex-shrink:0}
+.tb-icon-btn:hover{background:var(--bg3);color:var(--text)}
+.tb-icon-btn svg{width:18px;height:18px}
+.tb-notif-dot{position:absolute;top:-3px;right:-3px;width:10px;height:10px;background:var(--red);border-radius:50%;border:2px solid var(--bg2)}
 /* Sections */
 .f-section{display:none}.f-section.active{display:block}
 /* Notifications */
 .notif-wrap{position:relative}
 .notif-btn{background:none;border:none;cursor:pointer;padding:6px;border-radius:7px;color:var(--text2);display:flex;align-items:center;justify-content:center;transition:background .15s;position:relative}
-.notif-btn:hover{background:rgba(124,58,237,.15);color:var(--pri-l)}
+.notif-btn:hover{background:var(--bg3);color:var(--text)}
 .notif-badge{position:absolute;top:-1px;right:-1px;background:var(--red);color:#fff;font-size:0.58rem;font-weight:800;border-radius:8px;padding:1px 4px;min-width:14px;text-align:center;display:none;line-height:1.4}
 .notif-badge.show{display:block}
 .notif-dropdown{position:absolute;top:calc(100% + 8px);right:0;width:330px;background:var(--bg2);border:1px solid var(--border2);border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.6);z-index:999;display:none}
@@ -2008,13 +2040,26 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 .notif-time{font-size:0.64rem;color:var(--text3)}
 .notif-empty{text-align:center;padding:20px;font-size:0.75rem;color:var(--text3)}
 /* KPI */
-.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}
-.kpi{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px 18px;transition:border-color .2s}
-.kpi:hover{border-color:var(--border2)}
-.kpi-label{font-size:0.64rem;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;font-weight:700;margin-bottom:8px}
-.kpi-val{font-size:1.75rem;font-weight:800;color:var(--text);line-height:1;font-variant-numeric:tabular-nums}
-.kpi-sub{font-size:0.69rem;color:var(--text3);margin-top:5px}
-.kpi-green .kpi-val{color:var(--green)}.kpi-red .kpi-val{color:var(--red)}.kpi-purple .kpi-val{color:var(--pri-l)}.kpi-blue .kpi-val{color:var(--blue)}
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}
+.kpi{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:20px;transition:box-shadow .2s,border-color .2s;box-shadow:var(--shadow)}
+.kpi:hover{box-shadow:0 4px 12px rgba(0,0,0,.1);border-color:var(--border2)}
+body.dark .kpi:hover{box-shadow:0 4px 12px rgba(0,0,0,.4)}
+.kpi-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.kpi-icon-box{width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.kpi-icon-box svg{width:18px;height:18px}
+.kpi-trend{width:16px;height:16px;color:var(--green);flex-shrink:0}
+.kpi-label{font-size:0.76rem;font-weight:500;color:var(--text2);margin-bottom:4px}
+.kpi-val{font-size:1.7rem;font-weight:800;color:var(--text);line-height:1;font-variant-numeric:tabular-nums}
+.kpi-sub{font-size:0.72rem;color:var(--text3);margin-top:6px}
+/* KPI icon box colour variants */
+.kpi-ib-blue{background:rgba(59,130,246,.1)}.kpi-ib-blue svg{color:var(--pri)}
+.kpi-ib-green{background:rgba(22,163,74,.1)}.kpi-ib-green svg{color:var(--green)}
+.kpi-ib-purple{background:rgba(147,51,234,.1)}.kpi-ib-purple svg{color:#7c3aed}
+.kpi-ib-orange{background:rgba(234,88,12,.1)}.kpi-ib-orange svg{color:#ea580c}
+body.dark .kpi-ib-blue{background:rgba(59,130,246,.15)}.kpi-ib-blue svg{color:var(--pri-l)}
+body.dark .kpi-ib-green{background:rgba(74,222,128,.12)}.kpi-ib-green svg{color:var(--green)}
+body.dark .kpi-ib-purple{background:rgba(167,139,250,.12)}.kpi-ib-purple svg{color:#a78bfa}
+body.dark .kpi-ib-orange{background:rgba(251,146,60,.12)}.kpi-ib-orange svg{color:#fb923c}
 /* Dashboard grid */
 .dash-mid{display:grid;grid-template-columns:1fr 2fr 1fr;gap:14px;margin-bottom:16px}
 .dash-bot{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px}
@@ -2036,7 +2081,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 .live-cnt{font-size:1.3rem;font-weight:800;color:var(--green);margin-left:auto}
 .lt-feed{display:flex;flex-direction:column;gap:3px;max-height:240px;overflow-y:auto}
 .lt-row{display:grid;grid-template-columns:80px 1fr auto;gap:6px;align-items:center;padding:5px 7px;border-radius:6px;font-size:0.7rem}
-.lt-row:hover{background:rgba(124,58,237,.08)}
+.lt-row:hover{background:var(--bg3)}
 .lt-ts{font-family:'SF Mono',Menlo,monospace;color:var(--text3);font-size:0.64rem}
 .lt-ip{font-family:'SF Mono',Menlo,monospace;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .lt-dec-allow{color:var(--green);font-weight:700;font-size:0.66rem;text-transform:uppercase;text-align:right}
@@ -2047,7 +2092,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 table{width:100%;border-collapse:collapse;font-size:0.76rem}
 thead th{background:var(--bg2);padding:8px 11px;text-align:left;font-size:0.63rem;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);font-weight:700;white-space:nowrap;position:sticky;top:0;z-index:1}
 tbody tr{border-top:1px solid var(--border)}
-tbody tr:hover{background:rgba(124,58,237,.05)}
+tbody tr:hover{background:var(--bg3)}
 tbody td{padding:7px 11px;color:var(--text2);vertical-align:middle}
 .t-mono{font-family:'SF Mono',Menlo,monospace;font-size:0.69rem}
 .t-ts{color:var(--text3)}.t-ip{color:var(--pri-l)}.t-flag{font-size:.95rem}
@@ -2072,7 +2117,7 @@ tbody td{padding:7px 11px;color:var(--text2);vertical-align:middle}
 /* Hotkeys panel */
 .hk-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 20px}
 .hk-row{display:flex;align-items:center;gap:8px;font-size:.77rem;color:var(--text2)}
-.hk-key{display:inline-flex;align-items:center;justify-content:center;min-width:24px;height:22px;padding:0 7px;background:var(--bg3);border:1px solid var(--border2);border-bottom:2px solid var(--border2);border-radius:5px;font-family:'SF Mono',Menlo,monospace;font-size:.72rem;color:var(--pri-l);font-weight:700}
+.hk-key{display:inline-flex;align-items:center;justify-content:center;min-width:24px;height:22px;padding:0 7px;background:var(--bg3);border:1px solid var(--border2);border-bottom:2px solid var(--border2);border-radius:5px;font-family:'SF Mono',Menlo,monospace;font-size:.72rem;color:var(--pri);font-weight:700}
 /* Filter bar */
 .filter-bar{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center}
 .filter-input,.filter-select{background:var(--bg2);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-size:0.78rem;padding:6px 11px;outline:none}
@@ -2089,12 +2134,12 @@ tbody td{padding:7px 11px;color:var(--text2);vertical-align:middle}
 .sl-key-val{font-family:'SF Mono',Menlo,monospace;font-size:.65rem;color:var(--pri-l);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sl-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 .sl-settings{background:none;border:1px solid var(--border2);border-radius:7px;padding:5px 10px;color:var(--text2);font-size:.73rem;cursor:pointer;transition:all .15s}
-.sl-settings:hover,.sl-settings.open{border-color:var(--pri);color:var(--pri-l);background:rgba(124,58,237,.08)}
+.sl-settings:hover,.sl-settings.open{border-color:var(--pri);color:var(--pri);background:rgba(59,130,246,.08)}
 .sl-expand{display:none;margin-top:10px;border-top:1px solid var(--border);padding-top:14px}
 .sl-expand.open{display:block}
 .sl-tabs{display:flex;gap:4px;margin-bottom:12px;flex-wrap:wrap}
 .sl-tab{background:none;border:1px solid var(--border);border-radius:7px;padding:4px 11px;color:var(--text2);font-size:.73rem;cursor:pointer;transition:all .15s}
-.sl-tab.active,.sl-tab:hover{border-color:var(--pri);color:var(--pri-l);background:rgba(124,58,237,.08)}
+.sl-tab.active,.sl-tab:hover{border-color:var(--pri);color:var(--pri);background:rgba(59,130,246,.08)}
 .sl-tab-content{display:none}.sl-tab-content.active{display:block}
 .snippet-pre{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:14px;font-family:'SF Mono',Menlo,monospace;font-size:.65rem;color:#7dd3a8;line-height:1.6;overflow-x:auto;white-space:pre-wrap;word-break:break-all;max-height:240px;overflow-y:auto}
 /* Toggle switches */
@@ -2137,7 +2182,7 @@ textarea{resize:vertical;min-height:80px}
 .stabs{display:flex;gap:2px;margin-bottom:20px;border-bottom:1px solid var(--border);flex-wrap:wrap}
 .stab{background:none;border:none;border-bottom:2px solid transparent;padding:8px 14px;color:var(--text3);font-size:.79rem;font-weight:600;cursor:pointer;transition:all .15s;margin-bottom:-1px}
 .stab:hover{color:var(--text2)}
-.stab.active{color:var(--pri-l);border-bottom-color:var(--pri)}
+.stab.active{color:var(--pri);border-bottom-color:var(--pri)}
 .stab-content{display:none}.stab-content.active{display:block}
 /* Danger zone */
 .danger-zone{border:1px solid rgba(239,68,68,.25);border-radius:10px;padding:16px}
@@ -2182,7 +2227,7 @@ textarea{resize:vertical;min-height:80px}
 /* Time range filter */
 .tr-filter{display:flex;gap:3px;flex-wrap:wrap}
 .tr-btn{background:none;border:1px solid var(--border2);border-radius:6px;padding:3px 10px;font-size:.72rem;color:var(--text2);cursor:pointer;transition:all .15s;font-family:inherit}
-.tr-btn:hover{border-color:var(--pri-l);color:var(--pri-l)}
+.tr-btn:hover{border-color:var(--pri);color:var(--pri)}
 .tr-btn.active{background:var(--pri);border-color:var(--pri);color:#fff}
 /* Live indicator */
 .live-pill{display:inline-flex;align-items:center;gap:5px;background:rgba(63,185,80,.1);border:1px solid rgba(63,185,80,.2);border-radius:20px;padding:3px 9px;font-size:.68rem;font-weight:700;color:var(--green)}
@@ -2212,7 +2257,7 @@ textarea{resize:vertical;min-height:80px}
 </head>
 <body>
 <script>
-(function(){var t=localStorage.getItem('filterTheme');if(t==='light')document.body.classList.add('light');})();
+(function(){var t=localStorage.getItem('filterTheme');if(t==='dark')document.body.classList.add('dark');})();
 </script>
 <div class="f-app" id="fApp">
 
@@ -2221,16 +2266,17 @@ textarea{resize:vertical;min-height:80px}
 
     <!-- Brand -->
     <div class="sb-brand">
-      <svg class="sb-logo" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <defs><linearGradient id="lg1" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#a855f7"/><stop offset="100%" stop-color="#6d28d9"/></linearGradient></defs>
-        <path d="M4 5h24l-9.5 11.5V27l-5-2.5V16.5L4 5z" fill="url(#lg1)" stroke="#7c3aed" stroke-width="1"/>
-        <path d="M8 9h16" stroke="rgba(255,255,255,.3)" stroke-width="1" stroke-linecap="round"/>
-        <path d="M11 13h10" stroke="rgba(255,255,255,.25)" stroke-width="1" stroke-linecap="round"/>
-      </svg>
+      <div class="sb-logo-box">
+        <svg viewBox="0 0 50 39" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M16.4992 2H37.5808L22.0816 24.9729H1L16.4992 2Z" fill="white"/>
+          <path d="M17.4224 27.102L11.4192 36H33.5008L49 13.0271H32.7024L23.2064 27.102H17.4224Z" fill="white"/>
+        </svg>
+      </div>
       <div class="sb-brand-text">
         <div class="sb-name">FILTER</div>
         <div class="sb-tagline">Traffic Management</div>
       </div>
+      <svg class="sb-brand-chevron" style="width:14px;height:14px;color:var(--text3);flex-shrink:0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
     </div>
 
     <!-- Nav -->
@@ -2259,6 +2305,10 @@ textarea{resize:vertical;min-height:80px}
         <span class="sb-link-lbl">Blocked IPs</span>
         <span class="sb-cnt">${blockedIpsList.length}</span>
       </button>
+
+      <!-- Account section -->
+      <div class="sb-divider"></div>
+      <div class="sb-section-lbl">Account</div>
       <button class="sb-link" data-section="settings" title="Settings" onclick="navTo('settings',this)">
         <span class="sb-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
         <span class="sb-link-lbl">Settings</span>
@@ -2280,19 +2330,21 @@ textarea{resize:vertical;min-height:80px}
 
     <!-- Bottom controls -->
     <div class="sb-bottom">
-      <button class="sb-ctrl" id="themeToggleBtn" title="Toggle theme" onclick="toggleTheme()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" id="themeIcon"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
-        <span class="sb-ctrl-lbl" id="themeLabel">Light mode</span>
-      </button>
-      <button class="sb-ctrl" id="collapseBtn" title="Collapse sidebar" onclick="toggleCollapse()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" id="collapseIcon"><polyline points="15 18 9 12 15 6"/></svg>
-        <span class="sb-ctrl-lbl" id="collapseLabel">Collapse</span>
-      </button>
       <a class="sb-ctrl logout" href="/admin/logout" title="Log out">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        <span class="sb-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></span>
         <span class="sb-ctrl-lbl">Log out</span>
       </a>
     </div>
+
+    <!-- ChevronsRight collapse toggle -->
+    <button class="sb-collapse-btn" id="collapseBtn" title="Toggle sidebar" onclick="toggleCollapse()">
+      <div class="sb-collapse-inner">
+        <div class="sb-collapse-icon">
+          <svg id="collapseIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>
+        </div>
+        <span class="sb-collapse-lbl">Hide</span>
+      </div>
+    </button>
   </aside>
 
   <!-- Mobile overlay -->
@@ -2304,15 +2356,18 @@ textarea{resize:vertical;min-height:80px}
     <!-- Topbar -->
     <div class="f-topbar">
       <button class="f-hamburger" onclick="toggleSidebar()">☰</button>
-      <div class="f-breadcrumb" id="fBreadcrumb">Dashboard</div>
+      <div class="f-topbar-left">
+        <div class="f-topbar-title" id="fBreadcrumb">Dashboard</div>
+        <div class="f-breadcrumb">Traffic management &amp; monitoring</div>
+      </div>
       <div class="f-topbar-right">
         <span class="f-clock" id="fClock">--:--:--</span>
         <span class="f-tz-badge" onclick="navTo('settings',document.querySelector('[data-section=settings]'));setTimeout(function(){switchTab(document.querySelector('.stab[data-tab=tz]'),'stab-tz')},100)" title="Change display timezone">${escHtml(displayTz)}</span>
 
         <!-- Notification bell -->
         <div class="notif-wrap">
-          <button class="notif-btn" onclick="toggleNotif()" title="Notifications">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          <button class="tb-icon-btn notif-btn" onclick="toggleNotif()" title="Notifications" style="border:1px solid var(--border)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
             <span class="notif-badge" id="notifBadge">0</span>
           </button>
           <div class="notif-dropdown" id="notifDropdown">
@@ -2320,6 +2375,16 @@ textarea{resize:vertical;min-height:80px}
             <div class="notif-list" id="notifList"><div class="notif-empty">No alerts yet</div></div>
           </div>
         </div>
+
+        <!-- Theme toggle -->
+        <button class="tb-icon-btn" id="themeToggleBtn" onclick="toggleTheme()" title="Toggle theme">
+          <svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+        </button>
+
+        <!-- User avatar -->
+        <button class="tb-icon-btn" title="Logged in as admin">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        </button>
       </div>
     </div>
 
@@ -2359,21 +2424,45 @@ textarea{resize:vertical;min-height:80px}
         <!-- KPI row — 4 cards -->
         <div class="kpi-grid">
           <div class="kpi">
+            <div class="kpi-header">
+              <div class="kpi-icon-box kpi-ib-blue">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+              </div>
+              <svg class="kpi-trend" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+            </div>
             <div class="kpi-label">Total Hits</div>
             <div class="kpi-val" id="kpiTotal">${todayTotal}</div>
-            <div class="kpi-sub">vs previous 24h</div>
+            <div class="kpi-sub">all traffic in range</div>
           </div>
-          <div class="kpi kpi-red">
+          <div class="kpi">
+            <div class="kpi-header">
+              <div class="kpi-icon-box kpi-ib-orange">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+              </div>
+              <svg class="kpi-trend" style="color:var(--red)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/></svg>
+            </div>
             <div class="kpi-label">Block Rate</div>
             <div class="kpi-val" id="kpiBlock">${blockRateToday + '%'}</div>
             <div class="kpi-sub" id="kpiBlockPct">${todayBlock} blocked</div>
           </div>
-          <div class="kpi kpi-blue">
+          <div class="kpi">
+            <div class="kpi-header">
+              <div class="kpi-icon-box kpi-ib-purple">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+              </div>
+              <svg class="kpi-trend" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+            </div>
             <div class="kpi-label">Avg Risk Score</div>
             <div class="kpi-val" id="kpiAllow">${todayTotal === 0 ? '—' : Math.round(todayBlock / todayTotal * 100)}</div>
             <div class="kpi-sub" id="kpiAllowPct">${todayAllow} allowed</div>
           </div>
-          <div class="kpi kpi-purple">
+          <div class="kpi">
+            <div class="kpi-header">
+              <div class="kpi-icon-box kpi-ib-green">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+              </div>
+              <svg class="kpi-trend" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+            </div>
             <div class="kpi-label">Active Sites</div>
             <div class="kpi-val" id="kpiSites">${sites.filter(function(s){return s.enabled !== false;}).length}</div>
             <div class="kpi-sub">of ${sites.length} total</div>
@@ -3046,15 +3135,23 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // ── Theme toggle ─────────────────────────────────────────────────────────────
 function toggleTheme() {
-  var isLight = document.body.classList.toggle('light');
-  localStorage.setItem('filterTheme', isLight ? 'light' : 'dark');
-  var lbl = document.getElementById('themeLabel');
-  if (lbl) lbl.textContent = isLight ? 'Dark mode' : 'Light mode';
+  var isDark = document.body.classList.toggle('dark');
+  localStorage.setItem('filterTheme', isDark ? 'dark' : 'light');
+  var icon = document.getElementById('themeIcon');
+  if (icon) {
+    if (isDark) {
+      icon.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
+    } else {
+      icon.innerHTML = '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
+    }
+  }
 }
 (function() {
-  var t = localStorage.getItem('filterTheme');
-  var lbl = document.getElementById('themeLabel');
-  if (lbl) lbl.textContent = (t === 'light') ? 'Dark mode' : 'Light mode';
+  var isDark = document.body.classList.contains('dark');
+  var icon = document.getElementById('themeIcon');
+  if (icon && isDark) {
+    icon.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
+  }
 })();
 
 // ── Sidebar collapse ──────────────────────────────────────────────────────────
@@ -3063,20 +3160,14 @@ function toggleCollapse() {
   var collapsed = sb.classList.toggle('collapsed');
   localStorage.setItem('filterCollapsed', collapsed ? '1' : '');
   var lbl = document.getElementById('collapseLabel');
-  if (lbl) lbl.textContent = collapsed ? 'Expand' : 'Collapse';
-  var icon = document.getElementById('collapseIcon');
-  if (icon) {
-    icon.querySelector('polyline').setAttribute('points', collapsed ? '9 18 15 12 9 6' : '15 18 9 12 15 6');
-  }
+  if (lbl) lbl.textContent = collapsed ? 'Show' : 'Hide';
 }
 (function() {
   if (localStorage.getItem('filterCollapsed') === '1') {
     var sb = document.getElementById('fSidebar');
     if (sb) sb.classList.add('collapsed');
     var lbl = document.getElementById('collapseLabel');
-    if (lbl) lbl.textContent = 'Expand';
-    var icon = document.getElementById('collapseIcon');
-    if (icon) icon.querySelector('polyline').setAttribute('points', '9 18 15 12 9 6');
+    if (lbl) lbl.textContent = 'Show';
   }
 })();
 

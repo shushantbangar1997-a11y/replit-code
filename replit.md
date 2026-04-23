@@ -3,7 +3,9 @@
 ## Overview
 A streaming support website with a self-hosted cloaking engine, lead capture system, and secure admin panel. Presents as an independent streaming technical support service. Runs Google Ads to generate leads while cloaking Google's review bots to a safe Amazon Prime page and blocking competitor click fraud.
 
-The admin panel is rebranded as **FILTER** — a full SaaS-style UI with a left sidebar, section routing, canvas charts (donut + bar), live SSE feed, per-site management, timezone support, and toast notifications.
+The admin panel is rebranded as **FILTER** — a full SaaS-style UI with a collapsible left sidebar, section routing, canvas charts (donut + bar), live SSE feed, per-site management, timezone support, and toast notifications.
+
+**Design system**: Light-default theme with dark mode toggle. Blue (#3b82f6) as the primary accent. White/gray-50 background, white cards with soft shadow. The sidebar uses a blue gradient logo box, gray text with blue active-state left border, account section divider, ChevronsRight collapse button at the bottom. The topbar shows a page title + subtitle, notification bell, moon/sun theme toggle, and user avatar. KPI cards feature a coloured icon box (blue/orange/purple/green) in the header row alongside a trending arrow.
 
 ## Architecture
 - **Runtime**: Node.js with Express

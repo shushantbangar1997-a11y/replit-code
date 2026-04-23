@@ -605,8 +605,9 @@ app.post('/api/cloak', async function(req, res) {
   function fastBlock(reason) {
     var entry = {
       ts: new Date().toISOString(), ip: realIP, siteId: siteId,
-      country: 'XX', city: '', region: '', isp: '',
-      ua: ua.slice(0, 80), screen: screenStr, plugins: pl,
+      country: 'XX', city: '', region: '', isp: '', org: '',
+      ua: ua.slice(0, 200), screen: screenStr, plugins: pl,
+      tz: tz, wd: wd, proxy: false, hosting: false,
       decision: 'block', reason: reason
     };
     appendLog(entry);
@@ -617,8 +618,9 @@ app.post('/api/cloak', async function(req, res) {
   if (!settings.enabled) {
     appendLog({
       ts: new Date().toISOString(), ip: realIP, siteId: siteId,
-      country: 'XX', city: '', region: '', isp: '',
-      ua: ua.slice(0, 80), screen: screenStr, plugins: pl,
+      country: 'XX', city: '', region: '', isp: '', org: '',
+      ua: ua.slice(0, 200), screen: screenStr, plugins: pl,
+      tz: tz, wd: wd, proxy: false, hosting: false,
       decision: 'allow', reason: 'disabled'
     });
     return res.json({ decision: 'allow', url: moneyUrl });
@@ -691,9 +693,14 @@ app.post('/api/cloak', async function(req, res) {
     city: ipData.city || '',
     region: ipData.regionName || '',
     isp: ipData.isp || '',
-    ua: ua.slice(0, 80),
+    org: ipData.org || '',
+    ua: ua.slice(0, 200),
     screen: screenStr,
     plugins: pl,
+    tz: tz,
+    wd: wd,
+    proxy: ipData.proxy || false,
+    hosting: ipData.hosting || false,
     decision: decision,
     reason: reason
   });
@@ -1672,57 +1679,143 @@ function adminDashboardPage(settings, logs, leads, opts) {
     var dec     = l.decision === 'allow' ? 'allow' : 'block';
     var ts      = fmtTs(l.ts);
     var flag    = flagEmoji(l.country);
-    var isp     = escHtml((l.isp || '').slice(0, 28));
-    var screen  = (!l.screen || l.screen === '0x0') ? '—' : escHtml(l.screen);
-    var visitorTz = escHtml((l.tz || '').slice(0, 30));
     var sId     = l.siteId || 'default';
     var detailId = 'lrd-' + li;
-    var ua  = escHtml(l.ua  || '—');
-    var org = escHtml(l.org || '—');
-    var pl  = l.plugins !== undefined ? l.plugins : '—';
-    var wd  = l.wd !== undefined ? (l.wd ? 'Yes' : 'No') : '—';
-    var score = calcScore(l);
-    var rowNum = li < 9 ? '0' + (li + 1) : String(li + 1);
+    var score   = calcScore(l);
+    var rowNum  = li < 9 ? '0' + (li + 1) : String(li + 1);
 
-    // Score bars (10 bars proportional to 0-100 score)
+    // ── Device detection from UA ──────────────────────────────────────────────
+    var uaStr = l.ua || '';
+    var devType, devIcon;
+    if (/iPhone|iPod|(android.*mobile)|BlackBerry|IEMobile|WPDesktop/i.test(uaStr)) {
+      devType = 'Mobile';
+      devIcon = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>';
+    } else if (/iPad|tablet|Kindle|PlayBook|(android(?!.*mobile))/i.test(uaStr)) {
+      devType = 'Tablet';
+      devIcon = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>';
+    } else {
+      devType = 'Desktop';
+      devIcon = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><polyline points="8 21 12 17 16 21"/></svg>';
+    }
+
+    // ── Browser detection from UA ─────────────────────────────────────────────
+    var browser;
+    if (/Googlebot|bingbot|YandexBot|DuckDuckBot|Baiduspider|facebookexternalhit|Twitterbot|crawler|spider|bot/i.test(uaStr)) {
+      browser = 'Bot / Crawler';
+    } else if (/Edg\//i.test(uaStr)) {
+      browser = 'Edge';
+    } else if (/OPR\/|Opera/i.test(uaStr)) {
+      browser = 'Opera';
+    } else if (/Chrome\/[0-9]/i.test(uaStr) && !/Chromium/i.test(uaStr)) {
+      browser = 'Chrome';
+    } else if (/Safari\/[0-9]/i.test(uaStr) && !/Chrome/i.test(uaStr)) {
+      browser = 'Safari';
+    } else if (/Firefox\/[0-9]/i.test(uaStr)) {
+      browser = 'Firefox';
+    } else if (/MSIE|Trident\//i.test(uaStr)) {
+      browser = 'Internet Explorer';
+    } else {
+      browser = 'Unknown';
+    }
+
+    // ── OS detection from UA ──────────────────────────────────────────────────
+    var os;
+    if (/Windows NT 10/i.test(uaStr))       os = 'Windows 10/11';
+    else if (/Windows NT 6\.3/i.test(uaStr)) os = 'Windows 8.1';
+    else if (/Windows NT 6\.1/i.test(uaStr)) os = 'Windows 7';
+    else if (/Windows/i.test(uaStr))         os = 'Windows';
+    else if (/iPhone OS 1[0-9]/i.test(uaStr)) os = 'iOS ' + (uaStr.match(/iPhone OS (\d+)/i)||['','?'])[1];
+    else if (/iPhone|iPod/i.test(uaStr))     os = 'iOS';
+    else if (/iPad/i.test(uaStr))            os = 'iPadOS';
+    else if (/Mac OS X/i.test(uaStr))        os = 'macOS';
+    else if (/Android (\d+)/i.test(uaStr))   os = 'Android ' + (uaStr.match(/Android (\d+)/i)||['','?'])[1];
+    else if (/Linux/i.test(uaStr))           os = 'Linux';
+    else os = 'Unknown';
+
+    // ── Score bars ────────────────────────────────────────────────────────────
     var filledBars = Math.round(score / 100 * 10);
-    var barHeights = [8,10,12,14,16,14,16,18,18,20];
+    var barHeights = [8,10,12,13,14,13,15,16,18,20];
     var scoreBarsHtml = '';
     for (var b = 0; b < 10; b++) {
       var h = barHeights[b] || 14;
       scoreBarsHtml += '<div class="lsb ' + (b < filledBars ? 'lsb-' + dec : 'lsb-empty') + '" style="height:' + h + 'px"></div>';
     }
 
-    // Decision icon circle
+    // ── Decision icon ─────────────────────────────────────────────────────────
     var decIconHtml = dec === 'allow'
-      ? '<div class="log-dec-icon log-dec-allow"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>'
-      : '<div class="log-dec-icon log-dec-block"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></div>';
+      ? '<div class="log-dec-icon log-dec-allow"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>'
+      : '<div class="log-dec-icon log-dec-block"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></div>';
 
-    var decLabel = dec.charAt(0).toUpperCase() + dec.slice(1);
+    // ── Location ──────────────────────────────────────────────────────────────
+    var cityStr = l.city ? escHtml(l.city) + (l.region ? ', ' + escHtml(l.region) : '') : escHtml(l.country || 'Unknown');
+    var locHtml = '<div class="lc-location">'
+      + '<div class="lc-location-top"><span class="lc-flag">' + flag + '</span><span class="lc-city">' + cityStr + '</span></div>'
+      + '<span class="lc-cc">' + escHtml(l.country || 'XX') + '</span>'
+      + '</div>';
+
+    // ── Device column ─────────────────────────────────────────────────────────
+    var screenStr = (!l.screen || l.screen === '0x0') ? '—' : escHtml(l.screen);
+    var deviceHtml = '<div class="lc-device">'
+      + '<div class="lc-device-type">' + devIcon + ' ' + devType + '</div>'
+      + '<span class="lc-screen">' + screenStr + '</span>'
+      + '</div>';
+
+    // ── Quick-block ───────────────────────────────────────────────────────────
     var quickBlockBtn = '<button class="quick-block-btn" data-ip="' + escHtml(l.ip || '') + '" data-site="' + escHtml(sId) + '" onclick="event.stopPropagation();quickBlockIp(this)" title="Block this IP">&#9940;</button>';
+
+    // ── Detail panel items ────────────────────────────────────────────────────
+    function ldcItem(label, value, extra) {
+      return '<div class="ldc-item">'
+        + '<div class="ldc-label">' + label + '</div>'
+        + '<div class="ldc-value' + (extra ? ' ' + extra : '') + '">' + value + '</div>'
+        + '</div>';
+    }
+    function boolBadge(val) {
+      return val ? '<span class="ldc-badge-yes">Yes</span>' : '<span class="ldc-badge-no">No</span>';
+    }
+
+    var fullLoc = [l.city, l.region, l.country].filter(Boolean).join(', ') || 'Unknown';
+    var pluginCount = l.plugins !== undefined ? String(l.plugins) : '—';
+    var wdVal = l.wd !== undefined ? boolBadge(l.wd) : '<span style="color:var(--text3)">—</span>';
+    var proxyVal = l.proxy !== undefined ? boolBadge(l.proxy) : '<span style="color:var(--text3)">—</span>';
+    var hostVal = l.hosting !== undefined ? boolBadge(l.hosting) : '<span style="color:var(--text3)">—</span>';
+
+    var detailHtml = '<div class="log-detail-card" id="' + detailId + '" style="display:none">'
+      + '<div class="ldc-grid">'
+      + ldcItem('IP Address',     escHtml(l.ip || '—'))
+      + ldcItem('Full Location',  escHtml(fullLoc))
+      + ldcItem('ISP',            escHtml(l.isp || '—'))
+      + ldcItem('Organization',   escHtml(l.org || '—'))
+      + ldcItem('Device',         devType + ' · ' + os)
+      + ldcItem('Screen',         screenStr + (screenStr !== '—' ? '' : ' (no screen reported)'))
+      + ldcItem('Browser',        browser)
+      + ldcItem('Visitor TZ',     escHtml((l.tz || '').slice(0, 40) || '—'))
+      + ldcItem('Plugins',        pluginCount + (pluginCount === '0' ? ' (suspicious — bots often report 0)' : ''))
+      + ldcItem('WebDriver Flag', wdVal)
+      + ldcItem('Proxy / VPN',    proxyVal)
+      + ldcItem('Datacenter IP',  hostVal)
+      + ldcItem('Risk Score',     String(score) + ' / 100')
+      + ldcItem('Reason',         escHtml(l.reason || '—'))
+      + ldcItem('Site',           escHtml(sId))
+      + ldcItem('User Agent',     escHtml((l.ua || '—').slice(0, 300)), 'ldc-ua')
+      + '</div>'
+      + '</div>';
 
     return '<div class="log-card log-card-' + dec + '" data-decision="' + dec + '" data-detail="' + detailId + '">'
       + '<div class="log-card-grad log-grad-' + dec + '"></div>'
-      + '<div class="log-card-inner" onclick="toggleLogRow(\'' + detailId + '\')" title="Click to expand details">'
+      + '<div class="log-card-inner lc-grid" onclick="toggleLogRow(\'' + detailId + '\')" title="Click to expand full details">'
       +   '<div class="lc-num">' + rowNum + '</div>'
-      +   '<div class="lc-dec">' + decIconHtml + '<span class="dec-' + dec + '">' + decLabel + '</span></div>'
+      +   '<div class="lc-dec">' + decIconHtml + '<span class="dec-' + dec + '">' + (dec === 'allow' ? 'Allow' : 'Block') + '</span></div>'
       +   '<div class="lc-ip">' + escHtml(l.ip || '—') + '</div>'
-      +   '<div class="lc-country"><span class="lc-flag">' + flag + '</span><span class="lc-cc">' + escHtml(l.country || 'XX') + '</span></div>'
+      +   locHtml
+      +   deviceHtml
       +   '<div class="lc-score-wrap"><div class="lc-score-bars">' + scoreBarsHtml + '</div><span class="lc-score-val">' + score + '</span></div>'
-      +   '<div class="lc-isp" title="' + escHtml(l.isp || '') + '">' + isp + '</div>'
+      +   '<div class="lc-isp" title="' + escHtml(l.isp || '') + '">' + escHtml((l.isp || '—').slice(0, 30)) + '</div>'
       +   '<div class="lc-ts">' + escHtml(ts) + '</div>'
       +   '<div class="lc-reason">' + reasonPill(l.reason) + '</div>'
       +   '<div class="lc-actions">' + quickBlockBtn + '</div>'
       + '</div>'
-      + '<div class="log-detail-card" id="' + detailId + '" style="display:none">'
-      +   '<span class="ldd-lbl">UA:</span> <span class="ldd-val">' + ua + '</span>'
-      +   ' &nbsp;·&nbsp; <span class="ldd-lbl">ISP:</span> <span class="ldd-val">' + escHtml(l.isp || '—') + '</span>'
-      +   ' &nbsp;·&nbsp; <span class="ldd-lbl">Org:</span> <span class="ldd-val">' + org + '</span>'
-      +   ' &nbsp;·&nbsp; <span class="ldd-lbl">Screen:</span> <span class="ldd-val">' + screen + '</span>'
-      +   ' &nbsp;·&nbsp; <span class="ldd-lbl">TZ:</span> <span class="ldd-val">' + visitorTz + '</span>'
-      +   ' &nbsp;·&nbsp; <span class="ldd-lbl">Plugins:</span> <span class="ldd-val">' + escHtml(String(pl)) + '</span>'
-      +   ' &nbsp;·&nbsp; <span class="ldd-lbl">WebDriver:</span> <span class="ldd-val">' + escHtml(String(wd)) + '</span>'
-      + '</div>'
+      + detailHtml
       + '</div>';
   }).join('');
 
@@ -2129,24 +2222,32 @@ tbody td{padding:7px 11px;color:var(--text2);vertical-align:middle}
 .quick-block-btn.blocked{color:var(--red);cursor:default}
 /* ── Click Log card-list (server-management-table theme) ──────────────── */
 .lc-wrap{border-radius:14px;border:1px solid var(--border);background:var(--card);overflow:hidden}
-.lc-headers{display:grid;grid-template-columns:38px 140px minmax(90px,1fr) 72px 140px minmax(80px,1fr) 76px 96px 42px;gap:12px;padding:9px 18px 7px;font-size:.61rem;text-transform:uppercase;letter-spacing:.65px;font-weight:700;color:var(--text3)}
+/* grid: No | Dec | IP | Location | Device | Score | ISP | Time | Reason | Act */
+.lc-grid{display:grid;grid-template-columns:36px 128px 100px 150px 108px 128px minmax(70px,1fr) 74px 88px 36px;gap:10px;align-items:center}
+.lc-headers{padding:9px 16px 7px;font-size:.6rem;text-transform:uppercase;letter-spacing:.65px;font-weight:700;color:var(--text3)}
 .log-card-list{display:flex;flex-direction:column;gap:7px;padding:10px 10px 12px}
 .log-card{position:relative;border-radius:11px;border:1px solid var(--border);background:var(--bg3);overflow:hidden;transition:transform .15s ease,box-shadow .15s ease}
 .log-card:hover{transform:translateY(-1px);box-shadow:0 4px 14px rgba(0,0,0,.07)}
 body.dark .log-card:hover{box-shadow:0 4px 14px rgba(0,0,0,.28)}
-.log-card-grad{position:absolute;inset:0;pointer-events:none;background-size:32% 100%;background-position:right;background-repeat:no-repeat}
+.log-card-grad{position:absolute;inset:0;pointer-events:none;background-size:30% 100%;background-position:right;background-repeat:no-repeat}
 .log-grad-allow{background-image:linear-gradient(to left,rgba(34,197,94,.09),transparent)}
 .log-grad-block{background-image:linear-gradient(to left,rgba(239,68,68,.09),transparent)}
-.log-card-inner{position:relative;display:grid;grid-template-columns:38px 140px minmax(90px,1fr) 72px 140px minmax(80px,1fr) 76px 96px 42px;gap:12px;align-items:center;padding:13px 18px;cursor:pointer}
-.lc-num{font-size:1.1rem;font-weight:800;color:var(--text3);font-family:'SF Mono',Menlo,monospace;line-height:1}
-.lc-dec{display:flex;align-items:center;gap:8px;white-space:nowrap}
-.log-dec-icon{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.log-card-inner{position:relative;padding:12px 16px;cursor:pointer}
+.lc-num{font-size:1.05rem;font-weight:800;color:var(--text3);font-family:'SF Mono',Menlo,monospace;line-height:1}
+.lc-dec{display:flex;align-items:center;gap:7px;white-space:nowrap}
+.log-dec-icon{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .log-dec-allow{background:linear-gradient(135deg,#22c55e,#16a34a)}
 .log-dec-block{background:linear-gradient(135deg,#ef4444,#dc2626)}
-.lc-ip{font-family:'SF Mono',Menlo,monospace;font-size:.72rem;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.lc-country{display:flex;align-items:center;gap:5px}
-.lc-flag{font-size:1rem;line-height:1;flex-shrink:0}
-.lc-cc{font-size:.74rem;color:var(--text2);font-weight:500}
+.lc-ip{font-family:'SF Mono',Menlo,monospace;font-size:.71rem;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lc-location{display:flex;flex-direction:column;gap:1px;min-width:0}
+.lc-location-top{display:flex;align-items:center;gap:4px}
+.lc-flag{font-size:.95rem;line-height:1;flex-shrink:0}
+.lc-city{font-size:.73rem;color:var(--text);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lc-cc{font-size:.66rem;color:var(--text3)}
+.lc-device{display:flex;flex-direction:column;gap:2px;min-width:0}
+.lc-device-type{display:flex;align-items:center;gap:4px;font-size:.72rem;color:var(--text2);font-weight:500}
+.lc-device-type svg{flex-shrink:0;opacity:.7}
+.lc-screen{font-size:.66rem;font-family:'SF Mono',Menlo,monospace;color:var(--text3)}
 .lc-score-wrap{display:flex;align-items:center;gap:5px}
 .lc-score-bars{display:flex;gap:3px;align-items:flex-end}
 .lsb{width:5px;border-radius:2px;transition:background .3s}
@@ -2154,15 +2255,22 @@ body.dark .log-card:hover{box-shadow:0 4px 14px rgba(0,0,0,.28)}
 .lsb-block{background:rgba(239,68,68,.65)}
 .lsb-empty{background:var(--border2)}
 .lc-score-val{font-size:.69rem;font-family:'SF Mono',Menlo,monospace;color:var(--text2);min-width:20px}
-.lc-isp{font-size:.73rem;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.lc-ts{font-size:.67rem;font-family:'SF Mono',Menlo,monospace;color:var(--text3);white-space:nowrap}
+.lc-isp{font-size:.71rem;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lc-ts{font-size:.66rem;font-family:'SF Mono',Menlo,monospace;color:var(--text3);white-space:nowrap}
 .lc-reason{}
 .lc-actions{display:flex;justify-content:center}
 /* Updated decision badge sizing to match reference */
-.dec-allow{display:inline-flex;align-items:center;padding:3px 10px;border-radius:8px;background:rgba(34,197,94,.1);color:var(--green);font-weight:600;font-size:.68rem;text-transform:uppercase;border:1px solid rgba(34,197,94,.25);white-space:nowrap}
-.dec-block{display:inline-flex;align-items:center;padding:3px 10px;border-radius:8px;background:rgba(239,68,68,.1);color:var(--red);font-weight:600;font-size:.68rem;text-transform:uppercase;border:1px solid rgba(239,68,68,.25);white-space:nowrap}
-/* Log detail panel (inside card) */
-.log-detail-card{background:var(--bg2);border-top:1px solid var(--border);padding:10px 18px;font-size:.68rem;color:var(--text2);word-break:break-all;line-height:1.75}
+.dec-allow{display:inline-flex;align-items:center;padding:3px 9px;border-radius:7px;background:rgba(34,197,94,.1);color:var(--green);font-weight:600;font-size:.66rem;text-transform:uppercase;border:1px solid rgba(34,197,94,.25);white-space:nowrap}
+.dec-block{display:inline-flex;align-items:center;padding:3px 9px;border-radius:7px;background:rgba(239,68,68,.1);color:var(--red);font-weight:600;font-size:.66rem;text-transform:uppercase;border:1px solid rgba(239,68,68,.25);white-space:nowrap}
+/* Log detail panel (inside card) — rich 2-column grid */
+.log-detail-card{background:var(--bg2);border-top:1px solid var(--border);padding:12px 16px}
+.ldc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px 24px}
+.ldc-item{display:flex;flex-direction:column;gap:2px}
+.ldc-label{font-size:.59rem;text-transform:uppercase;letter-spacing:.5px;font-weight:700;color:var(--text3)}
+.ldc-value{font-size:.72rem;color:var(--text2);font-family:'SF Mono',Menlo,monospace;word-break:break-all;line-height:1.4}
+.ldc-value.ldc-ua{font-family:inherit;font-size:.71rem}
+.ldc-badge-yes{display:inline-flex;align-items:center;padding:1px 7px;border-radius:5px;background:rgba(239,68,68,.1);color:var(--red);font-size:.65rem;font-weight:700;border:1px solid rgba(239,68,68,.2)}
+.ldc-badge-no{display:inline-flex;align-items:center;padding:1px 7px;border-radius:5px;background:rgba(34,197,94,.1);color:var(--green);font-size:.65rem;font-weight:700;border:1px solid rgba(34,197,94,.2)}
 .ldd-lbl{color:var(--text3);font-weight:700;text-transform:uppercase;font-size:.62rem;letter-spacing:.5px}
 .ldd-val{color:var(--text2);font-family:'SF Mono',Menlo,monospace;font-size:.67rem}
 /* Lead called toggle */
@@ -2665,11 +2773,12 @@ textarea{resize:vertical;min-height:80px}
         </div>
 
         <div class="lc-wrap">
-          <div class="lc-headers">
+          <div class="lc-headers lc-grid">
             <div>No</div>
             <div>Decision</div>
             <div>IP Address</div>
-            <div>Country</div>
+            <div>Location</div>
+            <div>Device · Screen</div>
             <div>Risk Score</div>
             <div>ISP</div>
             <div>Time</div>

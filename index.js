@@ -1154,10 +1154,16 @@ app.post('/admin/sites/:id/delete', requireAdmin, function(req, res) {
 
 // ─── Lead called toggle (admin AJAX) ─────────────────────────────────────────
 app.post('/admin/lead-toggle', requireAdmin, function(req, res) {
-  var ts = (req.body.ts || '').trim();
+  var ts     = (req.body.ts     || '').trim();
+  var siteId = (req.body.siteId || '').trim();
+  var ip     = (req.body.ip     || '').trim();
   if (!ts) return res.json({ ok: false, reason: 'no-ts' });
   var leads = readLeads();
-  var idx = leads.findIndex(function(l) { return l.ts === ts; });
+  // Match by composite key (ts + siteId + ip) for precision; fall back to ts-only for older records
+  var idx = leads.findIndex(function(l) {
+    return l.ts === ts && ((!siteId && !ip) || (l.siteId === siteId && l.ip === ip));
+  });
+  if (idx === -1) idx = leads.findIndex(function(l) { return l.ts === ts; });
   if (idx === -1) return res.json({ ok: false, reason: 'not-found' });
   leads[idx].called = !leads[idx].called;
   if (leads[idx].called) leads[idx].calledAt = new Date().toISOString();
@@ -1535,8 +1541,8 @@ function adminDashboardPage(settings, logs, leads, opts) {
     var flag    = flagEmoji(l.country);
     var safeTs  = escHtml(l.ts || '');
     var calledToggle = l.called
-      ? '<button class="lead-toggle-btn called" data-ts="' + safeTs + '" onclick="toggleLeadCalled(this)" title="Mark as not called">✓ Called</button>'
-      : '<button class="lead-toggle-btn" data-ts="' + safeTs + '" onclick="toggleLeadCalled(this)" title="Mark as called">○ Pending</button>';
+      ? '<button class="lead-toggle-btn called" data-ts="' + safeTs + '" data-site="' + escHtml(l.siteId || '') + '" data-ip="' + escHtml(l.ip || '') + '" onclick="toggleLeadCalled(this)" title="Mark as not called">✓ Called</button>'
+      : '<button class="lead-toggle-btn" data-ts="' + safeTs + '" data-site="' + escHtml(l.siteId || '') + '" data-ip="' + escHtml(l.ip || '') + '" onclick="toggleLeadCalled(this)" title="Mark as called">○ Pending</button>';
     return '<tr>'
       + '<td class="t-mono t-ts">' + escHtml(ts) + '</td>'
       + '<td class="t-mono">' + escHtml(l.ip || '') + '</td>'
@@ -2885,8 +2891,8 @@ window.addEventListener('DOMContentLoaded', function() {
       if (elA) elA.textContent = payload.todayAllow;
       if (elB) elB.textContent = payload.todayBlock;
       var tot = payload.todayTotal || 0;
-      if (elAP && tot > 0) elAP.textContent = Math.round(payload.todayAllow / tot * 100) + '% of today';
-      if (elBP && tot > 0) elBP.textContent = Math.round(payload.todayBlock / tot * 100) + '% block rate';
+      if (elAP) elAP.textContent = (tot > 0 ? Math.round(payload.todayAllow / tot * 100) : 0) + '% of today';
+      if (elBP) elBP.textContent = (tot > 0 ? Math.round(payload.todayBlock / tot * 100) : 0) + '% block rate';
       return;
     }
 
@@ -2962,7 +2968,7 @@ function toggleLeadCalled(btn) {
   fetch('/admin/lead-toggle', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ts: ts })
+    body: JSON.stringify({ ts: ts, siteId: btn.dataset.site || '', ip: btn.dataset.ip || '' })
   }).then(function(r){ return r.json(); }).then(function(d) {
     btn.disabled = false;
     if (d.ok) {

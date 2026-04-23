@@ -8,9 +8,10 @@ A streaming support website with a self-hosted cloaking engine, lead capture sys
 - **Entry**: `index.js` — all routes and server logic in one file
 - **Static files**: `public/` — HTML pages served directly
 - **Data storage**: `data/` — JSON flat files (no database)
-  - `data/settings.json` — cloaking on/off, money URL, safe URL, blocked IPs, allowed countries
-  - `data/logs.json` — rolling log of last 500 cloaking decisions
-  - `data/leads.json` — rolling log of last 500 lead (code submission) events
+  - `data/settings.json` — default site cloaking settings (backwards compat)
+  - `data/sites.json` — multi-site registry: API keys, per-site URLs, GitHub repo, Railway IDs, deploy status
+  - `data/logs.json` — rolling log of last 500 cloaking decisions (tagged with siteId)
+  - `data/leads.json` — rolling log of last 500 lead events (tagged with siteId)
 
 ## Key Routes
 | Route | Description |
@@ -21,13 +22,20 @@ A streaming support website with a self-hosted cloaking engine, lead capture sys
 | `/amazon-prime` | Safe landing page shown to bots/reviewers |
 | `/safe` | Alias safe landing page |
 | `/offer` | Offer landing page |
-| `/api/cloak` | Self-hosted cloaking engine (POST) |
-| `/api/track/lead` | Lead capture endpoint (public POST) |
+| `/api/cloak` | Self-hosted cloaking engine (POST) — accepts X-Site-Key header |
+| `/api/track/lead` | Lead capture endpoint (public POST) — accepts X-Site-Key header |
+| `/sites/:siteId/safe` | Hub-hosted safe page for each registered site |
+| `/sites/:siteId/money` | Hub-hosted money redirect for each registered site |
 | `/admin/login` | Admin login page |
-| `/admin` | Admin dashboard (auth required) |
+| `/admin` | Admin dashboard (auth required); ?site= for per-site filtering |
 | `/admin/logout` | Clears session |
-| `/admin/settings` | Saves money/safe URLs (POST, auth required) |
-| `/admin/toggle` | Toggles cloaking on/off (POST, auth required) |
+| `/admin/settings` | Saves money/safe URLs for default site (POST, auth required) |
+| `/admin/toggle` | Toggles cloaking on/off for default site (POST, auth required) |
+| `/admin/sites` | Add new site (POST) |
+| `/admin/sites/:id/settings` | Update site settings + re-inject script (POST) |
+| `/admin/sites/:id/regenerate-key` | Rotate API key + re-inject (POST) |
+| `/admin/sites/:id/delete` | Delete site (POST) |
+| `/admin/sites/:id/toggle` | Pause/resume site (POST) |
 | `/admin/blocked-ips` | Saves permanently blocked IPs |
 | `/admin/allowed-countries` | Saves allowed country filter |
 | `/admin/clear-logs` | Clears decision log |

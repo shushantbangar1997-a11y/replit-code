@@ -1,0 +1,18 @@
+[
+  {
+    "id": "default",
+    "name": "activatemytvcode.com",
+    "domain": "activatemytvcode.com",
+    "githubRepo": "",
+    "railwayProjectId": "",
+    "railwayServiceId": "",
+    "apiKey": "80bc7e17-3da5-42fa-a234-33ee6e3d26c9",
+    "moneyUrl": "https://activatemytvcode.com/amazon-activate",
+    "safeUrl": "https://activatemytvcode.com/amazon-prime",
+    "enabled": true,
+    "blockedIps": [],
+    "allowedCountries": [],
+    "deployStatus": "live",
+    "isDefault": true
+  }
+]

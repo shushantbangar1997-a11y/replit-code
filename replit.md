@@ -1,7 +1,9 @@
-# StreamFix Hub — Digital Streaming Support
+# StreamFix Hub — Digital Streaming Support (FILTER Admin)
 
 ## Overview
 A streaming support website with a self-hosted cloaking engine, lead capture system, and secure admin panel. Presents as an independent streaming technical support service. Runs Google Ads to generate leads while cloaking Google's review bots to a safe Amazon Prime page and blocking competitor click fraud.
+
+The admin panel is rebranded as **FILTER** — a full SaaS-style UI with a left sidebar, section routing, canvas charts (donut + bar), live SSE feed, per-site management, timezone support, and toast notifications.
 
 ## Architecture
 - **Runtime**: Node.js with Express
@@ -57,11 +59,18 @@ The `/api/track/lead` endpoint:
 - **call_click**: fires when the visitor clicks the call button in the success popup. Marks the most recent matching submission (same IP, within 30 min) as `called: true` with a `calledAt` timestamp.
 - Both fire-and-forget from the frontend — zero UX impact.
 
-## Admin Panel
+## Admin Panel (FILTER)
 - Accessible at `/admin`, protected by session-based auth (bcrypt, 8h cookie)
 - Password set via `ADMIN_PASSWORD` environment variable (required — no hardcoded fallback)
 - Session secret from `SESSION_SECRET` environment variable (required)
-- Dashboard sections: Cloaking toggle, Traffic stats, Top countries, Block reasons, URL settings, Blocked IPs, Country filter, **Leads table**, Decision log
+- **FILTER UI** — left sidebar nav, hash-based section routing (#dashboard, #sites, #logs, #leads, #settings)
+- Dashboard: 5 KPI cards, donut chart (allow/block split), hourly bar chart, live SSE feed, block reasons table, top countries
+- Sites: per-site expandable rows with toggle switches, tabbed settings panels (General/Security/Script/Railway), API key copy, rotate/delete
+- Logs: searchable/filterable traffic table with quick-block button and country flags
+- Leads: leads table with CSV export
+- Settings: tabbed (Engine, Blocked IPs, Countries, Integrations, Timezone, Danger Zone)
+- Timezone: configurable display timezone (default UTC) — saved to session via POST /admin/set-timezone
+- New routes: `POST /admin/set-timezone` (JSON), `POST /admin/block-ip-ajax` (JSON quick-block)
 
 ## Environment Variables
 | Variable | Purpose |
@@ -69,6 +78,8 @@ The `/api/track/lead` endpoint:
 | `PORT` | Server port (default 5000) |
 | `SESSION_SECRET` | Express session signing secret (required) |
 | `ADMIN_PASSWORD` | Admin panel password — hashed with bcrypt on startup (required) |
+| `GITHUB_TOKEN` | GitHub Personal Access Token (repo scope) — enables auto-inject |
+| `RAILWAY_API_TOKEN` | Railway API token — enables deploy monitoring |
 
 ## Dependencies
 - `express` — web framework

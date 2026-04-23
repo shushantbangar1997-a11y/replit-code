@@ -718,7 +718,8 @@ app.get('/admin', requireAdmin, function(req, res) {
     hubUrl: hubUrl,
     siteCreated: siteCreated,
     hasGithubToken: !!process.env.GITHUB_TOKEN,
-    hasRailwayToken: !!process.env.RAILWAY_API_TOKEN
+    hasRailwayToken: !!process.env.RAILWAY_API_TOKEN,
+    displayTz: req.session.displayTz || 'UTC'
   }));
 });
 
@@ -826,6 +827,34 @@ app.get('/admin/blocked-ips-export', requireAdmin, function(req, res) {
 app.post('/admin/clear-frequency', requireAdmin, function(req, res) {
   clearFrequencyStore();
   res.redirect('/admin');
+});
+
+app.post('/admin/set-timezone', requireAdmin, function(req, res) {
+  var tz = (req.body.tz || 'UTC').trim();
+  try { new Intl.DateTimeFormat('en', { timeZone: tz }); } catch(e) {
+    return res.json({ ok: false, error: 'Invalid timezone' });
+  }
+  req.session.displayTz = tz;
+  res.json({ ok: true, tz: tz });
+});
+
+app.post('/admin/block-ip-ajax', requireAdmin, function(req, res) {
+  var ip     = (req.body.ip || '').trim();
+  var siteId = (req.body.siteId || 'default').trim();
+  if (!ip) return res.json({ ok: false, error: 'No IP' });
+  if (siteId && siteId !== 'default') {
+    var ss = readSites();
+    var idx = ss.findIndex(function(s) { return s.id === siteId; });
+    if (idx !== -1) {
+      if (!Array.isArray(ss[idx].blockedIps)) ss[idx].blockedIps = [];
+      if (!ss[idx].blockedIps.includes(ip)) { ss[idx].blockedIps.push(ip); writeSites(ss); }
+    }
+  } else {
+    var cfg = readSettings();
+    if (!Array.isArray(cfg.blockedIps)) cfg.blockedIps = [];
+    if (!cfg.blockedIps.includes(ip)) { cfg.blockedIps.push(ip); writeSettings(cfg); }
+  }
+  res.json({ ok: true, ip: ip });
 });
 
 // ─── Admin sites management ───────────────────────────────────────────────────
@@ -1003,29 +1032,41 @@ function adminLoginPage(errorHtml) {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Admin Login</title>
+<title>FILTER — Sign In</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0d0010;min-height:100vh;display:flex;align-items:center;justify-content:center;color:#e0e0e0}
-.card{background:#1a0d2e;border:1px solid #3d1f6e;border-radius:12px;padding:40px 36px;width:100%;max-width:380px;box-shadow:0 8px 40px rgba(0,0,0,0.5)}
-h1{font-size:1.4rem;margin-bottom:6px;color:#c084fc}
-.sub{font-size:0.82rem;color:#888;margin-bottom:28px}
-label{display:block;font-size:0.82rem;color:#aaa;margin-bottom:6px}
-input[type=password]{width:100%;padding:11px 14px;background:#0d0010;border:1px solid #3d1f6e;border-radius:8px;color:#e0e0e0;font-size:0.95rem;outline:none;transition:border .2s}
-input[type=password]:focus{border-color:#a855f7}
-button{width:100%;margin-top:20px;padding:12px;background:#7c3aed;color:#fff;border:none;border-radius:8px;font-size:1rem;font-weight:600;cursor:pointer;transition:background .2s}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:#070010;min-height:100vh;display:flex;align-items:center;justify-content:center;color:#e2d9f3}
+.card{background:#0d001e;border:1px solid #1e0840;border-radius:16px;padding:44px 40px;width:100%;max-width:400px;box-shadow:0 16px 60px rgba(0,0,0,.7)}
+.logo-row{display:flex;align-items:center;gap:10px;margin-bottom:24px}
+.logo-svg{width:36px;height:36px}
+.brand-name{font-size:1.4rem;font-weight:800;color:#e2d9f3;letter-spacing:-.5px}
+.brand-tag{font-size:.62rem;color:#4e3d70;text-transform:uppercase;letter-spacing:1.2px;margin-top:1px}
+h1{font-size:.9rem;font-weight:600;color:#9983b8;margin-bottom:22px}
+label{display:block;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#4e3d70;margin-bottom:6px}
+input[type=password]{width:100%;padding:11px 14px;background:#070010;border:1px solid #2e1260;border-radius:9px;color:#e2d9f3;font-size:.9rem;outline:none;transition:border .2s;font-family:inherit}
+input[type=password]:focus{border-color:#7c3aed}
+button{width:100%;margin-top:18px;padding:13px;background:#7c3aed;color:#fff;border:none;border-radius:9px;font-size:.95rem;font-weight:700;cursor:pointer;transition:background .2s;font-family:inherit}
 button:hover{background:#6d28d9}
-.error{color:#f87171;font-size:0.85rem;margin-top:14px;text-align:center}
+.error{color:#f87171;font-size:.82rem;margin-top:12px;text-align:center}
 </style>
 </head>
 <body>
 <div class="card">
-  <h1>Admin Panel</h1>
-  <p class="sub">StreamFix Hub &mdash; Cloaking Control</p>
+  <div class="logo-row">
+    <svg class="logo-svg" viewBox="0 0 36 36" fill="none">
+      <defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#a855f7"/><stop offset="100%" stop-color="#6d28d9"/></linearGradient></defs>
+      <path d="M4 5h28l-11 13.5V31l-6-3V18.5L4 5z" fill="url(#lg)" stroke="#7c3aed" stroke-width="1"/>
+    </svg>
+    <div>
+      <div class="brand-name">FILTER</div>
+      <div class="brand-tag">Traffic Management</div>
+    </div>
+  </div>
+  <h1>Sign in to your dashboard</h1>
   <form method="POST" action="/admin/login">
-    <label for="password">Password</label>
-    <input type="password" id="password" name="password" autofocus autocomplete="current-password" placeholder="Enter admin password">
-    <button type="submit">Sign In</button>
+    <label for="password">Admin Password</label>
+    <input type="password" id="password" name="password" autofocus autocomplete="current-password" placeholder="Enter password">
+    <button type="submit">Sign In →</button>
     ${errorHtml}
   </form>
 </div>
@@ -1052,6 +1093,7 @@ function adminDashboardPage(settings, logs, leads, opts) {
   var siteCreated  = opts.siteCreated || false;
   var hasGithubToken  = opts.hasGithubToken || false;
   var hasRailwayToken = opts.hasRailwayToken || false;
+  var displayTz       = opts.displayTz || 'UTC';
   var now = new Date();
   var today = now.toISOString().slice(0, 10);
   var timeStr = now.toUTCString().slice(17, 25);
@@ -1121,6 +1163,29 @@ function adminDashboardPage(settings, logs, leads, opts) {
       (Date.now() - new Date(l.ts).getTime()) < IP_FREQ_WINDOW_MS;
   }).length;
 
+  // ── Timestamp formatter (timezone-aware) ─────────────────────────────────
+  function fmtTs(ts) {
+    if (!ts) return '';
+    try {
+      return new Date(ts).toLocaleString('en-GB', {
+        timeZone: displayTz,
+        day: '2-digit', month: 'short',
+        hour: '2-digit', minute: '2-digit', second: '2-digit',
+        hour12: false
+      });
+    } catch(e) { return ts.replace('T', ' ').slice(0, 19); }
+  }
+
+  // ── Country flag from ISO code ────────────────────────────────────────────
+  function flagEmoji(code) {
+    if (!code || code.length !== 2 || code === 'XX') return '🌐';
+    try {
+      return String.fromCodePoint(...[...code.toUpperCase()].map(function(c) {
+        return 0x1F1E6 + c.charCodeAt(0) - 65;
+      }));
+    } catch(e) { return ''; }
+  }
+
   // ── Log rows ──────────────────────────────────────────────────────────────
   function deviceType(ua) {
     if (!ua) return '—';
@@ -1146,21 +1211,24 @@ function adminDashboardPage(settings, logs, leads, opts) {
     return '<span class="rpill rpill-' + col + '">' + escHtml(r || '') + '</span>';
   }
   var logRows = logs.map(function(l) {
-    var cls    = l.decision === 'allow' ? 'allow' : 'block';
-    var ts     = l.ts ? l.ts.replace('T',' ').slice(0,19) : '';
-    var isp    = (l.isp || '').slice(0, 22);
-    var screen = (!l.screen || l.screen === '0x0') ? '—' : escHtml(l.screen);
-    var device = deviceType(l.ua || '');
+    var decCls  = l.decision === 'allow' ? 'dec-allow' : 'dec-block';
+    var ts      = fmtTs(l.ts);
+    var flag    = flagEmoji(l.country);
+    var isp     = escHtml((l.isp || '').slice(0, 26));
+    var screen  = (!l.screen || l.screen === '0x0') ? '—' : escHtml(l.screen);
+    var visitorTz = escHtml((l.tz || '').slice(0, 30));
+    var sId     = l.siteId || 'default';
     return '<tr>'
-      + '<td class="mono">' + ts + '</td>'
-      + '<td class="mono">' + escHtml(l.ip || '') + '</td>'
-      + '<td>' + locationStr(l) + '</td>'
-      + '<td class="isp" title="' + escHtml(l.isp || '') + '">' + escHtml(isp) + '</td>'
-      + '<td class="mono">' + screen + '</td>'
-      + '<td>' + escHtml(device) + '</td>'
-      + '<td class="ua">' + escHtml((l.ua || '').slice(0, 50)) + '</td>'
-      + '<td class="' + cls + '">' + escHtml(l.decision || '') + '</td>'
+      + '<td class="t-mono t-ts">' + escHtml(ts) + '</td>'
+      + '<td class="t-mono t-ip" data-ip="' + escHtml(l.ip || '') + '">' + escHtml(l.ip || '') + '</td>'
+      + '<td><span class="t-flag">' + flag + '</span> ' + escHtml(l.country || 'XX') + '</td>'
+      + '<td class="t-loc">' + escHtml(l.city || '') + '</td>'
+      + '<td class="t-isp" title="' + escHtml(l.isp || '') + '">' + isp + '</td>'
+      + '<td class="t-mono t-screen">' + screen + '</td>'
+      + '<td class="t-tz">' + visitorTz + '</td>'
+      + '<td><span class="' + decCls + '">' + escHtml(l.decision || '') + '</span></td>'
       + '<td>' + reasonPill(l.reason) + '</td>'
+      + '<td><button class="quick-block-btn" data-ip="' + escHtml(l.ip || '') + '" data-site="' + escHtml(sId) + '" onclick="quickBlockIp(this)" title="Block this IP">&#9940;</button></td>'
       + '</tr>';
   }).join('');
 
@@ -1186,18 +1254,19 @@ function adminDashboardPage(settings, logs, leads, opts) {
   }
 
   var leadRows = submits.map(function(l) {
-    var ts     = l.ts ? l.ts.replace('T',' ').slice(0,19) : '';
-    var device = deviceType(l.ua || '');
+    var ts      = fmtTs(l.ts);
+    var flag    = flagEmoji(l.country);
     var calledBadge = l.called
-      ? '<span class="rpill rpill-green">Yes</span>'
-      : '<span class="rpill rpill-grey">No</span>';
+      ? '<span class="rpill rpill-green">Called</span>'
+      : '<span class="rpill rpill-grey">Pending</span>';
     return '<tr>'
-      + '<td class="mono">' + ts + '</td>'
-      + '<td class="mono">' + escHtml(l.ip || '') + '</td>'
-      + '<td>' + locationStr(l) + '</td>'
-      + '<td>' + escHtml(device) + '</td>'
-      + '<td class="mono" style="color:#c084fc;font-weight:700">' + escHtml(l.code || '') + '</td>'
+      + '<td class="t-mono t-ts">' + escHtml(ts) + '</td>'
+      + '<td class="t-mono">' + escHtml(l.ip || '') + '</td>'
+      + '<td><span class="t-flag">' + flag + '</span> ' + escHtml(l.country || 'XX') + '</td>'
+      + '<td>' + escHtml(l.city || '') + '</td>'
+      + '<td class="t-mono" style="color:#a855f7;font-weight:700">' + escHtml(l.code || '') + '</td>'
       + '<td>' + adSource(l) + '</td>'
+      + '<td class="t-mono">' + escHtml((l.tz || '').slice(0, 30)) + '</td>'
       + '<td>' + calledBadge + '</td>'
       + '</tr>';
   }).join('');
@@ -1385,727 +1454,1290 @@ function adminDashboardPage(settings, logs, leads, opts) {
     + '</div>'
     + '</div>';
 
+  // ── Hourly traffic chart data ────────────────────────────────────────────
+  var hourlyAllow  = new Array(24).fill(0);
+  var hourlyBlock  = new Array(24).fill(0);
+  todayLogs.forEach(function(l) {
+    if (l.ts) {
+      var h = parseInt(l.ts.slice(11, 13)) || 0;
+      if (l.decision === 'allow') hourlyAllow[h]++;
+      else hourlyBlock[h]++;
+    }
+  });
+  var todayLeadCount  = todaySubmits.length;
+  var blockRateToday  = todayTotal > 0 ? Math.round(todayBlock / todayTotal * 100) : 0;
+  var hourlyAllowJson = JSON.stringify(hourlyAllow);
+  var hourlyBlockJson = JSON.stringify(hourlyBlock);
+
+  // ── Compact reason table for dashboard ───────────────────────────────────
+  var reasonTableRows = reasonOrder.filter(function(r){ return reasonCounts[r] > 0; }).map(function(r) {
+    var cnt  = reasonCounts[r];
+    var pct  = allBlock > 0 ? Math.round(cnt / allBlock * 100) : 0;
+    var col  = reasonColors[r] || 'grey';
+    return '<tr><td>' + escHtml(r) + '</td><td class="t-right"><span class="rpill rpill-' + col + '">' + cnt + '</span></td><td class="t-right t-muted">' + pct + '%</td></tr>';
+  }).join('') || '<tr><td colspan="3" class="t-muted t-center">No blocks recorded</td></tr>';
+
+  // ── New site list rows for FILTER UI ─────────────────────────────────────
+  var siteListHtml = sites.map(function(s) {
+    var dsCls = { live:'db-live', pushed:'db-pushed', pending:'db-pending', failed:'db-failed', 'key-rotated':'db-rotated' }[s.deployStatus] || 'db-pending';
+    var dsLabel = { live:'Live', pushed:'GitHub ✓', pending:'Pending', failed:'Failed', 'key-rotated':'Key Rotated' }[s.deployStatus] || 'Pending';
+    var mk  = s.apiKey ? s.apiKey.slice(0, 8) + '••••' + s.apiKey.slice(-4) : '—';
+    var safeHref  = hubUrl + '/sites/' + s.id + '/safe';
+    var moneyHref = hubUrl + '/sites/' + s.id + '/money';
+    var snip = siteSnippet(s);
+    var isEnabled = s.isDefault ? settings.enabled !== false : s.enabled !== false;
+    var sid = escHtml(s.id);
+
+    return '<div style="margin-bottom:8px">'
+      + '<div class="sl-row">'
+      +   '<div class="sl-icon">🌐</div>'
+      +   '<div class="sl-info">'
+      +     '<div class="sl-name">' + escHtml(s.name) + (s.isDefault ? ' <span class="rpill rpill-grey" style="font-size:0.62rem">DEFAULT</span>' : '') + '</div>'
+      +     '<div class="sl-domain">' + escHtml(s.domain || '—') + '</div>'
+      +   '</div>'
+      +   '<span class="' + dsCls + '" style="flex-shrink:0">' + escHtml(dsLabel) + '</span>'
+      +   '<div class="sl-key-wrap"><span class="sl-key-val" title="' + escHtml(s.apiKey || '') + '">' + escHtml(mk) + '</span>'
+      +     '<button class="btn-ghost btn-sm" onclick="copyKey(\'\',\'' + escHtml(s.apiKey || '') + '\',this)" style="padding:2px 7px;font-size:0.68rem">Copy</button>'
+      +   '</div>'
+      +   '<form method="POST" action="/admin/sites/' + sid + '/toggle" class="inline">'
+      +     '<label class="ts-wrap"><input type="checkbox" class="ts-input" ' + (isEnabled ? 'checked' : '') + ' onchange="this.closest(\'form\').submit()"><span class="ts-track"></span>'
+      +     '<span class="ts-label" style="font-size:0.75rem">' + (isEnabled ? 'Active' : 'Paused') + '</span></label>'
+      +   '</form>'
+      +   '<div class="sl-actions">'
+      +     '<button class="sl-settings" onclick="toggleSlRow(this,\'slx-' + sid + '\')">\u2699 Settings</button>'
+      +     (s.isDefault ? '' :
+      +       '<form method="POST" action="/admin/sites/' + sid + '/regenerate-key" class="inline" onsubmit="return confirm(\'Rotate API key? Old key stops immediately.\')">'
+      +         '<button type="submit" class="btn-ghost btn-sm">\u21BB Rotate</button>'
+      +       '</form>'
+      +       '<form method="POST" action="/admin/sites/' + sid + '/delete" class="inline" onsubmit="return confirm(\'Delete ' + escHtml(s.name) + '? Cannot be undone.\')">'
+      +         '<button type="submit" class="btn-danger btn-sm">Delete</button>'
+      +       '</form>')
+      +   '</div>'
+      + '</div>'
+      + '<div class="sl-expand" id="slx-' + sid + '">'
+      +   '<div class="sl-tabs">'
+      +     '<button class="sl-tab active" onclick="switchSlTab(this,\'slt-g-' + sid + '\')">General</button>'
+      +     '<button class="sl-tab" onclick="switchSlTab(this,\'slt-sec-' + sid + '\')">Security</button>'
+      +     '<button class="sl-tab" onclick="switchSlTab(this,\'slt-snip-' + sid + '\')">Script</button>'
+      +     '<button class="sl-tab" onclick="switchSlTab(this,\'slt-rw-' + sid + '\')">Railway</button>'
+      +   '</div>'
+      +   '<div class="sl-tab-content active" id="slt-g-' + sid + '">'
+      +     '<form method="POST" action="/admin/sites/' + sid + '/settings">'
+      +       '<div class="form-grid2">'
+      +         '<div class="form-row"><label>Site Name</label><input type="text" name="name" value="' + escHtml(s.name) + '"></div>'
+      +         '<div class="form-row"><label>Domain</label><input type="text" name="domain" value="' + escHtml(s.domain || '') + '" placeholder="example.com"></div>'
+      +         '<div class="form-row"><label>Money URL</label><input type="text" name="moneyUrl" value="' + escHtml(s.moneyUrl || '') + '" placeholder="https://your-offer-url.com"></div>'
+      +         '<div class="form-row"><label>Safe URL <span class="hint" style="display:inline">(blank = hub)</span></label><input type="text" name="safeUrl" value="' + escHtml(s.safeUrl || '') + '" placeholder="' + escHtml(safeHref) + '"></div>'
+      +         '<div class="form-row"><label>GitHub Repo</label><input type="text" name="githubRepo" value="' + escHtml(s.githubRepo || '') + '" placeholder="https://github.com/user/repo"></div>'
+      +         '<div class="form-row"><label>Allowed Countries</label><input type="text" name="allowedCountries" value="' + escHtml((s.allowedCountries || []).join(', ')) + '" placeholder="US CA GB"></div>'
+      +       '</div>'
+      +       '<button type="submit" class="btn-pri mt12">Save &amp; Push</button>'
+      +     '</form>'
+      +   '</div>'
+      +   '<div class="sl-tab-content" id="slt-sec-' + sid + '">'
+      +     '<form method="POST" action="/admin/sites/' + sid + '/settings">'
+      +       '<div class="form-row"><label>Blocked IPs (one per line)</label><textarea name="blockedIps" rows="5">' + escHtml((s.blockedIps || []).join('\n')) + '</textarea></div>'
+      +       '<input type="hidden" name="name" value="' + escHtml(s.name) + '">'
+      +       '<input type="hidden" name="domain" value="' + escHtml(s.domain || '') + '">'
+      +       '<button type="submit" class="btn-pri mt8">Save Security</button>'
+      +     '</form>'
+      +   '</div>'
+      +   '<div class="sl-tab-content" id="slt-snip-' + sid + '">'
+      +     '<p class="hint mb12">Paste this in the &lt;head&gt; of your landing page. FILTER will route all traffic automatically.</p>'
+      +     '<div style="position:relative"><button class="btn-ghost btn-sm" onclick="copySnippetById(\'snip2-' + sid + '\',this)" style="position:absolute;top:8px;right:8px;z-index:1">Copy</button>'
+      +     '<pre class="snippet-pre" id="snip2-' + sid + '">' + escHtml(snip) + '</pre></div>'
+      +     '<div class="mt12 flex-gap8"><span class="hint">Hub safe: <a href="' + escHtml(safeHref) + '" target="_blank" style="color:var(--pri-l)">' + escHtml(safeHref) + '</a></span></div>'
+      +   '</div>'
+      +   '<div class="sl-tab-content" id="slt-rw-' + sid + '">'
+      +     '<form method="POST" action="/admin/sites/' + sid + '/settings">'
+      +       '<div class="form-grid2">'
+      +         '<div class="form-row"><label>Railway Project ID</label><input type="text" name="railwayProjectId" value="' + escHtml(s.railwayProjectId || '') + '" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"></div>'
+      +         '<div class="form-row"><label>Railway Service ID</label><input type="text" name="railwayServiceId" value="' + escHtml(s.railwayServiceId || '') + '" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"></div>'
+      +       '</div>'
+      +       '<input type="hidden" name="name" value="' + escHtml(s.name) + '">'
+      +       '<button type="submit" class="btn-pri mt12">Save Railway Config</button>'
+      +     '</form>'
+      +   '</div>'
+      + '</div>'
+      + '</div>';
+  }).join('');
+
   // ── Recent events for live feed (server-rendered initial state) ───────────
   function liveRow(l) {
-    var ts  = l.ts ? l.ts.replace('T',' ').slice(0,19) : '';
-    var loc = (l.city ? escHtml(l.city) + ', ' : '') + escHtml(l.country || 'XX');
-    var cls = l.decision === 'allow' ? 'lf-allow' : 'lf-block';
-    return '<div class="lf-row"><span class="lf-ts">' + ts + '</span>'
-      + '<span class="lf-ip">' + escHtml(l.ip || '') + '</span>'
-      + '<span class="lf-loc">' + loc + '</span>'
-      + '<span class="lf-dec ' + cls + '">' + escHtml(l.decision || '') + '</span>'
-      + '<span class="lf-reason">' + escHtml(l.reason || '') + '</span></div>';
+    var ts  = fmtTs(l.ts) || (l.ts ? l.ts.replace('T',' ').slice(0,19) : '');
+    var loc = (l.city ? escHtml(l.city) + ' ' : '') + escHtml(l.country || 'XX');
+    var cls = l.decision === 'allow' ? 'lt-dec-allow' : 'lt-dec-block';
+    var flag = flagEmoji(l.country);
+    return '<div class="lt-row">'
+      + '<span class="lt-ts">' + escHtml(ts.split(',')[1] || ts).trim() + '</span>'
+      + '<span class="lt-ip">' + escHtml(l.ip || '') + '</span>'
+      + '<span class="lt-loc">' + flag + ' ' + escHtml(l.country || 'XX') + '</span>'
+      + '<span class="' + cls + '">' + escHtml(l.decision || '') + '</span>'
+      + '</div>';
   }
   var liveInitRows = recentEvents.map(liveRow).join('');
   var activeIpTimesJson = JSON.stringify(activeIpTimes)
     .replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026');
+
+  var siteOptHtml = sites.map(function(s) {
+    return '<option value="' + escHtml(s.id) + '"' + (s.id === siteFilter ? ' selected' : '') + '>' + escHtml(s.name) + (s.isDefault ? ' (default)' : '') + '</option>';
+  }).join('');
 
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Cloaking Admin — StreamFix Hub</title>
+<title>FILTER — Traffic Management</title>
 <style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#08050f;color:#e0e0e0;min-height:100vh}
-
-header{background:#120824;border-bottom:1px solid #2e1655;padding:14px 28px;display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px}
-.hdr-left h1{font-size:1.05rem;color:#c084fc;font-weight:700;margin-bottom:4px}
-.hdr-urls{font-size:0.74rem;color:#6b6b8a}
-.hdr-urls span{color:#a78bfa}
-.hdr-right{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
-.hdr-time{font-size:0.75rem;color:#555;white-space:nowrap}
-.hdr-right a{color:#888;font-size:0.8rem;text-decoration:none}
-.hdr-right a:hover{color:#c084fc}
-
-/* ── Notification bell ── */
+:root{--bg:#070010;--bg2:#0d001e;--bg3:#130028;--card:#0f0022;--border:#1e0840;--border2:#2e1260;--pri:#7c3aed;--pri-h:#6d28d9;--pri-l:#a855f7;--text:#e2d9f3;--text2:#9983b8;--text3:#4e3d70;--green:#22c55e;--red:#ef4444;--amber:#f59e0b;--blue:#60a5fa;--sidebar:240px;--topbar:56px}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.5;overflow:hidden;height:100vh}
+/* Layout */
+.f-app{display:flex;height:100vh;overflow:hidden}
+.f-sidebar{width:var(--sidebar);min-width:var(--sidebar);background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;height:100vh;overflow-y:auto;z-index:200;transition:transform .3s;flex-shrink:0}
+.f-main{flex:1;min-width:0;display:flex;flex-direction:column;height:100vh;overflow:hidden}
+.f-topbar{height:var(--topbar);background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;padding:0 20px;flex-shrink:0}
+.f-content{flex:1;overflow-y:auto;padding:24px;background:var(--bg)}
+/* Sidebar brand */
+.sb-brand{padding:18px 16px 14px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border)}
+.sb-logo{width:30px;height:30px;flex-shrink:0}
+.sb-name{font-size:1.05rem;font-weight:800;color:var(--text);letter-spacing:-0.5px}
+.sb-tagline{font-size:0.58rem;color:var(--text3);text-transform:uppercase;letter-spacing:1.2px;margin-top:1px}
+/* Nav */
+.sb-nav{flex:1;padding:10px 8px;display:flex;flex-direction:column;gap:1px}
+.sb-sec-lbl{font-size:0.59rem;color:var(--text3);text-transform:uppercase;letter-spacing:1px;padding:10px 10px 3px;font-weight:700}
+.sb-link{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:7px;font-size:0.81rem;color:var(--text2);text-decoration:none;cursor:pointer;border:none;background:none;width:100%;transition:all .15s;text-align:left}
+.sb-link:hover{background:rgba(124,58,237,.12);color:var(--pri-l)}
+.sb-link.active{background:rgba(124,58,237,.18);color:var(--text);font-weight:600}
+.sb-icon{font-size:0.88rem;width:18px;text-align:center;flex-shrink:0}
+.sb-cnt{margin-left:auto;background:var(--pri);color:#fff;font-size:0.6rem;font-weight:700;padding:1px 6px;border-radius:10px}
+/* Site selector */
+.sb-site-wrap{padding:10px;border-top:1px solid var(--border)}
+.sb-site-lbl{font-size:0.59rem;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;display:block;font-weight:700}
+.sb-site-sel{width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-size:0.77rem;padding:6px 9px;outline:none;cursor:pointer}
+.sb-site-sel:focus{border-color:var(--pri)}
+/* Footer */
+.sb-footer{padding:10px 14px;border-top:1px solid var(--border);font-size:0.68rem;color:var(--text3);display:flex;justify-content:space-between;align-items:center}
+.sb-footer a{color:var(--text3);text-decoration:none}
+.sb-footer a:hover{color:var(--red)}
+/* Topbar */
+.f-hamburger{display:none;background:none;border:none;color:var(--text2);cursor:pointer;padding:5px;border-radius:6px;font-size:1.1rem;align-items:center;justify-content:center}
+.f-breadcrumb{font-size:0.85rem;font-weight:600;color:var(--text);flex:1}
+.f-topbar-right{display:flex;align-items:center;gap:8px}
+.f-clock{font-size:0.72rem;color:var(--text3);font-family:'SF Mono',Menlo,monospace;background:var(--bg3);padding:4px 9px;border-radius:6px;white-space:nowrap}
+.f-tz-badge{font-size:0.67rem;color:var(--pri-l);background:rgba(168,85,247,.1);border:1px solid rgba(168,85,247,.2);border-radius:6px;padding:3px 7px;cursor:pointer;white-space:nowrap}
+.f-tz-badge:hover{background:rgba(168,85,247,.18)}
+/* Sections */
+.f-section{display:none}.f-section.active{display:block}
+/* Notifications */
 .notif-wrap{position:relative}
-.notif-btn{background:none;border:none;cursor:pointer;padding:5px 7px;border-radius:8px;transition:background .2s;display:flex;align-items:center;justify-content:center;color:#888}
-.notif-btn:hover{background:#1a0d2e;color:#c084fc}
-.notif-badge{position:absolute;top:-2px;right:-2px;background:#ef4444;color:#fff;font-size:0.6rem;font-weight:800;border-radius:10px;padding:1px 5px;min-width:16px;text-align:center;display:none;line-height:1.4}
+.notif-btn{background:none;border:none;cursor:pointer;padding:6px;border-radius:7px;color:var(--text2);display:flex;align-items:center;justify-content:center;transition:background .15s;position:relative}
+.notif-btn:hover{background:rgba(124,58,237,.15);color:var(--pri-l)}
+.notif-badge{position:absolute;top:-1px;right:-1px;background:var(--red);color:#fff;font-size:0.58rem;font-weight:800;border-radius:8px;padding:1px 4px;min-width:14px;text-align:center;display:none;line-height:1.4}
 .notif-badge.show{display:block}
-.notif-dropdown{position:absolute;top:calc(100% + 10px);right:0;width:340px;background:#120824;border:1px solid #2e1655;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,0.6);z-index:999;display:none}
+.notif-dropdown{position:absolute;top:calc(100% + 8px);right:0;width:330px;background:var(--bg2);border:1px solid var(--border2);border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.6);z-index:999;display:none}
 .notif-dropdown.open{display:block}
-.notif-hdr{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid #2e1655}
-.notif-hdr span{font-size:0.78rem;font-weight:700;color:#a78bfa;text-transform:uppercase;letter-spacing:1px}
-.notif-clear{background:none;border:none;color:#555;font-size:0.72rem;cursor:pointer;padding:3px 7px;border-radius:6px;transition:color .2s}
-.notif-clear:hover{color:#f87171}
-.notif-list{max-height:320px;overflow-y:auto}
-.notif-item{padding:10px 16px;border-bottom:1px solid #160928;display:flex;flex-direction:column;gap:3px}
+.notif-hdr{display:flex;justify-content:space-between;align-items:center;padding:11px 14px;border-bottom:1px solid var(--border)}
+.notif-hdr span{font-size:0.75rem;font-weight:700;color:var(--pri-l);text-transform:uppercase;letter-spacing:1px}
+.notif-clear{background:none;border:none;color:var(--text3);font-size:0.7rem;cursor:pointer;padding:3px 7px;border-radius:5px}
+.notif-clear:hover{color:var(--red)}
+.notif-list{max-height:300px;overflow-y:auto}
+.notif-item{padding:9px 14px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:2px}
 .notif-item:last-child{border-bottom:none}
-.notif-item-top{display:flex;justify-content:space-between;align-items:center}
-.notif-ip{font-size:0.75rem;font-family:'SF Mono',Menlo,monospace;color:#c084fc}
-.notif-time{font-size:0.68rem;color:#444}
-.notif-loc{font-size:0.72rem;color:#777}
-.notif-dec-allow{color:#4ade80;font-size:0.72rem;font-weight:700}
-.notif-dec-block{color:#f87171;font-size:0.72rem;font-weight:700}
-.notif-empty{padding:20px 16px;text-align:center;color:#444;font-size:0.78rem;font-style:italic}
-/* ── Sound toggle ── */
-.sound-btn{background:none;border:none;cursor:pointer;padding:5px 7px;border-radius:8px;transition:background .2s;color:#888;display:flex;align-items:center}
-.sound-btn:hover{background:#1a0d2e;color:#c084fc}
-.sound-btn.muted{color:#444}
-
-.container{max-width:1260px;margin:0 auto;padding:24px 18px}
-
-/* ── Grid layouts ── */
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:18px}
-.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px;margin-bottom:18px}
-@media(max-width:900px){.grid2,.grid3{grid-template-columns:1fr}}
-
-/* ── Card ── */
-.card{background:#1a0d2e;border:1px solid #2e1655;border-radius:12px;padding:22px}
-.card h2{font-size:0.78rem;text-transform:uppercase;letter-spacing:1.2px;color:#a78bfa;margin-bottom:16px;font-weight:700}
-
-/* ── Badge / status ── */
-.badge{display:inline-block;padding:3px 12px;border-radius:20px;font-size:0.75rem;font-weight:700;letter-spacing:0.5px;vertical-align:middle}
-.badge.on{background:#14532d;color:#4ade80}
-.badge.off{background:#450a0a;color:#f87171}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.25}}
-.pulse-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#4ade80;animation:pulse 1.5s infinite;margin-right:7px;vertical-align:middle}
-
-/* ── Buttons ── */
-.toggle-row{display:flex;align-items:center;gap:14px;margin-bottom:14px;flex-wrap:wrap}
-.toggle-row p{font-size:0.82rem;color:#777}
-form.inline{display:inline}
-button{padding:9px 18px;border:none;border-radius:8px;font-size:0.85rem;font-weight:600;cursor:pointer;transition:background .2s}
-.btn-primary{background:#7c3aed;color:#fff}.btn-primary:hover{background:#6d28d9}
-.btn-danger{background:#7f1d1d;color:#fca5a5}.btn-danger:hover{background:#991b1b}
-.btn-success{background:#14532d;color:#4ade80}.btn-success:hover{background:#166534}
-.btn-sm{padding:6px 13px;font-size:0.78rem}
-
-/* ── Stats ── */
-.stats-row{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:10px}
-.stat{flex:1;min-width:90px;background:#0d0018;border:1px solid #2e1655;border-radius:10px;padding:14px 10px;text-align:center}
-.stat .num{font-size:1.7rem;font-weight:800;display:block;line-height:1}
-.stat .lbl{font-size:0.7rem;color:#666;margin-top:5px;display:block}
-.allow-num{color:#4ade80}.block-num{color:#f87171}.total-num{color:#a78bfa}.rate-num{color:#fb923c}
-
-/* ── Country bars ── */
-.cc-row{display:flex;align-items:center;gap:8px;margin-bottom:9px}
-.cc-flag{font-size:1.1rem;width:22px;text-align:center}
-.cc-code{font-size:0.78rem;font-weight:700;color:#c084fc;width:26px}
-.cc-bar-wrap{flex:1;background:#0d0018;border-radius:4px;height:8px;overflow:hidden}
-.cc-bar{height:100%;background:linear-gradient(90deg,#7c3aed,#a855f7);border-radius:4px;transition:width .4s}
-.cc-cnt{font-size:0.78rem;color:#888;width:30px;text-align:right}
-
-/* ── Reason pills (summary) ── */
-.pills-wrap{display:flex;flex-wrap:wrap;gap:8px}
-.pill{display:inline-flex;align-items:center;gap:5px;padding:5px 12px;border-radius:20px;font-size:0.78rem}
-.pill strong{font-size:0.88rem}
-.pill-orange{background:#431407;color:#fb923c}
-.pill-amber{background:#451a03;color:#fbbf24}
-.pill-red{background:#450a0a;color:#f87171}
-.pill-grey{background:#1c1c2e;color:#888}
-
-/* ── Form inputs ── */
-label{display:block;font-size:0.78rem;color:#aaa;margin-bottom:5px;margin-top:14px}
-label:first-child{margin-top:0}
-input[type=text],input[type=url],textarea{width:100%;padding:9px 12px;background:#0d0018;border:1px solid #2e1655;border-radius:8px;color:#e0e0e0;font-size:0.85rem;outline:none;font-family:inherit}
-input:focus,textarea:focus{border-color:#a855f7}
-textarea{resize:vertical;font-size:0.78rem;font-family:'SF Mono',Menlo,monospace;line-height:1.5}
-
-/* ── Traffic controls counters ── */
-.tc-meta{display:flex;gap:12px;margin-bottom:14px;flex-wrap:wrap}
-.tc-chip{background:#0d0018;border:1px solid #2e1655;border-radius:8px;padding:8px 12px;font-size:0.76rem;color:#888}
-.tc-chip strong{color:#c084fc}
-
-/* ── Log table ── */
-.log-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.notif-ip{font-size:0.74rem;font-family:'SF Mono',Menlo,monospace;color:var(--pri-l)}
+.notif-dec-allow{color:var(--green);font-size:0.68rem;font-weight:700}
+.notif-dec-block{color:var(--red);font-size:0.68rem;font-weight:700}
+.notif-time{font-size:0.64rem;color:var(--text3)}
+.notif-empty{text-align:center;padding:20px;font-size:0.75rem;color:var(--text3)}
+/* KPI */
+.kpi-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:18px}
+.kpi{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px 18px;transition:border-color .2s}
+.kpi:hover{border-color:var(--border2)}
+.kpi-label{font-size:0.64rem;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;font-weight:700;margin-bottom:8px}
+.kpi-val{font-size:1.75rem;font-weight:800;color:var(--text);line-height:1;font-variant-numeric:tabular-nums}
+.kpi-sub{font-size:0.69rem;color:var(--text3);margin-top:5px}
+.kpi-green .kpi-val{color:var(--green)}.kpi-red .kpi-val{color:var(--red)}.kpi-purple .kpi-val{color:var(--pri-l)}.kpi-blue .kpi-val{color:var(--blue)}
+/* Dashboard grid */
+.dash-mid{display:grid;grid-template-columns:1fr 2fr 1fr;gap:14px;margin-bottom:16px}
+.dash-bot{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px}
+/* Cards */
+.f-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px}
+.f-card-title{font-size:0.68rem;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between}
+/* Charts */
+#donutWrap{position:relative;display:flex;justify-content:center;align-items:center;height:170px}
+.donut-center{position:absolute;text-align:center;pointer-events:none}
+.donut-pct{font-size:1.5rem;font-weight:800}
+.donut-lbl{font-size:0.62rem;color:var(--text3);text-transform:uppercase;letter-spacing:1px}
+.chart-legend{display:flex;gap:12px;flex-wrap:wrap;margin-top:10px}
+.leg-item{display:flex;align-items:center;gap:5px;font-size:0.7rem;color:var(--text2)}
+.leg-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+#barChartWrap{height:150px}
+/* Live ticker */
+.live-top{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.live-dot{width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse 1.4s infinite}
+.live-cnt{font-size:1.3rem;font-weight:800;color:var(--green);margin-left:auto}
+.lt-feed{display:flex;flex-direction:column;gap:3px;max-height:240px;overflow-y:auto}
+.lt-row{display:grid;grid-template-columns:80px 1fr auto;gap:6px;align-items:center;padding:5px 7px;border-radius:6px;font-size:0.7rem}
+.lt-row:hover{background:rgba(124,58,237,.08)}
+.lt-ts{font-family:'SF Mono',Menlo,monospace;color:var(--text3);font-size:0.64rem}
+.lt-ip{font-family:'SF Mono',Menlo,monospace;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lt-dec-allow{color:var(--green);font-weight:700;font-size:0.66rem;text-transform:uppercase;text-align:right}
+.lt-dec-block{color:var(--red);font-weight:700;font-size:0.66rem;text-transform:uppercase;text-align:right}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+/* Tables */
+.f-table-wrap{overflow-x:auto;border-radius:8px;border:1px solid var(--border)}
 table{width:100%;border-collapse:collapse;font-size:0.76rem}
-th{text-align:left;padding:8px 10px;color:#a78bfa;border-bottom:1px solid #2e1655;font-weight:600;white-space:nowrap;background:#120824;position:sticky;top:0}
-td{padding:6px 10px;border-bottom:1px solid #160928;color:#ccc;white-space:nowrap}
-td.mono{font-family:'SF Mono',Menlo,monospace;font-size:0.72rem;color:#888}
-td.ua{max-width:180px;overflow:hidden;text-overflow:ellipsis;color:#777}
-td.isp{max-width:140px;overflow:hidden;text-overflow:ellipsis;color:#9ca3af}
-td.allow{color:#4ade80;font-weight:700}
-td.block{color:#f87171;font-weight:700}
-tr:hover td{background:rgba(124,58,237,0.07)}
-
-/* ── Reason pills (table) ── */
-.rpill{display:inline-block;padding:2px 9px;border-radius:12px;font-size:0.7rem;font-weight:600}
-.rpill-green{background:#14532d;color:#4ade80}
-.rpill-orange{background:#431407;color:#fb923c}
-.rpill-amber{background:#451a03;color:#fbbf24}
-.rpill-red{background:#450a0a;color:#f87171}
-.rpill-grey{background:#1c1c2e;color:#888}
-
-.empty{font-size:0.82rem;color:#444;font-style:italic}
-.hint{font-size:0.72rem;color:#555;margin-top:6px}
-.dl-btn{display:inline-block;padding:10px 20px;background:#1a0d2e;border:1px solid #7c3aed;border-radius:9px;color:#c084fc;font-size:0.85rem;font-weight:700;text-decoration:none;transition:background .2s,border-color .2s}
-.dl-btn:hover{background:#2d1060;border-color:#a855f7}
-
-/* ── Live Activity panel ── */
-.live-card{background:#0d1a10;border:1px solid #1a4d2a;border-radius:12px;padding:18px 22px;margin-bottom:18px;display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap}
-.live-left{min-width:160px}
-.live-title{font-size:0.72rem;text-transform:uppercase;letter-spacing:1.2px;color:#4ade80;font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:7px}
-@keyframes livepulse{0%,100%{box-shadow:0 0 0 0 rgba(74,222,128,0.6)}70%{box-shadow:0 0 0 6px rgba(74,222,128,0)}}
-.live-dot{width:9px;height:9px;border-radius:50%;background:#4ade80;display:inline-block;animation:livepulse 1.8s infinite}
-.live-count{font-size:2.4rem;font-weight:800;color:#4ade80;line-height:1}
-.live-count-lbl{font-size:0.7rem;color:#4a8a5e;margin-top:4px}
-.live-feed{flex:1;min-width:0}
-.lf-row{display:flex;gap:8px;align-items:center;padding:5px 0;border-bottom:1px solid #162b1e;font-size:0.74rem;flex-wrap:wrap}
-.lf-row:last-child{border-bottom:none}
-.lf-ts{color:#555;font-family:'SF Mono',Menlo,monospace;min-width:130px}
-.lf-ip{color:#7dd3a8;font-family:'SF Mono',Menlo,monospace;min-width:110px}
-.lf-loc{color:#888;flex:1;min-width:80px}
-.lf-dec{font-weight:700;min-width:44px}
-.lf-allow{color:#4ade80}
-.lf-block{color:#f87171}
-.lf-reason{color:#666;font-size:0.68rem}
-
-/* ── Pagination ── */
-.pagination{display:flex;align-items:center;gap:10px;margin-top:14px;justify-content:center;flex-wrap:wrap}
-.pag-btn{padding:6px 16px;border-radius:8px;background:#1a0d2e;border:1px solid #3d1f6e;color:#c084fc;font-size:0.8rem;font-weight:600;text-decoration:none;transition:background .2s}
-.pag-btn:hover{background:#2d1060}
-.pag-disabled{padding:6px 16px;border-radius:8px;background:#0d0018;border:1px solid #1f1035;color:#444;font-size:0.8rem;font-weight:600;cursor:default}
-.pag-info{font-size:0.78rem;color:#777}
-
-/* ── Site selector bar ── */
-.site-bar{background:#100820;border-bottom:1px solid #230e4a;padding:8px 28px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-.site-bar label{font-size:0.75rem;color:#666;white-space:nowrap}
-.site-select{background:#0d0018;border:1px solid #3d1f6e;border-radius:8px;color:#c084fc;font-size:0.82rem;padding:5px 10px;outline:none;cursor:pointer}
-.site-select:focus{border-color:#a855f7}
-.site-filter-badge{display:inline-block;padding:3px 10px;background:#2d1060;border:1px solid #7c3aed;border-radius:20px;font-size:0.72rem;color:#c084fc;font-weight:600}
-.site-created-flash{padding:3px 12px;background:#14532d;border:1px solid #4ade80;border-radius:20px;font-size:0.72rem;color:#4ade80;font-weight:600}
-
-/* ── Sites management card ── */
-.site-row{background:#0d0018;border:1px solid #2e1655;border-radius:10px;padding:16px;margin-bottom:12px}
-.site-row:last-child{margin-bottom:0}
-.site-row-hdr{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
-.site-name{font-size:0.9rem;font-weight:700;color:#c084fc}
-.site-domain{font-size:0.75rem;color:#666}
-.deploy-badge{display:inline-block;padding:2px 9px;border-radius:12px;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.5px}
-.db-live{background:#14532d;color:#4ade80}
-.db-pushed{background:#1e3a5f;color:#60a5fa}
-.db-pending{background:#451a03;color:#fbbf24}
-.db-failed{background:#450a0a;color:#f87171}
-.db-rotated{background:#2d1060;color:#a78bfa}
-.site-key-wrap{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap}
-.site-key-val{font-family:'SF Mono',Menlo,monospace;font-size:0.72rem;color:#a78bfa;background:#160930;padding:5px 10px;border-radius:6px;border:1px solid #3d1f6e;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.copy-btn{padding:4px 10px;font-size:0.7rem;background:#1a0d2e;border:1px solid #7c3aed;border-radius:6px;color:#c084fc;cursor:pointer;white-space:nowrap;transition:background .2s}
-.copy-btn:hover{background:#2d1060}
-.site-urls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
-.site-url-chip{font-size:0.7rem;color:#888;background:#0d0010;border:1px solid #1f1035;border-radius:6px;padding:3px 8px;font-family:'SF Mono',Menlo,monospace}
-.site-url-chip a{color:#a78bfa;text-decoration:none}
-.site-url-chip a:hover{color:#c084fc}
-.snippet-wrap{margin-bottom:12px}
-.snippet-toggle{background:none;border:1px solid #2e1655;border-radius:6px;padding:4px 10px;color:#888;font-size:0.72rem;cursor:pointer;margin-bottom:6px;width:100%;text-align:left}
-.snippet-toggle:hover{border-color:#7c3aed;color:#c084fc}
-.snippet-box{display:none;background:#060010;border:1px solid #2e1655;border-radius:8px;padding:12px;font-family:'SF Mono',Menlo,monospace;font-size:0.68rem;color:#7dd3a8;line-height:1.5;overflow-x:auto;white-space:pre-wrap;word-break:break-all;position:relative}
-.snippet-box.open{display:block}
-.snippet-copy{position:absolute;top:8px;right:8px;padding:3px 8px;font-size:0.68rem;background:#1a0d2e;border:1px solid #3d1f6e;border-radius:5px;color:#c084fc;cursor:pointer}
-.site-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
-.site-details-toggle{background:none;border:1px solid #2e1655;border-radius:6px;padding:5px 12px;color:#888;font-size:0.74rem;cursor:pointer;transition:all .2s}
-.site-details-toggle:hover{border-color:#7c3aed;color:#c084fc}
-.site-settings-panel{display:none;margin-top:14px;border-top:1px solid #1f1035;padding-top:14px}
-.site-settings-panel.open{display:block}
+thead th{background:var(--bg2);padding:8px 11px;text-align:left;font-size:0.63rem;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);font-weight:700;white-space:nowrap;position:sticky;top:0;z-index:1}
+tbody tr{border-top:1px solid var(--border)}
+tbody tr:hover{background:rgba(124,58,237,.05)}
+tbody td{padding:7px 11px;color:var(--text2);vertical-align:middle}
+.t-mono{font-family:'SF Mono',Menlo,monospace;font-size:0.69rem}
+.t-ts{color:var(--text3)}.t-ip{color:var(--pri-l)}.t-flag{font-size:.95rem}
+.t-isp{max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.t-tz,.t-screen{color:var(--text3)}.t-right{text-align:right}.t-center{text-align:center}.t-muted{color:var(--text3)}
+/* Decision pills */
+.dec-allow{display:inline-block;padding:2px 8px;border-radius:20px;background:rgba(34,197,94,.1);color:var(--green);font-weight:700;font-size:0.64rem;text-transform:uppercase;border:1px solid rgba(34,197,94,.18)}
+.dec-block{display:inline-block;padding:2px 8px;border-radius:20px;background:rgba(239,68,68,.1);color:var(--red);font-weight:700;font-size:0.64rem;text-transform:uppercase;border:1px solid rgba(239,68,68,.18)}
+/* Quick block */
+.quick-block-btn{background:none;border:none;cursor:pointer;color:var(--text3);font-size:.88rem;padding:2px 4px;border-radius:4px;transition:color .15s}
+.quick-block-btn:hover{color:var(--red);background:rgba(239,68,68,.1)}
+.quick-block-btn.blocked{color:var(--red);cursor:default}
+/* Filter bar */
+.filter-bar{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center}
+.filter-input,.filter-select{background:var(--bg2);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-size:0.78rem;padding:6px 11px;outline:none}
+.filter-input:focus,.filter-select:focus{border-color:var(--pri)}
+.filter-input{min-width:150px}.filter-select{cursor:pointer}
+/* Sites section */
+.site-list{display:flex;flex-direction:column;gap:8px}
+.sl-row{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.sl-icon{width:34px;height:34px;border-radius:8px;background:var(--bg3);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:.95rem;flex-shrink:0}
+.sl-info{flex:1;min-width:120px}
+.sl-name{font-size:.85rem;font-weight:700;color:var(--text)}
+.sl-domain{font-size:.7rem;color:var(--text3);margin-top:1px}
+.sl-key-wrap{display:flex;align-items:center;gap:5px;background:var(--bg3);border:1px solid var(--border);border-radius:7px;padding:4px 9px}
+.sl-key-val{font-family:'SF Mono',Menlo,monospace;font-size:.65rem;color:var(--pri-l);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sl-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.sl-settings{background:none;border:1px solid var(--border2);border-radius:7px;padding:5px 10px;color:var(--text2);font-size:.73rem;cursor:pointer;transition:all .15s}
+.sl-settings:hover,.sl-settings.open{border-color:var(--pri);color:var(--pri-l);background:rgba(124,58,237,.08)}
+.sl-expand{display:none;margin-top:10px;border-top:1px solid var(--border);padding-top:14px}
+.sl-expand.open{display:block}
+.sl-tabs{display:flex;gap:4px;margin-bottom:12px;flex-wrap:wrap}
+.sl-tab{background:none;border:1px solid var(--border);border-radius:7px;padding:4px 11px;color:var(--text2);font-size:.73rem;cursor:pointer;transition:all .15s}
+.sl-tab.active,.sl-tab:hover{border-color:var(--pri);color:var(--pri-l);background:rgba(124,58,237,.08)}
+.sl-tab-content{display:none}.sl-tab-content.active{display:block}
+.snippet-pre{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:14px;font-family:'SF Mono',Menlo,monospace;font-size:.65rem;color:#7dd3a8;line-height:1.6;overflow-x:auto;white-space:pre-wrap;word-break:break-all;max-height:240px;overflow-y:auto}
+/* Toggle switches */
+.ts-wrap{display:inline-flex;align-items:center;gap:7px;cursor:pointer}
+.ts-input{display:none}
+.ts-track{width:38px;height:20px;background:var(--bg);border-radius:10px;border:1px solid var(--border2);position:relative;transition:background .2s,border-color .2s;flex-shrink:0}
+.ts-track::after{content:'';position:absolute;top:3px;left:3px;width:12px;height:12px;background:#555;border-radius:50%;transition:transform .2s,background .2s}
+.ts-input:checked+.ts-track{background:rgba(34,197,94,.2);border-color:var(--green)}
+.ts-input:checked+.ts-track::after{transform:translateX(18px);background:var(--green)}
+.ts-label{font-size:.78rem;color:var(--text2);user-select:none}
+/* Status badges */
+.db-live{display:inline-block;padding:2px 8px;border-radius:20px;font-size:.64rem;font-weight:700;text-transform:uppercase;background:rgba(34,197,94,.1);color:var(--green);border:1px solid rgba(34,197,94,.18)}
+.db-pushed{background:rgba(96,165,250,.1);color:var(--blue);border:1px solid rgba(96,165,250,.18);display:inline-block;padding:2px 8px;border-radius:20px;font-size:.64rem;font-weight:700;text-transform:uppercase}
+.db-pending{background:rgba(245,158,11,.1);color:var(--amber);border:1px solid rgba(245,158,11,.18);display:inline-block;padding:2px 8px;border-radius:20px;font-size:.64rem;font-weight:700;text-transform:uppercase}
+.db-rotated,.db-failed{background:rgba(168,85,247,.1);color:var(--pri-l);border:1px solid rgba(168,85,247,.18);display:inline-block;padding:2px 8px;border-radius:20px;font-size:.64rem;font-weight:700;text-transform:uppercase}
+/* Pills */
+.rpill{display:inline-block;padding:2px 8px;border-radius:20px;font-size:.65rem;font-weight:600}
+.rpill-green{background:rgba(34,197,94,.1);color:var(--green);border:1px solid rgba(34,197,94,.15)}
+.rpill-red{background:rgba(239,68,68,.1);color:var(--red);border:1px solid rgba(239,68,68,.15)}
+.rpill-orange{background:rgba(249,115,22,.1);color:#fb923c;border:1px solid rgba(249,115,22,.15)}
+.rpill-amber{background:rgba(245,158,11,.1);color:var(--amber);border:1px solid rgba(245,158,11,.15)}
+.rpill-grey{background:rgba(255,255,255,.05);color:var(--text3);border:1px solid var(--border)}
+/* Buttons */
+.btn-pri{background:var(--pri);color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:.8rem;font-weight:600;cursor:pointer;transition:background .2s;display:inline-flex;align-items:center;gap:5px}
+.btn-pri:hover{background:var(--pri-h)}
+.btn-ghost{background:none;border:1px solid var(--border2);border-radius:7px;padding:6px 13px;color:var(--text2);font-size:.78rem;cursor:pointer;transition:all .15s}
+.btn-ghost:hover{border-color:var(--pri);color:var(--pri-l)}
+.btn-danger{background:none;border:1px solid rgba(239,68,68,.3);border-radius:7px;padding:6px 13px;color:var(--red);font-size:.78rem;cursor:pointer;transition:all .15s}
+.btn-danger:hover{background:rgba(239,68,68,.1)}
+.btn-sm{padding:4px 10px;font-size:.72rem;border-radius:6px}
+/* Forms */
+label{display:block;font-size:.7rem;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px}
+input[type=text],input[type=password],input[type=url],input[type=email],textarea,select{width:100%;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-size:.82rem;padding:8px 12px;outline:none;font-family:inherit;transition:border-color .15s}
+input[type=text]:focus,input[type=password]:focus,input[type=url]:focus,input[type=email]:focus,textarea:focus,select:focus{border-color:var(--pri)}
+textarea{resize:vertical;min-height:80px}
 .form-grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-@media(max-width:700px){.form-grid2{grid-template-columns:1fr}}
+.form-row{margin-bottom:11px}
+.hint{font-size:.68rem;color:var(--text3)}
+/* Settings tabs */
+.stabs{display:flex;gap:2px;margin-bottom:20px;border-bottom:1px solid var(--border);flex-wrap:wrap}
+.stab{background:none;border:none;border-bottom:2px solid transparent;padding:8px 14px;color:var(--text3);font-size:.79rem;font-weight:600;cursor:pointer;transition:all .15s;margin-bottom:-1px}
+.stab:hover{color:var(--text2)}
+.stab.active{color:var(--pri-l);border-bottom-color:var(--pri)}
+.stab-content{display:none}.stab-content.active{display:block}
+/* Danger zone */
+.danger-zone{border:1px solid rgba(239,68,68,.25);border-radius:10px;padding:16px}
+.danger-title{color:var(--red);font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.6px;margin-bottom:12px}
+/* Modal */
+.f-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:500;align-items:center;justify-content:center;padding:20px}
+.f-modal.open{display:flex}
+.f-modal-box{background:var(--bg2);border:1px solid var(--border2);border-radius:14px;padding:24px;width:100%;max-width:560px;max-height:90vh;overflow-y:auto}
+.f-modal-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}
+.f-modal-title{font-size:.95rem;font-weight:700;color:var(--text)}
+.f-modal-close{background:none;border:none;color:var(--text3);font-size:1.1rem;cursor:pointer;padding:3px 7px;border-radius:6px}
+.f-modal-close:hover{color:var(--red);background:rgba(239,68,68,.1)}
+/* Toast */
+.f-toasts{position:fixed;top:18px;right:18px;z-index:9999;display:flex;flex-direction:column;gap:7px;pointer-events:none}
+.f-toast{background:var(--bg2);border:1px solid var(--border2);border-radius:10px;padding:11px 14px;font-size:.8rem;color:var(--text);box-shadow:0 4px 20px rgba(0,0,0,.5);pointer-events:auto;display:flex;align-items:center;gap:9px;min-width:220px;animation:slideIn .22s ease-out}
+.f-toast.success{border-color:rgba(34,197,94,.4)}.f-toast.error{border-color:rgba(239,68,68,.4)}
+@keyframes slideIn{from{transform:translateX(110%);opacity:0}to{transform:translateX(0);opacity:1}}
+@keyframes slideOut{from{transform:translateX(0);opacity:1}to{transform:translateX(110%);opacity:0}}
+/* Alert banners */
+.f-alert{border-radius:9px;padding:11px 14px;font-size:.76rem;margin-bottom:14px}
+.f-alert-warn{background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.22);color:var(--amber)}
+.f-alert-info{background:rgba(96,165,250,.08);border:1px solid rgba(96,165,250,.22);color:var(--blue)}
+/* Helpers */
+.inline{display:inline}.flex-gap8{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.mt8{margin-top:8px}.mt12{margin-top:12px}.mt16{margin-top:16px}.mt20{margin-top:20px}
+.mb8{margin-bottom:8px}.mb12{margin-bottom:12px}.mb16{margin-bottom:16px}
+.full-w{width:100%}.sec-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:10px}
+.sec-title{font-size:1.05rem;font-weight:700;color:var(--text)}
+.sec-sub{font-size:.74rem;color:var(--text3)}
+.empty-state{text-align:center;padding:28px;color:var(--text3);font-size:.8rem}
+/* Pagination */
+.f-pagination{display:flex;align-items:center;gap:8px;margin-top:12px;justify-content:center;flex-wrap:wrap}
+.f-pag-btn{padding:5px 13px;border-radius:7px;background:var(--bg2);border:1px solid var(--border2);color:var(--pri-l);font-size:.76rem;font-weight:600;text-decoration:none;transition:background .15s}
+.f-pag-btn:hover{background:var(--bg3)}
+.f-pag-disabled{padding:5px 13px;border-radius:7px;background:var(--bg);border:1px solid var(--border);color:var(--text3);font-size:.76rem;font-weight:600;cursor:default}
+.f-pag-info{font-size:.73rem;color:var(--text3)}
+/* Country bar */
+.cc-row{display:flex;align-items:center;gap:8px;padding:5px 0}
+.cc-flag{font-size:.9rem;width:20px}
+.cc-code{font-size:.72rem;font-family:'SF Mono',Menlo,monospace;color:var(--text2);width:24px}
+.cc-bar-wrap{flex:1;height:6px;background:var(--bg);border-radius:3px;overflow:hidden}
+.cc-bar{height:100%;background:var(--pri);border-radius:3px}
+.cc-cnt{font-size:.69rem;color:var(--text3);width:28px;text-align:right}
+/* Overlay + mobile */
+.f-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:150}
+@media(max-width:960px){.kpi-grid{grid-template-columns:repeat(3,1fr)}.dash-mid{grid-template-columns:1fr}.dash-bot{grid-template-columns:1fr}}
+@media(max-width:700px){
+  .f-sidebar{position:fixed;left:0;top:0;bottom:0;transform:translateX(-100%);z-index:200}
+  .f-sidebar.open{transform:translateX(0)}
+  .f-overlay.open{display:block}
+  .f-hamburger{display:flex}
+  .kpi-grid{grid-template-columns:repeat(2,1fr)}
+  .form-grid2{grid-template-columns:1fr}
+}
 </style>
 </head>
 <body>
+<div class="f-app" id="fApp">
 
-<header>
-  <div class="hdr-left">
-    <h1>&#9680; StreamFix Hub — Cloaking Admin</h1>
-    <div class="hdr-urls">
-      Money URL: <span>${escHtml(settings.moneyUrl || '—')}</span>
-      &nbsp;&nbsp;|&nbsp;&nbsp;
-      Safe URL: <span>${escHtml(settings.safeUrl || '—')}</span>
-    </div>
-  </div>
-  <div class="hdr-right">
-    <span class="hdr-time">Last updated: ${timeStr} UTC</span>
-    <form method="POST" action="/admin/clear-leads" class="inline" onsubmit="return confirm('Clear all leads?')">
-      <button type="submit" class="btn-danger btn-sm">Clear Leads</button>
-    </form>
-    <form method="POST" action="/admin/clear-logs" class="inline" onsubmit="return confirm('Clear all logs?')">
-      <button type="submit" class="btn-danger btn-sm">Clear Logs</button>
-    </form>
-    <button class="sound-btn" id="soundToggle" title="Toggle notification sound">
-      <svg id="soundIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path id="soundWave2" d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
-    </button>
-    <div class="notif-wrap">
-      <button class="notif-btn" id="notifBtn" title="Notifications">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-        <span class="notif-badge" id="notifBadge">0</span>
-      </button>
-      <div class="notif-dropdown" id="notifDropdown">
-        <div class="notif-hdr">
-          <span>Notifications</span>
-          <button class="notif-clear" id="notifClear">Clear all</button>
-        </div>
-        <div class="notif-list" id="notifList">
-          <div class="notif-empty">No notifications yet</div>
-        </div>
-      </div>
-    </div>
-    <a href="/admin/logout">Sign out</a>
-  </div>
-</header>
+  <!-- ═══ SIDEBAR ═══ -->
+  <aside class="f-sidebar" id="fSidebar">
 
-${siteBarHtml}
-
-<div class="container">
-
-  <!-- Sites Management Card -->
-  ${sitesCardHtml}
-
-  <!-- Live Activity Panel -->
-  <div class="live-card">
-    <div class="live-left">
-      <div class="live-title"><span class="live-dot"></span> Live</div>
-      <div class="live-count" id="live-count">${activeCount}</div>
-      <div class="live-count-lbl">active visitor${activeCount !== 1 ? 's' : ''} (last 3 min)</div>
-    </div>
-    <div class="live-feed">
-      <div id="live-feed">${liveInitRows || '<div style="color:#444;font-size:0.78rem;padding:4px 0">Waiting for traffic…</div>'}</div>
-    </div>
-  </div>
-
-  <!-- Row 1: Engine + Stats -->
-  <div class="grid2">
-
-    <div class="card">
-      <h2>Cloaking Engine</h2>
-      <div class="toggle-row">
-        ${statusBadge}
-        <p>Traffic filtering is ${settings.enabled ? 'active' : 'inactive'}</p>
-      </div>
-      <form method="POST" action="/admin/toggle" class="inline">
-        <button type="submit" class="${settings.enabled ? 'btn-danger' : 'btn-success'}">${toggleLabel}</button>
-      </form>
-    </div>
-
-    <div class="card">
-      <h2>Traffic Stats</h2>
-      <div class="stats-row">
-        <div class="stat"><span class="num allow-num">${todayAllow}</span><span class="lbl">Today Allowed</span></div>
-        <div class="stat"><span class="num block-num">${todayBlock}</span><span class="lbl">Today Blocked</span></div>
-        <div class="stat"><span class="num total-num">${todayTotal}</span><span class="lbl">Today Total</span></div>
-      </div>
-      <div class="stats-row">
-        <div class="stat"><span class="num allow-num" style="font-size:1.3rem">${allAllow}</span><span class="lbl">All-time Allowed</span></div>
-        <div class="stat"><span class="num block-num" style="font-size:1.3rem">${allBlock}</span><span class="lbl">All-time Blocked</span></div>
-        <div class="stat"><span class="num rate-num" style="font-size:1.3rem">${blockRate}%</span><span class="lbl">Block Rate</span></div>
-      </div>
-    </div>
-
-  </div>
-
-  <!-- Row 2: Top Countries + Block Reasons + URL Settings -->
-  <div class="grid3">
-
-    <div class="card">
-      <h2>Top Countries</h2>
-      ${countryRows}
-    </div>
-
-    <div class="card">
-      <h2>Block Reasons</h2>
-      <div class="pills-wrap">${reasonPills}</div>
-    </div>
-
-    <div class="card">
-      <h2>URL Settings</h2>
-      <form method="POST" action="/admin/settings">
-        <label for="moneyUrl">Money URL — real visitors see this</label>
-        <input type="text" id="moneyUrl" name="moneyUrl" value="${escHtml(settings.moneyUrl || '')}" placeholder="https://your-offer-url.com">
-        <label for="safeUrl">Safe URL — bots &amp; reviewers see this</label>
-        <input type="text" id="safeUrl" name="safeUrl" value="${escHtml(settings.safeUrl || '/safe')}" placeholder="/safe">
-        <button type="submit" class="btn-primary" style="margin-top:16px;width:100%">Save URLs</button>
-      </form>
-    </div>
-
-  </div>
-
-  <!-- Row 3: Traffic Controls (full width) -->
-  <div class="grid3" style="margin-bottom:18px">
-
-    <div class="card">
-      <h2>Blocked IPs</h2>
-      <div class="tc-meta">
-        <div class="tc-chip">Permanently blocked: <strong>${blockedIpsList.length}</strong> IP${blockedIpsList.length !== 1 ? 's' : ''}</div>
-        <div class="tc-chip" title="Logged repeat-click blocks in last 24h — does not reset when tracker is cleared">Repeat-click blocks (log, 24h): <strong>${repeatClicksIn24h}</strong></div>
-        <div class="tc-chip">Active tracker (unique IPs): <strong>${freqStoreSize}</strong>
-          &nbsp;<form method="POST" action="/admin/clear-frequency" class="inline" onsubmit="return confirm('Reset the repeat-click tracker? Tracked IPs will be allowed once more, but log counts are unchanged.')">
-            <button type="submit" class="btn-danger btn-sm" style="padding:2px 8px;font-size:0.7rem">Reset Tracker</button>
-          </form>
-        </div>
-      </div>
-      <form method="POST" action="/admin/blocked-ips">
-        <label for="blockedIps">Paste IPs to permanently block (one per line)</label>
-        <textarea id="blockedIps" name="blockedIps" rows="6" placeholder="1.2.3.4&#10;5.6.7.8&#10;...">${escHtml(blockedIpsList.join('\n'))}</textarea>
-        <p class="hint">Get these from your Google Ads campaign &rarr; Audiences tab &rarr; IP addresses column</p>
-        <button type="submit" class="btn-primary" style="margin-top:12px;width:100%">Save Blocked IPs</button>
-      </form>
-    </div>
-
-    <div class="card">
-      <h2>Country Filter</h2>
-      <div class="tc-meta">
-        <div class="tc-chip">
-          ${allowedCountriesList.length > 0
-            ? 'Allowing: <strong>' + escHtml(allowedCountriesList.join(', ')) + '</strong>'
-            : '<strong>All countries</strong> allowed (no filter)'}
-        </div>
-      </div>
-      <form method="POST" action="/admin/allowed-countries">
-        <label for="allowedCountries">Allowed country codes (comma or space separated)</label>
-        <input type="text" id="allowedCountries" name="allowedCountries"
-          value="${escHtml(allowedCountriesList.join(', '))}"
-          placeholder="US, CA, GB — leave blank to allow all">
-        <p class="hint">Use 2-letter ISO codes. Leave blank to allow all countries. Example: US CA GB AU</p>
-        <button type="submit" class="btn-primary" style="margin-top:12px;width:100%">Save Country Filter</button>
-      </form>
-      ${allowedCountriesList.length > 0 ? '<form method="POST" action="/admin/allowed-countries" class="inline" style="margin-top:8px;display:block"><input type="hidden" name="allowedCountries" value=""><button type="submit" class="btn-danger btn-sm" style="width:100%;margin-top:8px" onclick="return confirm(\'Remove country filter?\')">Remove Filter (Allow All)</button></form>' : ''}
-    </div>
-
-    <div class="card">
-      <h2>How Click Fraud Protection Works</h2>
-      <div style="font-size:0.78rem;color:#777;line-height:1.7">
-        <p style="margin-bottom:8px"><span style="color:#fb923c;font-weight:600">Repeat Click</span> — same IP within 24 hours is automatically blocked. Resets daily.</p>
-        <p style="margin-bottom:8px"><span style="color:#fb923c;font-weight:600">Manual Block</span> — IPs you paste above are permanently refused. Find them in Google Ads &rarr; Reports &rarr; IP addresses.</p>
-        <p style="margin-bottom:8px"><span style="color:#fb923c;font-weight:600">Country Block</span> — if you set a country filter, visitors whose country does not match are blocked after geolocation. Use this to restrict traffic to countries where your customers actually are.</p>
-        <p style="color:#555;font-size:0.7rem">Tip: also add competitor IPs directly to Google Ads under Campaign Settings &rarr; IP Exclusions — this blocks them before they even click your ad.</p>
-      </div>
-    </div>
-
-  </div>
-
-  <!-- Google Ads IP Export -->
-  <div class="card" style="margin-bottom:18px">
-    <h2>Stop Bad Visitors — Export &amp; Block Options</h2>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">
-
+    <!-- Brand -->
+    <div class="sb-brand">
+      <svg class="sb-logo" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <defs><linearGradient id="lg1" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#a855f7"/><stop offset="100%" stop-color="#6d28d9"/></linearGradient></defs>
+        <path d="M4 5h24l-9.5 11.5V27l-5-2.5V16.5L4 5z" fill="url(#lg1)" stroke="#7c3aed" stroke-width="1"/>
+        <path d="M8 9h16" stroke="rgba(255,255,255,.3)" stroke-width="1" stroke-linecap="round"/>
+        <path d="M11 13h10" stroke="rgba(255,255,255,.25)" stroke-width="1" stroke-linecap="round"/>
+      </svg>
       <div>
-        <p style="font-size:0.82rem;color:#ccc;margin-bottom:10px">
-          Download every IP this system has ever blocked — both manually added ones and auto-detected bots/fraud — as a plain text file. Then paste the list into Google Ads to stop those visitors from ever seeing your ad again.
-        </p>
-        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px">
-          <span style="font-size:0.78rem;color:#888">Unique public IPs ready to export:</span>
-          <span style="font-size:1.3rem;font-weight:800;color:#f87171">${exportCount}</span>
+        <div class="sb-name">FILTER</div>
+        <div class="sb-tagline">Traffic Management</div>
+      </div>
+    </div>
+
+    <!-- Nav -->
+    <nav class="sb-nav">
+      <div class="sb-sec-lbl">Main</div>
+      <button class="sb-link active" data-section="dashboard" onclick="navTo('dashboard',this)">
+        <span class="sb-icon">⬡</span> Dashboard
+      </button>
+      <button class="sb-link" data-section="sites" onclick="navTo('sites',this)">
+        <span class="sb-icon">◈</span> Sites
+        <span class="sb-cnt">${sites.length}</span>
+      </button>
+
+      <div class="sb-sec-lbl" style="margin-top:6px">Traffic</div>
+      <button class="sb-link" data-section="logs" onclick="navTo('logs',this)">
+        <span class="sb-icon">≡</span> Traffic Logs
+        <span class="sb-cnt">${logTotal}</span>
+      </button>
+      <button class="sb-link" data-section="leads" onclick="navTo('leads',this)">
+        <span class="sb-icon">◎</span> Leads
+        <span class="sb-cnt">${leadTotal}</span>
+      </button>
+
+      <div class="sb-sec-lbl" style="margin-top:6px">Config</div>
+      <button class="sb-link" data-section="settings" onclick="navTo('settings',this)">
+        <span class="sb-icon">⚙</span> Settings
+      </button>
+    </nav>
+
+    <!-- Site selector -->
+    <div class="sb-site-wrap">
+      <span class="sb-site-lbl">Viewing Site</span>
+      <select class="sb-site-sel" onchange="changeSite(this.value)">
+        <option value="" ${!siteFilter ? 'selected' : ''}>All Sites</option>
+        ${siteOptHtml}
+      </select>
+    </div>
+
+    <!-- Footer -->
+    <div class="sb-footer">
+      <span>FILTER v1.0</span>
+      <a href="/admin/logout">Sign out</a>
+    </div>
+  </aside>
+
+  <!-- Mobile overlay -->
+  <div class="f-overlay" id="fOverlay" onclick="closeSidebar()"></div>
+
+  <!-- ═══ MAIN ═══ -->
+  <main class="f-main">
+
+    <!-- Topbar -->
+    <div class="f-topbar">
+      <button class="f-hamburger" onclick="toggleSidebar()">☰</button>
+      <div class="f-breadcrumb" id="fBreadcrumb">Dashboard</div>
+      <div class="f-topbar-right">
+        <span class="f-clock" id="fClock">--:--:--</span>
+        <span class="f-tz-badge" onclick="navTo('settings',document.querySelector('[data-section=settings]'));setTimeout(function(){switchTab(document.querySelector('.stab[data-tab=tz]'),'stab-tz')},100)" title="Change display timezone">${escHtml(displayTz)}</span>
+
+        <!-- Notification bell -->
+        <div class="notif-wrap">
+          <button class="notif-btn" onclick="toggleNotif()" title="Notifications">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+            <span class="notif-badge" id="notifBadge">0</span>
+          </button>
+          <div class="notif-dropdown" id="notifDropdown">
+            <div class="notif-hdr"><span>Live Alerts</span><button class="notif-clear" onclick="clearNotifs()">Clear all</button></div>
+            <div class="notif-list" id="notifList"><div class="notif-empty">No alerts yet</div></div>
+          </div>
         </div>
-        <a href="/admin/blocked-ips-export" download="blocked-ips.txt" class="dl-btn">&#8681; Download blocked-ips.txt</a>
+      </div>
+    </div>
+
+    <!-- Content -->
+    <div class="f-content">
+
+      <!-- ── DASHBOARD ─────────────────────────────────── -->
+      <div class="f-section active" id="sec-dashboard">
+        <div class="sec-header mb16">
+          <div>
+            <div class="sec-title">Dashboard</div>
+            <div class="sec-sub">${siteFilter ? 'Filtered to: ' + escHtml(selectedSite ? selectedSite.name : siteFilter) : 'All sites combined'} &nbsp;·&nbsp; UTC ${escHtml(timeStr)}</div>
+          </div>
+          ${siteCreated ? '<div class="rpill rpill-green">✓ Site created — script being pushed to GitHub…</div>' : ''}
+        </div>
+
+        <!-- KPI row -->
+        <div class="kpi-grid">
+          <div class="kpi">
+            <div class="kpi-label">Today's Traffic</div>
+            <div class="kpi-val">${todayTotal}</div>
+            <div class="kpi-sub">All decisions today</div>
+          </div>
+          <div class="kpi kpi-green">
+            <div class="kpi-label">Allowed</div>
+            <div class="kpi-val">${todayAllow}</div>
+            <div class="kpi-sub">${todayTotal > 0 ? Math.round(todayAllow/todayTotal*100) : 0}% of today</div>
+          </div>
+          <div class="kpi kpi-red">
+            <div class="kpi-label">Blocked</div>
+            <div class="kpi-val">${todayBlock}</div>
+            <div class="kpi-sub">${blockRateToday}% block rate</div>
+          </div>
+          <div class="kpi kpi-blue">
+            <div class="kpi-label">Active Now</div>
+            <div class="kpi-val" id="kpiActive">${activeCount}</div>
+            <div class="kpi-sub">Last 3 min</div>
+          </div>
+          <div class="kpi kpi-purple">
+            <div class="kpi-label">Leads Today</div>
+            <div class="kpi-val">${todayLeadCount}</div>
+            <div class="kpi-sub">${allSubmits.length} total leads</div>
+          </div>
+        </div>
+
+        <!-- Mid row: donut + bar chart + live feed -->
+        <div class="dash-mid">
+          <!-- Allow/Block donut -->
+          <div class="f-card">
+            <div class="f-card-title">Allow / Block Split</div>
+            <div id="donutWrap">
+              <canvas id="donutCanvas" width="160" height="160"></canvas>
+              <div class="donut-center">
+                <div class="donut-pct" style="color:var(--red)" id="donutPct">${blockRate}%</div>
+                <div class="donut-lbl">blocked</div>
+              </div>
+            </div>
+            <div class="chart-legend">
+              <div class="leg-item"><span class="leg-dot" style="background:var(--green)"></span>Allow (${allAllow})</div>
+              <div class="leg-item"><span class="leg-dot" style="background:var(--red)"></span>Block (${allBlock})</div>
+            </div>
+          </div>
+
+          <!-- Hourly bar chart -->
+          <div class="f-card">
+            <div class="f-card-title">
+              Hourly Traffic Today
+              <span style="font-size:.65rem;color:var(--text3);font-weight:400">UTC hours</span>
+            </div>
+            <div id="barChartWrap">
+              <canvas id="barCanvas"></canvas>
+            </div>
+            <div class="chart-legend mt8">
+              <div class="leg-item"><span class="leg-dot" style="background:var(--green)"></span>Allow</div>
+              <div class="leg-item"><span class="leg-dot" style="background:var(--red)"></span>Block</div>
+            </div>
+          </div>
+
+          <!-- Live feed -->
+          <div class="f-card">
+            <div class="f-card-title">
+              Live Activity
+              <div class="live-top" style="margin:0;gap:6px">
+                <span class="live-dot"></span>
+                <span class="live-cnt" id="liveCnt">${activeCount}</span>
+              </div>
+            </div>
+            <div class="lt-feed" id="ltFeed">
+              ${liveInitRows || '<div style="text-align:center;padding:20px;font-size:.75rem;color:var(--text3)">Waiting for traffic…</div>'}
+            </div>
+          </div>
+        </div>
+
+        <!-- Bottom row: block reasons + top countries -->
+        <div class="dash-bot">
+          <div class="f-card">
+            <div class="f-card-title">Block Reasons</div>
+            <div class="f-table-wrap">
+              <table>
+                <thead><tr><th>Reason</th><th class="t-right">Count</th><th class="t-right">%</th></tr></thead>
+                <tbody>${reasonTableRows}</tbody>
+              </table>
+            </div>
+          </div>
+          <div class="f-card">
+            <div class="f-card-title">Top Countries</div>
+            ${countryRows}
+            <div class="mt12" style="font-size:.69rem;color:var(--text3)">
+              ${exportCount} unique IPs available for Google Ads exclusion
+              &nbsp;<a href="/admin/blocked-ips/export" style="color:var(--pri-l)">Export →</a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Summary stats row -->
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+          <div class="f-card">
+            <div class="f-card-title">Cloaking Engine</div>
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+              ${settings.enabled
+                ? '<span class="db-live">● ENABLED</span>'
+                : '<span class="db-pending">○ DISABLED</span>'}
+            </div>
+            <form method="POST" action="/admin/toggle">
+              <label class="ts-wrap">
+                <input type="checkbox" class="ts-input" ${settings.enabled ? 'checked' : ''} onchange="this.closest('form').submit()">
+                <span class="ts-track"></span>
+                <span class="ts-label">${settings.enabled ? 'Active — click to pause' : 'Paused — click to enable'}</span>
+              </label>
+            </form>
+          </div>
+          <div class="f-card">
+            <div class="f-card-title">Frequency Tracker</div>
+            <div class="kpi-val" style="font-size:1.4rem">${freqStoreSize}</div>
+            <div class="kpi-sub">${repeatClicksIn24h} repeat-click blocks in 24h</div>
+          </div>
+          <div class="f-card">
+            <div class="f-card-title">Lead Conversion</div>
+            <div class="kpi-val" style="font-size:1.4rem">${callRate}%</div>
+            <div class="kpi-sub">${calledLeads.length} of ${allSubmits.length} leads called</div>
+          </div>
+        </div>
       </div>
 
-      <div style="font-size:0.78rem;color:#777;line-height:1.8">
-        <p style="color:#a78bfa;font-weight:700;margin-bottom:8px;font-size:0.8rem">How to use the downloaded file</p>
-        <p style="margin-bottom:6px"><span style="color:#fb923c;font-weight:600">Google Ads (most effective)</span><br>
-          Ads &rarr; your campaign &rarr; Settings &rarr; <em>IP exclusions</em>. Paste the IPs one per line. This stops fraud clicks <em>before</em> they reach your site and saves your ad budget.</p>
-        <p style="margin-bottom:6px"><span style="color:#fb923c;font-weight:600">Manual block on this site</span><br>
-          Paste the same IPs into the "Blocked IPs" card above — they'll be instantly refused at the door.</p>
-        <p><span style="color:#fb923c;font-weight:600">Railway firewall (optional)</span><br>
-          In Railway &rarr; your service &rarr; Networking you can block IPs at the infrastructure level, before they touch the server.</p>
+      <!-- ── SITES ─────────────────────────────────────── -->
+      <div class="f-section" id="sec-sites">
+        <div class="sec-header">
+          <div>
+            <div class="sec-title">Connected Sites</div>
+            <div class="sec-sub">${sites.length} site${sites.length !== 1 ? 's' : ''} registered &nbsp;·&nbsp; Hub: ${escHtml(hubUrl)}</div>
+          </div>
+          <button class="btn-pri" onclick="openModal('addSiteModal')">+ Add Site</button>
+        </div>
+
+        ${!hasGithubToken ? '<div class="f-alert f-alert-warn"><strong>GitHub auto-inject is disabled.</strong> Set the <code>GITHUB_TOKEN</code> secret (Personal Access Token with <em>repo</em> scope) to enable automatic script injection into your repositories.</div>' : ''}
+
+        <div class="site-list">
+          ${siteListHtml || '<div class="empty-state">No sites yet — click Add Site to get started.</div>'}
+        </div>
       </div>
 
-    </div>
-  </div>
+      <!-- ── TRAFFIC LOGS ───────────────────────────────── -->
+      <div class="f-section" id="sec-logs">
+        <div class="sec-header">
+          <div>
+            <div class="sec-title">Traffic Logs</div>
+            <div class="sec-sub">${logTotal} records &nbsp;·&nbsp; Timestamps in <strong>${escHtml(displayTz)}</strong></div>
+          </div>
+          <a href="/admin/blocked-ips/export" class="btn-ghost btn-sm">⬇ Export Blocked IPs</a>
+        </div>
 
-  <!-- Leads -->
-  <div class="card" style="margin-bottom:18px">
-    <h2>Leads — Code Submissions</h2>
-    <div class="stats-row" style="margin-bottom:16px">
-      <div class="stat"><span class="num allow-num">${todaySubmits.length}</span><span class="lbl">Today</span></div>
-      <div class="stat"><span class="num total-num">${allSubmits.length}</span><span class="lbl">All-time</span></div>
-      <div class="stat"><span class="num" style="color:#c084fc">${calledLeads.length}</span><span class="lbl">Called</span></div>
-      <div class="stat"><span class="num rate-num">${callRate}%</span><span class="lbl">Call Rate</span></div>
-    </div>
-    <div class="log-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Time</th>
-            <th>IP</th>
-            <th>Location</th>
-            <th>Device</th>
-            <th>Code</th>
-            <th>Ad Source</th>
-            <th>Called</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${leadRows || '<tr><td colspan="7" style="text-align:center;color:#444;padding:24px">No leads yet</td></tr>'}
-        </tbody>
-      </table>
-    </div>
-    ${leadPaginationHtml}
-  </div>
+        <div class="filter-bar">
+          <input type="text" class="filter-input" id="logSearch" placeholder="Search IP or country…" oninput="filterLogs()" style="min-width:180px">
+          <select class="filter-select" id="logDecFilter" onchange="filterLogs()">
+            <option value="">All decisions</option>
+            <option value="allow">Allow only</option>
+            <option value="block">Block only</option>
+          </select>
+        </div>
 
-  <!-- Decision Log -->
-  <div class="card">
-    <h2>Decision Log — ${logTotal} entries total</h2>
-    <div class="log-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Time</th>
-            <th>IP</th>
-            <th>Location</th>
-            <th>ISP</th>
-            <th>Screen</th>
-            <th>Device</th>
-            <th>User Agent</th>
-            <th>Decision</th>
-            <th>Reason</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${logRows || '<tr><td colspan="9" style="text-align:center;color:#444;padding:24px">No entries yet</td></tr>'}
-        </tbody>
-      </table>
-    </div>
-    ${logPaginationHtml}
-  </div>
+        <div class="f-card" style="padding:0">
+          <div class="f-table-wrap">
+            <table id="logsTable">
+              <thead>
+                <tr>
+                  <th>Time (${escHtml(displayTz)})</th>
+                  <th>IP</th>
+                  <th>Country</th>
+                  <th>City</th>
+                  <th>ISP</th>
+                  <th>Screen</th>
+                  <th>Visitor TZ</th>
+                  <th>Decision</th>
+                  <th>Reason</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="logsBody">
+                ${logRows || '<tr><td colspan="10" class="empty-state">No logs yet</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+        </div>
 
+        <div class="f-pagination">
+          ${logPaginationHtml.replace(/class="pag-btn"/g,'class="f-pag-btn"').replace(/class="pag-btn pag-disabled"/g,'class="f-pag-disabled"').replace(/class="pag-info"/g,'class="f-pag-info"').replace(/class="pagination"/g,'style="display:contents"')}
+        </div>
+      </div>
+
+      <!-- ── LEADS ─────────────────────────────────────── -->
+      <div class="f-section" id="sec-leads">
+        <div class="sec-header">
+          <div>
+            <div class="sec-title">Leads</div>
+            <div class="sec-sub">${leadTotal} submissions &nbsp;·&nbsp; ${callRate}% called &nbsp;·&nbsp; Timestamps in <strong>${escHtml(displayTz)}</strong></div>
+          </div>
+          <div class="flex-gap8">
+            <a href="data:text/csv;charset=utf-8,Time,IP,Country,City,Code,UTM,TZ,Called" download="leads.csv" class="btn-ghost btn-sm" id="csvExportBtn">⬇ Export CSV</a>
+          </div>
+        </div>
+
+        <div class="f-card" style="padding:0">
+          <div class="f-table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Time (${escHtml(displayTz)})</th>
+                  <th>IP</th>
+                  <th>Country</th>
+                  <th>City</th>
+                  <th>Code</th>
+                  <th>Source / UTM</th>
+                  <th>Visitor TZ</th>
+                  <th>Called?</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${leadRows || '<tr><td colspan="8" class="empty-state">No leads yet</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="f-pagination">
+          ${leadPaginationHtml.replace(/class="pag-btn"/g,'class="f-pag-btn"').replace(/class="pag-btn pag-disabled"/g,'class="f-pag-disabled"').replace(/class="pag-info"/g,'class="f-pag-info"').replace(/class="pagination"/g,'style="display:contents"')}
+        </div>
+      </div>
+
+      <!-- ── SETTINGS ──────────────────────────────────── -->
+      <div class="f-section" id="sec-settings">
+        <div class="sec-header mb16">
+          <div><div class="sec-title">Settings</div><div class="sec-sub">Configure cloaking rules, security, and integrations</div></div>
+        </div>
+
+        <div class="stabs">
+          <button class="stab active" data-tab="engine" onclick="switchTab(this,'stab-engine')">⚡ Engine</button>
+          <button class="stab" data-tab="ips" onclick="switchTab(this,'stab-ips')">🛡 Blocked IPs</button>
+          <button class="stab" data-tab="countries" onclick="switchTab(this,'stab-countries')">🌍 Countries</button>
+          <button class="stab" data-tab="integrations" onclick="switchTab(this,'stab-integrations')">🔗 Integrations</button>
+          <button class="stab" data-tab="tz" onclick="switchTab(this,'stab-tz')">🕐 Timezone</button>
+          <button class="stab" data-tab="danger" onclick="switchTab(this,'stab-danger')">⚠ Danger Zone</button>
+        </div>
+
+        <!-- Engine tab -->
+        <div class="stab-content active" id="stab-engine">
+          <div class="f-card mb16">
+            <div class="f-card-title">Cloaking Engine</div>
+            <div class="flex-gap8 mb16">
+              <form method="POST" action="/admin/toggle">
+                <label class="ts-wrap">
+                  <input type="checkbox" class="ts-input" ${settings.enabled ? 'checked' : ''} onchange="this.closest('form').submit()">
+                  <span class="ts-track"></span>
+                  <span class="ts-label" style="font-size:.88rem;font-weight:600">${settings.enabled ? '● Engine is ACTIVE — all traffic is being filtered' : '○ Engine is PAUSED — all visitors go to money page'}</span>
+                </label>
+              </form>
+            </div>
+            <p class="hint">When disabled, all visitors skip fingerprinting and go directly to the money URL.</p>
+          </div>
+          <div class="f-card">
+            <div class="f-card-title">Default Site URLs</div>
+            <form method="POST" action="/admin/settings">
+              <div class="form-grid2">
+                <div class="form-row">
+                  <label>Money URL <span class="hint" style="display:inline">(real visitors go here)</span></label>
+                  <input type="text" name="moneyUrl" value="${escHtml(settings.moneyUrl || '')}" placeholder="https://your-offer-page.com">
+                </div>
+                <div class="form-row">
+                  <label>Safe URL <span class="hint" style="display:inline">(bots go here)</span></label>
+                  <input type="text" name="safeUrl" value="${escHtml(settings.safeUrl || '')}" placeholder="https://your-safe-page.com">
+                </div>
+              </div>
+              <button type="submit" class="btn-pri mt12">Save URLs</button>
+            </form>
+          </div>
+        </div>
+
+        <!-- Blocked IPs tab -->
+        <div class="stab-content" id="stab-ips">
+          <div class="f-card">
+            <div class="f-card-title">Permanently Blocked IPs
+              <a href="/admin/blocked-ips/export" class="btn-ghost btn-sm">⬇ Export for Google Ads</a>
+            </div>
+            <p class="hint mb12">These IPs are always blocked, regardless of geo or fingerprint checks. ${exportCount} unique IPs ready for export.</p>
+            <form method="POST" action="/admin/blocked-ips">
+              <div class="form-row">
+                <label>Blocked IP list (one per line)</label>
+                <textarea name="blockedIps" rows="8" id="blockedIpsInput">${escHtml(blockedIpsList.join('\n'))}</textarea>
+              </div>
+              <div class="flex-gap8 mt12">
+                <button type="submit" class="btn-pri">Save Blocked IPs</button>
+                <button type="button" class="btn-ghost" onclick="document.getElementById('blockedIpsInput').value=''">Clear All</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- Countries tab -->
+        <div class="stab-content" id="stab-countries">
+          <div class="f-card">
+            <div class="f-card-title">Country Filter</div>
+            <p class="hint mb12">Only allow visitors from these countries. Leave blank to allow all countries. Use ISO 2-letter codes (US, GB, CA, IN, AU…)</p>
+            <form method="POST" action="/admin/allowed-countries">
+              <div class="form-row">
+                <label>Allowed countries</label>
+                <input type="text" name="allowedCountries" value="${escHtml(allowedCountriesList.join(', '))}" placeholder="US CA GB AU IN — blank means allow all">
+              </div>
+              <div class="flex-gap8 mt12">
+                <button type="submit" class="btn-pri">Save Filter</button>
+                ${allowedCountriesList.length > 0 ? '<form method="POST" action="/admin/allowed-countries" class="inline"><input type="hidden" name="allowedCountries" value=""><button type="submit" class="btn-danger" onclick="return confirm(\'Remove country filter?\')">Remove Filter</button></form>' : ''}
+              </div>
+            </form>
+            ${allowedCountriesList.length > 0 ? '<div class="mt12"><span class="hint">Active filter: </span>' + allowedCountriesList.map(function(c){ return '<span class="rpill rpill-amber" style="margin:2px">' + escHtml(c) + '</span>'; }).join('') + '</div>' : ''}
+          </div>
+        </div>
+
+        <!-- Integrations tab -->
+        <div class="stab-content" id="stab-integrations">
+          <div class="f-card mb12">
+            <div class="f-card-title">GitHub Integration</div>
+            <div class="flex-gap8 mb12">
+              ${hasGithubToken
+                ? '<span class="db-live">● Connected</span><span class="hint">GITHUB_TOKEN is set — auto-inject and auto-push are enabled</span>'
+                : '<span class="db-pending">○ Not connected</span><span class="hint" style="color:var(--amber)">Set GITHUB_TOKEN secret to enable auto-inject</span>'}
+            </div>
+            <p class="hint">Set a GitHub Personal Access Token with <code>repo</code> scope as the <strong>GITHUB_TOKEN</strong> environment secret. FILTER will automatically push cloaking scripts to your GitHub repositories when you create or update sites.</p>
+          </div>
+          <div class="f-card">
+            <div class="f-card-title">Railway Integration</div>
+            <div class="flex-gap8 mb12">
+              ${hasRailwayToken
+                ? '<span class="db-live">● Connected</span><span class="hint">RAILWAY_API_TOKEN is set — deploy monitoring enabled</span>'
+                : '<span class="db-pending">○ Not connected</span><span class="hint" style="color:var(--amber)">Set RAILWAY_API_TOKEN to monitor deployments</span>'}
+            </div>
+            <p class="hint">Set your Railway API token as the <strong>RAILWAY_API_TOKEN</strong> environment secret. Add Railway Project ID and Service ID to each site to monitor deployment status in real-time.</p>
+          </div>
+        </div>
+
+        <!-- Timezone tab -->
+        <div class="stab-content" id="stab-tz">
+          <div class="f-card">
+            <div class="f-card-title">Display Timezone</div>
+            <p class="hint mb12">All dashboard timestamps (logs, leads) will be shown in your chosen timezone. The visitor's own timezone is always captured separately and shown in the Visitor TZ column.</p>
+            <div class="form-row">
+              <label>Your timezone</label>
+              <select id="tzSelector" style="max-width:320px">
+                <optgroup label="Asia">
+                  <option value="Asia/Kolkata" ${displayTz==='Asia/Kolkata'?'selected':''}>India (IST, UTC+5:30)</option>
+                  <option value="Asia/Dubai" ${displayTz==='Asia/Dubai'?'selected':''}>Dubai (GST, UTC+4)</option>
+                  <option value="Asia/Singapore" ${displayTz==='Asia/Singapore'?'selected':''}>Singapore (SGT, UTC+8)</option>
+                  <option value="Asia/Tokyo" ${displayTz==='Asia/Tokyo'?'selected':''}>Tokyo (JST, UTC+9)</option>
+                  <option value="Asia/Shanghai" ${displayTz==='Asia/Shanghai'?'selected':''}>China (CST, UTC+8)</option>
+                  <option value="Asia/Karachi" ${displayTz==='Asia/Karachi'?'selected':''}>Pakistan (PKT, UTC+5)</option>
+                  <option value="Asia/Dhaka" ${displayTz==='Asia/Dhaka'?'selected':''}>Bangladesh (BST, UTC+6)</option>
+                </optgroup>
+                <optgroup label="Americas">
+                  <option value="America/New_York" ${displayTz==='America/New_York'?'selected':''}>New York (EST/EDT)</option>
+                  <option value="America/Chicago" ${displayTz==='America/Chicago'?'selected':''}>Chicago (CST/CDT)</option>
+                  <option value="America/Los_Angeles" ${displayTz==='America/Los_Angeles'?'selected':''}>Los Angeles (PST/PDT)</option>
+                  <option value="America/Toronto" ${displayTz==='America/Toronto'?'selected':''}>Toronto (EST/EDT)</option>
+                  <option value="America/Sao_Paulo" ${displayTz==='America/Sao_Paulo'?'selected':''}>São Paulo (BRT)</option>
+                </optgroup>
+                <optgroup label="Europe">
+                  <option value="Europe/London" ${displayTz==='Europe/London'?'selected':''}>London (GMT/BST)</option>
+                  <option value="Europe/Paris" ${displayTz==='Europe/Paris'?'selected':''}>Paris (CET/CEST)</option>
+                  <option value="Europe/Berlin" ${displayTz==='Europe/Berlin'?'selected':''}>Berlin (CET/CEST)</option>
+                  <option value="Europe/Moscow" ${displayTz==='Europe/Moscow'?'selected':''}>Moscow (MSK)</option>
+                </optgroup>
+                <optgroup label="Pacific / Africa">
+                  <option value="Australia/Sydney" ${displayTz==='Australia/Sydney'?'selected':''}>Sydney (AEST)</option>
+                  <option value="Pacific/Auckland" ${displayTz==='Pacific/Auckland'?'selected':''}>Auckland (NZST)</option>
+                  <option value="Africa/Lagos" ${displayTz==='Africa/Lagos'?'selected':''}>Lagos (WAT)</option>
+                  <option value="Africa/Johannesburg" ${displayTz==='Africa/Johannesburg'?'selected':''}>Johannesburg (SAST)</option>
+                </optgroup>
+                <optgroup label="Universal">
+                  <option value="UTC" ${displayTz==='UTC'?'selected':''}>UTC (Universal)</option>
+                </optgroup>
+              </select>
+            </div>
+            <button type="button" class="btn-pri mt12" onclick="saveTz()">Save Timezone</button>
+            <p class="hint mt8">Takes effect immediately — the page will reload to apply the new timezone to all timestamps.</p>
+          </div>
+        </div>
+
+        <!-- Danger Zone tab -->
+        <div class="stab-content" id="stab-danger">
+          <div class="f-card danger-zone">
+            <div class="danger-title">⚠ Danger Zone</div>
+            <p class="hint mb16">These actions cannot be undone. All data in the affected store will be permanently deleted.</p>
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid rgba(239,68,68,.15)">
+                <div>
+                  <div style="font-size:.82rem;font-weight:600">Clear Traffic Logs</div>
+                  <div class="hint">${logTotal} records will be deleted</div>
+                </div>
+                <form method="POST" action="/admin/clear-logs">
+                  <button type="submit" class="btn-danger" onclick="return confirm('Delete all ${logTotal} traffic log records? Cannot be undone.')">Clear Logs</button>
+                </form>
+              </div>
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid rgba(239,68,68,.15)">
+                <div>
+                  <div style="font-size:.82rem;font-weight:600">Clear Leads</div>
+                  <div class="hint">${leadTotal} lead records will be deleted</div>
+                </div>
+                <form method="POST" action="/admin/clear-leads">
+                  <button type="submit" class="btn-danger" onclick="return confirm('Delete all ${leadTotal} lead records? Cannot be undone.')">Clear Leads</button>
+                </form>
+              </div>
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0">
+                <div>
+                  <div style="font-size:.82rem;font-weight:600">Reset Frequency Tracker</div>
+                  <div class="hint">${freqStoreSize} entries in memory store</div>
+                </div>
+                <form method="POST" action="/admin/clear-frequency">
+                  <button type="submit" class="btn-danger">Reset Tracker</button>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /sec-settings -->
+
+    </div><!-- /f-content -->
+  </main><!-- /f-main -->
+</div><!-- /f-app -->
+
+<!-- ── ADD SITE MODAL ──────────────────────────────── -->
+<div class="f-modal" id="addSiteModal">
+  <div class="f-modal-box">
+    <div class="f-modal-hdr">
+      <span class="f-modal-title">+ Add New Site</span>
+      <button class="f-modal-close" onclick="closeModal('addSiteModal')">✕</button>
+    </div>
+    <form method="POST" action="/admin/sites">
+      <div class="form-grid2">
+        <div class="form-row">
+          <label>Site Name *</label>
+          <input type="text" name="name" placeholder="My Peacock Site" required>
+        </div>
+        <div class="form-row">
+          <label>Domain</label>
+          <input type="text" name="domain" placeholder="mypeacocksite.com">
+        </div>
+        <div class="form-row">
+          <label>GitHub Repo URL</label>
+          <input type="text" name="githubRepo" placeholder="https://github.com/user/repo">
+        </div>
+        <div class="form-row">
+          <label>Money URL</label>
+          <input type="text" name="moneyUrl" placeholder="https://your-offer-page.com">
+        </div>
+      </div>
+      <p class="hint mt8">FILTER will automatically generate an API key, create hub-hosted safe and money pages, and push the cloaking script to your GitHub repo.</p>
+      <div class="flex-gap8 mt16">
+        <button type="submit" class="btn-pri">Create Site →</button>
+        <button type="button" class="btn-ghost" onclick="closeModal('addSiteModal')">Cancel</button>
+      </div>
+    </form>
+  </div>
 </div>
-<script>
-(function() {
-  /* ── Live feed ─────────────────────────────────────────────────────────── */
-  var feed    = document.getElementById('live-feed');
-  var countEl = document.getElementById('live-count');
-  var activeTimes = {};
 
-  function escH(s) {
-    return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+<!-- ── TOAST CONTAINER ────────────────────────────── -->
+<div class="f-toasts" id="fToasts"></div>
+
+<script>
+// ── Section routing ─────────────────────────────────────────────────────────
+var sectionMap = { dashboard:'Dashboard', sites:'Sites', logs:'Traffic Logs', leads:'Leads', settings:'Settings' };
+function navTo(id, btn) {
+  document.querySelectorAll('.f-section').forEach(function(s){ s.classList.remove('active'); });
+  var el = document.getElementById('sec-' + id);
+  if (el) el.classList.add('active');
+  document.querySelectorAll('.sb-link').forEach(function(b){ b.classList.remove('active'); });
+  if (btn) btn.classList.add('active');
+  var b = document.getElementById('fBreadcrumb');
+  if (b) b.textContent = sectionMap[id] || id;
+  window.location.hash = id;
+  if (window.innerWidth <= 700) closeSidebar();
+}
+function initSection() {
+  var hash = (window.location.hash || '#dashboard').slice(1);
+  if (!sectionMap[hash]) hash = 'dashboard';
+  var btn = document.querySelector('.sb-link[data-section="' + hash + '"]');
+  navTo(hash, btn);
+}
+window.addEventListener('hashchange', function() { initSection(); });
+document.addEventListener('DOMContentLoaded', function() { initSection(); });
+
+// ── Mobile sidebar ──────────────────────────────────────────────────────────
+function toggleSidebar() {
+  document.getElementById('fSidebar').classList.toggle('open');
+  document.getElementById('fOverlay').classList.toggle('open');
+}
+function closeSidebar() {
+  document.getElementById('fSidebar').classList.remove('open');
+  document.getElementById('fOverlay').classList.remove('open');
+}
+
+// ── Site filter ─────────────────────────────────────────────────────────────
+function changeSite(val) {
+  var hash = window.location.hash || '#dashboard';
+  window.location.href = '/admin' + (val ? '?site=' + val : '') + hash;
+}
+
+// ── Clock ───────────────────────────────────────────────────────────────────
+var _tz = '${escHtml(displayTz)}';
+function updateClock() {
+  var el = document.getElementById('fClock');
+  if (!el) return;
+  try {
+    el.textContent = new Date().toLocaleTimeString('en-GB', { timeZone: _tz, hour12: false });
+  } catch(e) {
+    el.textContent = new Date().toUTCString().slice(17, 25);
+  }
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ── Timezone save ───────────────────────────────────────────────────────────
+function saveTz() {
+  var tz = document.getElementById('tzSelector').value;
+  fetch('/admin/set-timezone', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tz: tz })
+  }).then(function(r){ return r.json(); }).then(function(d) {
+    if (d.ok) { showToast('Timezone set to ' + tz, 'success'); setTimeout(function(){ location.reload(); }, 800); }
+    else showToast('Invalid timezone', 'error');
+  }).catch(function(){ showToast('Failed to save timezone', 'error'); });
+}
+
+// ── Tab switching (settings) ─────────────────────────────────────────────────
+function switchTab(btn, contentId) {
+  var parent = btn.closest('.stabs') || btn.parentElement;
+  parent.querySelectorAll('.stab').forEach(function(b){ b.classList.remove('active'); });
+  btn.classList.add('active');
+  var section = btn.closest('.f-section') || document.getElementById('sec-settings');
+  section.querySelectorAll('.stab-content').forEach(function(c){ c.classList.remove('active'); });
+  var ct = document.getElementById(contentId);
+  if (ct) ct.classList.add('active');
+}
+
+// ── Site row toggles ─────────────────────────────────────────────────────────
+function toggleSlRow(btn, id) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  el.classList.toggle('open');
+  btn.classList.toggle('open');
+  btn.textContent = el.classList.contains('open') ? '✕ Close' : '⚙ Settings';
+}
+function switchSlTab(btn, id) {
+  var group = btn.closest('.sl-tabs');
+  if (group) group.querySelectorAll('.sl-tab').forEach(function(b){ b.classList.remove('active'); });
+  btn.classList.add('active');
+  var expand = btn.closest('.sl-expand');
+  if (expand) expand.querySelectorAll('.sl-tab-content').forEach(function(c){ c.classList.remove('active'); });
+  var el = document.getElementById(id);
+  if (el) el.classList.add('active');
+}
+
+// ── Modal ────────────────────────────────────────────────────────────────────
+function openModal(id) { var m = document.getElementById(id); if (m) m.classList.add('open'); }
+function closeModal(id) { var m = document.getElementById(id); if (m) m.classList.remove('open'); }
+document.addEventListener('keydown', function(e) { if (e.key === 'Escape') document.querySelectorAll('.f-modal.open').forEach(function(m){ m.classList.remove('open'); }); });
+
+// ── Toast notifications ──────────────────────────────────────────────────────
+function showToast(msg, type) {
+  var c = document.getElementById('fToasts');
+  if (!c) return;
+  var icon = type === 'success' ? '✓' : type === 'error' ? '✕' : 'ℹ';
+  var t = document.createElement('div');
+  t.className = 'f-toast' + (type ? ' ' + type : '');
+  t.innerHTML = '<span style="font-size:1rem">' + icon + '</span><span>' + msg + '</span>';
+  c.appendChild(t);
+  setTimeout(function() {
+    t.style.animation = 'slideOut .22s ease-in forwards';
+    setTimeout(function(){ if (t.parentNode) t.parentNode.removeChild(t); }, 250);
+  }, 3000);
+}
+
+// ── Copy helpers ─────────────────────────────────────────────────────────────
+function copyKey(elId, key, btn) {
+  navigator.clipboard.writeText(key).then(function() {
+    var orig = btn.textContent;
+    btn.textContent = '✓'; btn.style.color = 'var(--green)';
+    setTimeout(function(){ btn.textContent = orig; btn.style.color = ''; }, 2000);
+  }).catch(function(){ prompt('Copy API key:', key); });
+}
+function copySnippetById(id, btn) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  navigator.clipboard.writeText(el.textContent).then(function() {
+    var orig = btn.textContent; btn.textContent = '✓ Copied'; btn.style.color = 'var(--green)';
+    setTimeout(function(){ btn.textContent = orig; btn.style.color = ''; }, 2000);
+  }).catch(function(){ prompt('Copy snippet:', el.textContent); });
+}
+
+// ── Quick block IP ────────────────────────────────────────────────────────────
+function quickBlockIp(btn) {
+  var ip = btn.dataset.ip;
+  var site = btn.dataset.site;
+  if (!ip || btn.classList.contains('blocked')) return;
+  if (!confirm('Block IP ' + ip + ' immediately?')) return;
+  fetch('/admin/block-ip-ajax', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ip: ip, siteId: site })
+  }).then(function(r){ return r.json(); }).then(function(d) {
+    if (d.ok) {
+      btn.classList.add('blocked');
+      btn.title = 'Blocked';
+      btn.textContent = '🚫';
+      showToast('IP ' + ip + ' blocked', 'success');
+    } else showToast('Failed to block IP', 'error');
+  }).catch(function(){ showToast('Network error', 'error'); });
+}
+
+// ── Log table filter ─────────────────────────────────────────────────────────
+function filterLogs() {
+  var search = (document.getElementById('logSearch').value || '').toLowerCase();
+  var dec    = (document.getElementById('logDecFilter').value || '').toLowerCase();
+  var rows   = document.querySelectorAll('#logsBody tr');
+  rows.forEach(function(row) {
+    var text = row.textContent.toLowerCase();
+    var matchSearch = !search || text.includes(search);
+    var matchDec = !dec || text.includes(dec);
+    row.style.display = (matchSearch && matchDec) ? '' : 'none';
+  });
+}
+
+// ── Notification bell ─────────────────────────────────────────────────────────
+var notifCount = 0;
+var notifs = [];
+function toggleNotif() {
+  document.getElementById('notifDropdown').classList.toggle('open');
+  notifCount = 0;
+  var badge = document.getElementById('notifBadge');
+  if (badge) { badge.textContent = '0'; badge.classList.remove('show'); }
+}
+function clearNotifs() {
+  notifs = [];
+  document.getElementById('notifList').innerHTML = '<div class="notif-empty">No alerts yet</div>';
+}
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('.notif-wrap')) document.getElementById('notifDropdown').classList.remove('open');
+});
+function addNotif(entry) {
+  notifs.unshift(entry);
+  if (notifs.length > 20) notifs.pop();
+  notifCount++;
+  var badge = document.getElementById('notifBadge');
+  if (badge) { badge.textContent = notifCount > 9 ? '9+' : notifCount; badge.classList.add('show'); }
+  var list = document.getElementById('notifList');
+  if (list) {
+    if (list.querySelector('.notif-empty')) list.innerHTML = '';
+    var item = document.createElement('div');
+    item.className = 'notif-item';
+    var clsN = entry.decision === 'allow' ? 'notif-dec-allow' : 'notif-dec-block';
+    item.innerHTML = '<div style="display:flex;justify-content:space-between"><span class="notif-ip">' + (entry.ip || '') + '</span><span class="' + clsN + '">' + (entry.decision || '') + '</span></div>'
+      + '<span style="font-size:.68rem;color:var(--text3)">' + (entry.country || '') + ' · ' + (entry.reason || '') + '</span>';
+    list.insertBefore(item, list.firstChild);
+  }
+}
+
+// ── Canvas charts ────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', function() {
+  // Donut chart
+  var dc = document.getElementById('donutCanvas');
+  if (dc) {
+    var ctx = dc.getContext('2d');
+    var allow = ${allAllow}, block = ${allBlock}, total = allow + block;
+    if (total === 0) { allow = 1; total = 1; }
+    var blockAngle = (block / total) * Math.PI * 2;
+    var r = 70, cx = 80, cy = 80, thick = 18;
+    ctx.clearRect(0, 0, 160, 160);
+    // Block arc
+    ctx.beginPath(); ctx.arc(cx, cy, r, -Math.PI/2, -Math.PI/2 + blockAngle); ctx.lineWidth = thick; ctx.strokeStyle = '#ef4444'; ctx.lineCap = 'butt'; ctx.stroke();
+    // Allow arc
+    ctx.beginPath(); ctx.arc(cx, cy, r, -Math.PI/2 + blockAngle, -Math.PI/2 + Math.PI*2); ctx.lineWidth = thick; ctx.strokeStyle = '#22c55e'; ctx.lineCap = 'butt'; ctx.stroke();
+    // Inner bg
+    ctx.beginPath(); ctx.arc(cx, cy, r - thick/2 - 2, 0, Math.PI*2); ctx.fillStyle = '#0f0022'; ctx.fill();
   }
 
-  function makeRow(e) {
-    var ts  = (e.ts||'').replace('T',' ').slice(0,19);
-    var loc = (e.city ? escH(e.city) + ', ' : '') + escH(e.country||'XX');
-    var cls = e.decision==='allow' ? 'lf-allow' : 'lf-block';
+  // Bar chart
+  var bc = document.getElementById('barCanvas');
+  if (bc) {
+    var wrap = document.getElementById('barChartWrap');
+    if (wrap) { bc.width = wrap.clientWidth || 400; bc.height = 150; }
+    var ctx2 = bc.getContext('2d');
+    var allowD = ${hourlyAllowJson};
+    var blockD = ${hourlyBlockJson};
+    var maxV = Math.max(1, Math.max.apply(null, allowD.map(function(v,i){ return v + blockD[i]; })));
+    var bw = Math.floor((bc.width - 40) / 24);
+    var h = bc.height - 24;
+    ctx2.clearRect(0, 0, bc.width, bc.height);
+    for (var i = 0; i < 24; i++) {
+      var x = 20 + i * bw;
+      var aH = Math.round((allowD[i] / maxV) * h);
+      var bH = Math.round((blockD[i] / maxV) * h);
+      // allow bar
+      if (aH > 0) { ctx2.fillStyle = 'rgba(34,197,94,.7)'; ctx2.fillRect(x+2, h - aH, bw-5, aH); }
+      // block bar on top
+      if (bH > 0) { ctx2.fillStyle = 'rgba(239,68,68,.7)'; ctx2.fillRect(x+2, h - aH - bH, bw-5, bH); }
+      // hour label every 4h
+      if (i % 4 === 0) { ctx2.fillStyle = '#4e3d70'; ctx2.font = '9px system-ui'; ctx2.textAlign = 'center'; ctx2.fillText(i.toString().padStart(2,'0'), x + bw/2, h + 14); }
+    }
+    // gridline
+    ctx2.strokeStyle = 'rgba(46,18,96,.5)'; ctx2.lineWidth = 1;
+    ctx2.beginPath(); ctx2.moveTo(20, h); ctx2.lineTo(bc.width - 10, h); ctx2.stroke();
+  }
+});
+
+// ── SSE Live feed ─────────────────────────────────────────────────────────────
+(function() {
+  var activeTimes = ${activeIpTimesJson};
+  var feed = document.getElementById('ltFeed');
+  var activeEl = document.getElementById('liveCnt');
+  var kpiActive = document.getElementById('kpiActive');
+
+  function countActive() {
+    var cutoff = Date.now() - 3 * 60 * 1000;
+    return Object.values(activeTimes).filter(function(t){ return t > cutoff; }).length;
+  }
+  function updateCount() {
+    var n = countActive();
+    if (activeEl) activeEl.textContent = n;
+    if (kpiActive) kpiActive.textContent = n;
+  }
+
+  function makeLtRow(entry) {
+    var dec = entry.decision || '';
+    var cls = dec === 'allow' ? 'lt-dec-allow' : 'lt-dec-block';
+    var ts = '';
+    try { ts = new Date(entry.ts).toLocaleTimeString('en-GB', { timeZone: _tz, hour12:false }); } catch(e) {}
     var row = document.createElement('div');
-    row.className = 'lf-row';
-    row.innerHTML = '<span class="lf-ts">'+ts+'</span>'
-      + '<span class="lf-ip">'+escH(e.ip||'')+'</span>'
-      + '<span class="lf-loc">'+loc+'</span>'
-      + '<span class="lf-dec '+cls+'">'+escH(e.decision||'')+'</span>'
-      + '<span class="lf-reason">'+escH(e.reason||'')+'</span>';
+    row.className = 'lt-row';
+    row.innerHTML = '<span class="lt-ts">' + ts + '</span>'
+      + '<span class="lt-ip">' + (entry.ip || '') + '</span>'
+      + '<span class="' + cls + '">' + dec + '</span>';
     return row;
   }
 
-  function updateCount() {
-    var cutoff = Date.now() - 3 * 60 * 1000;
-    var n = 0;
-    for (var ip in activeTimes) { if (activeTimes[ip] > cutoff) n++; }
-    if (countEl) countEl.textContent = n;
-  }
-
-  var seedTimes = ${activeIpTimesJson};
-  for (var sip in seedTimes) { activeTimes[sip] = seedTimes[sip]; }
-  updateCount();
-
-  /* ── Sound ─────────────────────────────────────────────────────────────── */
-  var soundEnabled = localStorage.getItem('sfx_sound') !== 'off';
-  var audioCtx = null;
-
-  function getAudioCtx() {
-    if (!audioCtx) {
-      try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {}
-    }
-    return audioCtx;
-  }
-
-  function playTing(type) {
-    if (!soundEnabled) return;
-    var ctx = getAudioCtx();
-    if (!ctx) return;
-    try {
-      var osc  = ctx.createOscillator();
-      var gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      if (type === 'allow') {
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(1318, ctx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(1046, ctx.currentTime + 0.15);
-        gain.gain.setValueAtTime(0.28, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.55);
-        osc.start(ctx.currentTime);
-        osc.stop(ctx.currentTime + 0.55);
-      } else {
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(440, ctx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(330, ctx.currentTime + 0.18);
-        gain.gain.setValueAtTime(0.22, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
-        osc.start(ctx.currentTime);
-        osc.stop(ctx.currentTime + 0.4);
-      }
-    } catch(e) {}
-  }
-
-  /* ── Sound toggle button ────────────────────────────────────────────────── */
-  var soundBtn  = document.getElementById('soundToggle');
-  var soundWave = document.getElementById('soundWave2');
-
-  function applySoundUI() {
-    if (!soundBtn) return;
-    if (soundEnabled) {
-      soundBtn.classList.remove('muted');
-      soundBtn.title = 'Sound ON — click to mute';
-      if (soundWave) soundWave.style.display = '';
-    } else {
-      soundBtn.classList.add('muted');
-      soundBtn.title = 'Sound OFF — click to enable';
-      if (soundWave) soundWave.style.display = 'none';
-    }
-  }
-  applySoundUI();
-
-  if (soundBtn) {
-    soundBtn.addEventListener('click', function() {
-      soundEnabled = !soundEnabled;
-      localStorage.setItem('sfx_sound', soundEnabled ? 'on' : 'off');
-      applySoundUI();
-      if (soundEnabled) playTing('allow');
-    });
-  }
-
-  /* ── Notification bell ─────────────────────────────────────────────────── */
-  var notifBtn      = document.getElementById('notifBtn');
-  var notifDropdown = document.getElementById('notifDropdown');
-  var notifBadge    = document.getElementById('notifBadge');
-  var notifList     = document.getElementById('notifList');
-  var notifClear    = document.getElementById('notifClear');
-  var unread = 0;
-  var notifications = [];
-
-  function updateBadge() {
-    if (!notifBadge) return;
-    if (unread > 0) {
-      notifBadge.textContent = unread > 99 ? '99+' : unread;
-      notifBadge.classList.add('show');
-    } else {
-      notifBadge.classList.remove('show');
-    }
-  }
-
-  function renderNotifList() {
-    if (!notifList) return;
-    if (notifications.length === 0) {
-      notifList.innerHTML = '<div class="notif-empty">No notifications yet</div>';
-      return;
-    }
-    notifList.innerHTML = notifications.slice(0, 30).map(function(n) {
-      var decCls = n.decision === 'allow' ? 'notif-dec-allow' : 'notif-dec-block';
-      var decLabel = n.decision === 'allow' ? '✓ ALLOWED' : '✗ BLOCKED';
-      var loc = (n.city ? escH(n.city) + ', ' : '') + escH(n.country || 'XX');
-      return '<div class="notif-item">'
-        + '<div class="notif-item-top">'
-        +   '<span class="notif-ip">' + escH(n.ip || '') + '</span>'
-        +   '<span class="notif-time">' + escH((n.ts||'').replace('T',' ').slice(0,19)) + '</span>'
-        + '</div>'
-        + '<div style="display:flex;gap:10px;align-items:center">'
-        +   '<span class="notif-loc">' + loc + '</span>'
-        +   '<span class="' + decCls + '">' + decLabel + (n.reason ? ' · ' + escH(n.reason) : '') + '</span>'
-        + '</div>'
-        + '</div>';
-    }).join('');
-  }
-
-  if (notifBtn) {
-    notifBtn.addEventListener('click', function(e) {
-      e.stopPropagation();
-      notifDropdown.classList.toggle('open');
-      if (notifDropdown.classList.contains('open')) {
-        unread = 0;
-        updateBadge();
-      }
-    });
-  }
-
-  document.addEventListener('click', function(e) {
-    if (notifDropdown && notifDropdown.classList.contains('open')) {
-      if (!notifDropdown.contains(e.target) && e.target !== notifBtn) {
-        notifDropdown.classList.remove('open');
-      }
-    }
-  });
-
-  if (notifClear) {
-    notifClear.addEventListener('click', function() {
-      notifications = [];
-      unread = 0;
-      updateBadge();
-      renderNotifList();
-    });
-  }
-
-  function addNotification(entry) {
-    notifications.unshift(entry);
-    if (notifications.length > 50) notifications.pop();
-    if (!notifDropdown || !notifDropdown.classList.contains('open')) {
-      unread++;
-      updateBadge();
-    }
-    renderNotifList();
-  }
-
-  /* ── SSE ───────────────────────────────────────────────────────────────── */
   if (!window.EventSource) return;
-
   var es = new EventSource('/admin/events');
-  es.onmessage = function(ev) {
-    var msg;
-    try { msg = JSON.parse(ev.data); } catch(e) { return; }
-    if (msg.type !== 'log') return;
-    var entry = msg.entry;
-
+  es.onmessage = function(e) {
+    var entry;
+    try { entry = JSON.parse(e.data); } catch(x) { return; }
     if (entry.ip) activeTimes[entry.ip] = Date.now();
     updateCount();
 
     if (feed) {
-      var placeholder = feed.querySelector('div[style]');
-      if (placeholder) placeholder.remove();
-      var row = makeRow(entry);
+      var ph = feed.querySelector('[style]');
+      if (ph && ph.style.textAlign) ph.remove();
+      var row = makeLtRow(entry);
       feed.insertBefore(row, feed.firstChild);
-      var rows = feed.querySelectorAll('.lf-row');
-      while (rows.length > 8) { feed.removeChild(feed.lastChild); rows = feed.querySelectorAll('.lf-row'); }
+      var rows = feed.querySelectorAll('.lt-row');
+      while (rows.length > 10) { feed.removeChild(feed.lastChild); rows = feed.querySelectorAll('.lt-row'); }
     }
 
-    playTing(entry.decision);
-    addNotification(entry);
+    addNotif(entry);
+    // Subtle audio ting
+    try {
+      var ac = new (window.AudioContext || window.webkitAudioContext)();
+      var osc = ac.createOscillator(); var gain = ac.createGain();
+      osc.connect(gain); gain.connect(ac.destination);
+      osc.frequency.value = entry.decision === 'allow' ? 880 : 440;
+      gain.gain.setValueAtTime(0.04, ac.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.25);
+      osc.start(); osc.stop(ac.currentTime + 0.25);
+    } catch(e) {}
   };
-  es.onerror = function() {};
+  es.onerror = function(){};
 })();
 
-// ── Sites helpers ─────────────────────────────────────────────────────────────
-function copyKey(elId, key, btn) {
-  navigator.clipboard.writeText(key).then(function() {
-    var orig = btn.textContent;
-    btn.textContent = 'Copied!'; btn.style.color = '#4ade80';
-    setTimeout(function() { btn.textContent = orig; btn.style.color = ''; }, 2000);
-  }).catch(function() { prompt('Copy API key:', key); });
-}
-function toggleSnippet(id, btn) {
-  var el = document.getElementById(id);
-  if (!el) return;
-  el.classList.toggle('open');
-  btn.textContent = el.classList.contains('open')
-    ? '<\\/> Hide integration script'
-    : '<\\/> Show integration script — paste this in your site\\'s <head>';
-}
-function copySnippet(id, btn) {
-  var el = document.getElementById(id);
-  if (!el) return;
-  var text = el.innerText.replace(/^Copy\\n?/, '').trim();
-  navigator.clipboard.writeText(text).then(function() {
-    var orig = btn.textContent;
-    btn.textContent = 'Copied!'; btn.style.color = '#4ade80';
-    setTimeout(function() { btn.textContent = orig; btn.style.color = ''; }, 2000);
-  }).catch(function() { prompt('Copy snippet:', text); });
-}
-function togglePanel(id, btn) {
-  var el = document.getElementById(id);
-  if (!el) return;
-  el.classList.toggle('open');
-  btn.innerHTML = el.classList.contains('open') ? '&#9881; Hide Settings' : '&#9881; Settings';
-}
+// ── Keyboard shortcuts ────────────────────────────────────────────────────────
+document.addEventListener('keydown', function(e) {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  var map = { '1':'dashboard','2':'sites','3':'logs','4':'leads','5':'settings' };
+  if (map[e.key]) {
+    var btn = document.querySelector('.sb-link[data-section="' + map[e.key] + '"]');
+    navTo(map[e.key], btn);
+  }
+});
+
+// ── CSV export for leads ──────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+  var btn = document.getElementById('csvExportBtn');
+  if (btn) {
+    btn.addEventListener('click', function(e) {
+      e.preventDefault();
+      var rows = document.querySelectorAll('#sec-leads table tbody tr');
+      var csv = ['Time,IP,Country,City,Code,Source,Visitor TZ,Called'];
+      rows.forEach(function(row) {
+        var cells = row.querySelectorAll('td');
+        var vals = Array.from(cells).map(function(c){ return '"' + (c.textContent || '').replace(/"/g,'""').trim() + '"'; });
+        csv.push(vals.join(','));
+      });
+      var blob = new Blob([csv.join('\n')], { type: 'text/csv' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a'); a.href = url; a.download = 'leads.csv'; a.click();
+      URL.revokeObjectURL(url);
+    });
+  }
+});
 </script>
 </body>
 </html>`;
+
 }
 
 function escHtml(str) {

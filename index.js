@@ -2157,9 +2157,9 @@ textarea{resize:vertical;min-height:80px}
       <button class="sb-link" data-section="settings" onclick="navTo('settings',this)">
         <span class="sb-icon">⚙</span> Settings
       </button>
-      <button class="sb-link" data-section="settings" onclick="navTo('settings',this);setTimeout(function(){switchTab(document.querySelector('.stab[data-tab=security]'),'stab-security')},80)">
+      <a class="sb-link" href="/admin?stab=security#settings">
         <span class="sb-icon">🔧</span> Features
-      </button>
+      </a>
     </nav>
 
     <!-- Site selector -->

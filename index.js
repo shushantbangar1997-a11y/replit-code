@@ -1065,16 +1065,26 @@ app.post('/admin/sites/:id/settings', requireAdmin, async function(req, res) {
     site.enabled = req.body.enabled !== 'false';
   }
 
-  var raw = req.body.blockedIps || '';
-  if (typeof raw === 'string') {
-    site.blockedIps = raw.split(/[\n,]+/).map(function(s) { return s.trim(); }).filter(Boolean);
+  // Only update security lists when those fields are explicitly included in the form submission
+  if (req.body.blockedIps !== undefined) {
+    site.blockedIps = String(req.body.blockedIps).split(/[\n,]+/).map(function(s) { return s.trim(); }).filter(Boolean);
   }
-  var rawCC = req.body.allowedCountries || '';
-  if (typeof rawCC === 'string') {
-    site.allowedCountries = rawCC.split(/[\n,\s]+/).map(function(s) { return s.trim().toUpperCase(); }).filter(function(s) { return s.length === 2; });
+  if (req.body.allowedCountries !== undefined) {
+    site.allowedCountries = String(req.body.allowedCountries).split(/[\n,\s]+/).map(function(s) { return s.trim().toUpperCase(); }).filter(function(s) { return s.length === 2; });
   }
   sites[idx] = site;
   writeSites(sites);
+
+  // For the default site, settings.json is the authoritative source for cloaking decisions,
+  // so mirror any URL/security field updates there to keep getSiteSettings() consistent.
+  if (site.isDefault) {
+    var gs = readSettings();
+    if (req.body.moneyUrl !== undefined) gs.moneyUrl = site.moneyUrl;
+    if (req.body.safeUrl  !== undefined) gs.safeUrl  = site.safeUrl;
+    if (req.body.blockedIps !== undefined) gs.blockedIps = site.blockedIps;
+    if (req.body.allowedCountries !== undefined) gs.allowedCountries = site.allowedCountries;
+    writeSettings(gs);
+  }
 
   // Re-inject if GitHub repo set and token available, then trigger Railway redeploy
   if (site.githubRepo && process.env.GITHUB_TOKEN) {
@@ -1138,6 +1148,12 @@ app.post('/admin/sites/:id/toggle', requireAdmin, async function(req, res) {
   if (idx !== -1) {
     sites[idx].enabled = !sites[idx].enabled;
     writeSites(sites);
+    // For the default site, settings.json is the authoritative enabled source for cloaking
+    if (sites[idx].isDefault) {
+      var gs = readSettings();
+      gs.enabled = sites[idx].enabled;
+      writeSettings(gs);
+    }
     // Re-inject script so GitHub/Railway picks up the change
     var hubUrl = 'https://' + (process.env.REPLIT_DEV_DOMAIN || req.headers.host || 'localhost');
     if (sites[idx].githubRepo && process.env.GITHUB_TOKEN) {

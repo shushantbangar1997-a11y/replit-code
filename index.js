@@ -785,6 +785,7 @@ app.get('/admin', requireAdmin, function(req, res) {
   var sites      = readSites();
   var siteFilter = req.query.site || '';
   var siteCreated = req.query.siteCreated === '1';
+  var rangeParam = ['7d','30d','90d'].includes(req.query.range) ? req.query.range : '24h';
 
   // Find selected site object (null = All Sites)
   var selectedSite = siteFilter ? sites.find(function(s) { return s.id === siteFilter; }) : null;
@@ -862,7 +863,8 @@ app.get('/admin', requireAdmin, function(req, res) {
     hasRailwayToken: !!getRailwayToken(),
     displayTz: req.session.displayTz || 'UTC',
     tzAutoDetected: !!req.session.tzAutoDetected,
-    globalSettings: globalSettings
+    globalSettings: globalSettings,
+    range: rangeParam
   }));
 });
 
@@ -1476,12 +1478,23 @@ function adminDashboardPage(settings, logs, leads, opts) {
   var displayTz       = opts.displayTz || 'UTC';
   var tzAutoDetected  = opts.tzAutoDetected || false;
   var globalSettings  = opts.globalSettings || settings;
+  var range        = opts.range || '24h';
   var now = new Date();
   var today = now.toISOString().slice(0, 10);
   var timeStr = now.toUTCString().slice(17, 25);
 
+  // ── Range cutoff ────────────────────────────────────────────────────────────
+  var rangeDays = { '24h': 0, '7d': 7, '30d': 30, '90d': 90 }[range] || 0;
+  var rangeCutoff = '';
+  if (rangeDays > 0) {
+    var cutD = new Date(now.getTime() - rangeDays * 24 * 60 * 60 * 1000);
+    rangeCutoff = cutD.toISOString().slice(0, 10);
+  }
+
   // ── Stats ─────────────────────────────────────────────────────────────────
-  var todayLogs    = statsLogs.filter(function(l) { return l.ts && l.ts.startsWith(today); });
+  var todayLogs    = rangeDays === 0
+    ? statsLogs.filter(function(l) { return l.ts && l.ts.startsWith(today); })
+    : statsLogs.filter(function(l) { return l.ts && l.ts.slice(0,10) >= rangeCutoff; });
   var todayAllow   = todayLogs.filter(function(l) { return l.decision === 'allow'; }).length;
   var todayBlock   = todayLogs.filter(function(l) { return l.decision === 'block'; }).length;
   var todayTotal   = todayAllow + todayBlock;
@@ -2313,10 +2326,10 @@ textarea{resize:vertical;min-height:80px}
           </div>
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
             <div class="tr-filter" id="trFilter">
-              <button class="tr-btn active" data-range="24h" onclick="setTimeRange(this)">24h</button>
-              <button class="tr-btn" data-range="7d" onclick="setTimeRange(this)">7d</button>
-              <button class="tr-btn" data-range="30d" onclick="setTimeRange(this)">30d</button>
-              <button class="tr-btn" data-range="90d" onclick="setTimeRange(this)">90d</button>
+              <button class="tr-btn${range === '24h' ? ' active' : ''}" data-range="24h" onclick="setTimeRange(this)">24h</button>
+              <button class="tr-btn${range === '7d' ? ' active' : ''}" data-range="7d" onclick="setTimeRange(this)">7d</button>
+              <button class="tr-btn${range === '30d' ? ' active' : ''}" data-range="30d" onclick="setTimeRange(this)">30d</button>
+              <button class="tr-btn${range === '90d' ? ' active' : ''}" data-range="90d" onclick="setTimeRange(this)">90d</button>
             </div>
             ${siteCreated ? '<div class="rpill rpill-green">✓ Site created</div>' : ''}
           </div>
@@ -2331,7 +2344,7 @@ textarea{resize:vertical;min-height:80px}
           </div>
           <div class="kpi kpi-red">
             <div class="kpi-label">Block Rate</div>
-            <div class="kpi-val" id="kpiBlock">${blockRateToday > 0 ? blockRateToday + '%' : todayTotal === 0 ? 'null%' : '0%'}</div>
+            <div class="kpi-val" id="kpiBlock">${blockRateToday + '%'}</div>
             <div class="kpi-sub" id="kpiBlockPct">${todayBlock} blocked</div>
           </div>
           <div class="kpi kpi-blue">
@@ -2341,7 +2354,7 @@ textarea{resize:vertical;min-height:80px}
           </div>
           <div class="kpi kpi-purple">
             <div class="kpi-label">Active Sites</div>
-            <div class="kpi-val" id="kpiActive">${sites.filter(function(s){return s.enabled !== false;}).length}</div>
+            <div class="kpi-val" id="kpiSites">${sites.filter(function(s){return s.enabled !== false;}).length}</div>
             <div class="kpi-sub">of ${sites.length} total</div>
           </div>
         </div>
@@ -3047,11 +3060,13 @@ function toggleCollapse() {
 })();
 
 // ── Time range filter ─────────────────────────────────────────────────────────
-var _activeRange = '24h';
 function setTimeRange(btn) {
-  _activeRange = btn.dataset.range;
-  document.querySelectorAll('.tr-btn').forEach(function(b){ b.classList.remove('active'); });
-  btn.classList.add('active');
+  var range = btn.dataset.range;
+  var params = new URLSearchParams(window.location.search);
+  params.set('range', range);
+  params.delete('logPage');
+  params.delete('leadPage');
+  window.location.search = params.toString();
 }
 
 // ── Mobile sidebar ──────────────────────────────────────────────────────────
@@ -3376,7 +3391,6 @@ window.addEventListener('DOMContentLoaded', function() {
   var activeTimes = ${activeIpTimesJson};
   var feed = document.getElementById('ltFeed');
   var activeEl = document.getElementById('liveCnt');
-  var kpiActive = document.getElementById('kpiActive');
 
   function countActive() {
     var cutoff = Date.now() - 3 * 60 * 1000;
@@ -3385,7 +3399,6 @@ window.addEventListener('DOMContentLoaded', function() {
   function updateCount() {
     var n = countActive();
     if (activeEl) activeEl.textContent = n;
-    if (kpiActive) kpiActive.textContent = n;
   }
 
   function makeLtRow(entry) {
@@ -3419,7 +3432,7 @@ window.addEventListener('DOMContentLoaded', function() {
       var alw = payload.todayAllow || 0;
       var blockRate = tot > 0 ? Math.round(blk / tot * 100) : 0;
       if (elT) elT.textContent = tot;
-      if (elB) elB.textContent = tot === 0 ? 'null%' : blockRate + '%';
+      if (elB) elB.textContent = blockRate + '%';
       if (elA) elA.textContent = tot === 0 ? '—' : blockRate;
       if (elBP) elBP.textContent = blk + ' blocked';
       if (elAP) elAP.textContent = alw + ' allowed';

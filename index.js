@@ -2459,7 +2459,7 @@ tbody td{padding:7px 11px;color:var(--text2);vertical-align:middle}
 /* ── Click Log card-list (server-management-table theme) ──────────────── */
 .lc-wrap{border-radius:14px;border:1px solid var(--border);background:var(--card);overflow:hidden}
 /* grid: No | Dec | IP | Location | Device | Score | ISP | Time | Reason | Act */
-.lc-grid{display:grid;grid-template-columns:36px 128px 100px 150px 108px 128px minmax(70px,1fr) 74px 88px 36px;gap:10px;align-items:center}
+.lc-grid{display:grid;grid-template-columns:36px 128px 100px 150px 108px 128px minmax(55px,1fr) 110px 118px 36px;gap:10px;align-items:center}
 .lc-headers{padding:9px 16px 7px;font-size:.6rem;text-transform:uppercase;letter-spacing:.65px;font-weight:700;color:var(--text3)}
 .log-card-list{display:flex;flex-direction:column;gap:7px;padding:10px 10px 12px}
 .log-card{position:relative;border-radius:11px;border:1px solid var(--border);background:var(--bg3);overflow:hidden;transition:transform .15s ease,box-shadow .15s ease}
@@ -2492,8 +2492,8 @@ body.dark .log-card:hover{box-shadow:0 4px 14px rgba(0,0,0,.28)}
 .lsb-empty{background:var(--border2)}
 .lc-score-val{font-size:.69rem;font-family:'SF Mono',Menlo,monospace;color:var(--text2);min-width:20px}
 .lc-isp{font-size:.71rem;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.lc-ts{font-size:.66rem;font-family:'SF Mono',Menlo,monospace;color:var(--text3);white-space:nowrap}
-.lc-reason{}
+.lc-ts{font-size:.66rem;font-family:'SF Mono',Menlo,monospace;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lc-reason{overflow:hidden;min-width:0}.lc-reason .rpill{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
 .lc-actions{display:flex;justify-content:center}
 /* Updated decision badge sizing to match reference */
 .dec-allow{display:inline-flex;align-items:center;padding:3px 9px;border-radius:7px;background:rgba(34,197,94,.1);color:var(--green);font-weight:600;font-size:.66rem;text-transform:uppercase;border:1px solid rgba(34,197,94,.25);white-space:nowrap}

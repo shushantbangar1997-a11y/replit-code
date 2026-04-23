@@ -71,6 +71,12 @@ function appendLog(entry) {
   if (logs.length > MAX_LOG_ENTRIES) logs = logs.slice(0, MAX_LOG_ENTRIES);
   fs.writeFileSync(LOGS_FILE, JSON.stringify(logs, null, 2));
   logEmitter.emit('newLog', entry);
+  // Emit lightweight KPI update so dashboard cards refresh without a page reload
+  var today = new Date().toISOString().slice(0, 10);
+  var tLogs = logs.filter(function(l) { return l.ts && l.ts.startsWith(today); });
+  var tA = tLogs.filter(function(l) { return l.decision === 'allow'; }).length;
+  var tB = tLogs.filter(function(l) { return l.decision === 'block'; }).length;
+  logEmitter.emit('statsUpdate', { todayTotal: tA + tB, todayAllow: tA, todayBlock: tB });
 }
 
 // ─── Leads helpers ────────────────────────────────────────────────────────────
@@ -843,10 +849,14 @@ app.get('/admin/events', requireAdmin, function(req, res) {
   function onSiteStatus(payload) {
     res.write('data: ' + JSON.stringify({ type: 'siteStatus', siteId: payload.siteId, status: payload.status }) + '\n\n');
   }
+  function onStatsUpdate(payload) {
+    res.write('data: ' + JSON.stringify({ type: 'statsUpdate', todayTotal: payload.todayTotal, todayAllow: payload.todayAllow, todayBlock: payload.todayBlock }) + '\n\n');
+  }
 
   logEmitter.on('newLog', onLog);
   logEmitter.on('newLead', onLead);
   logEmitter.on('siteStatus', onSiteStatus);
+  logEmitter.on('statsUpdate', onStatsUpdate);
 
   var keepAlive = setInterval(function() {
     res.write(': ping\n\n');
@@ -856,6 +866,7 @@ app.get('/admin/events', requireAdmin, function(req, res) {
     logEmitter.removeListener('newLog', onLog);
     logEmitter.removeListener('newLead', onLead);
     logEmitter.removeListener('siteStatus', onSiteStatus);
+    logEmitter.removeListener('statsUpdate', onStatsUpdate);
     clearInterval(keepAlive);
   });
 });
@@ -1139,6 +1150,20 @@ app.post('/admin/sites/:id/delete', requireAdmin, function(req, res) {
   if (!site || site.isDefault) return res.redirect('/admin'); // protect default
   writeSites(sites.filter(function(s) { return s.id !== id; }));
   res.redirect('/admin');
+});
+
+// ─── Lead called toggle (admin AJAX) ─────────────────────────────────────────
+app.post('/admin/lead-toggle', requireAdmin, function(req, res) {
+  var ts = (req.body.ts || '').trim();
+  if (!ts) return res.json({ ok: false, reason: 'no-ts' });
+  var leads = readLeads();
+  var idx = leads.findIndex(function(l) { return l.ts === ts; });
+  if (idx === -1) return res.json({ ok: false, reason: 'not-found' });
+  leads[idx].called = !leads[idx].called;
+  if (leads[idx].called) leads[idx].calledAt = new Date().toISOString();
+  else delete leads[idx].calledAt;
+  fs.writeFileSync(LEADS_FILE, JSON.stringify(leads, null, 2));
+  res.json({ ok: true, called: leads[idx].called });
 });
 
 app.post('/admin/sites/:id/toggle', requireAdmin, async function(req, res) {
@@ -1449,7 +1474,7 @@ function adminDashboardPage(settings, logs, leads, opts) {
     }[r] || 'grey';
     return '<span class="rpill rpill-' + col + '">' + escHtml(r || '') + '</span>';
   }
-  var logRows = logs.map(function(l) {
+  var logRows = logs.map(function(l, li) {
     var decCls  = l.decision === 'allow' ? 'dec-allow' : 'dec-block';
     var ts      = fmtTs(l.ts);
     var flag    = flagEmoji(l.country);
@@ -1457,7 +1482,12 @@ function adminDashboardPage(settings, logs, leads, opts) {
     var screen  = (!l.screen || l.screen === '0x0') ? '—' : escHtml(l.screen);
     var visitorTz = escHtml((l.tz || '').slice(0, 30));
     var sId     = l.siteId || 'default';
-    return '<tr>'
+    var detailId = 'lrd-' + li;
+    var ua = escHtml(l.ua || '—');
+    var org = escHtml(l.org || '—');
+    var pl = l.plugins !== undefined ? l.plugins : '—';
+    var wd = l.wd !== undefined ? (l.wd ? 'Yes' : 'No') : '—';
+    return '<tr class="log-main-row" onclick="toggleLogRow(\'' + detailId + '\')" title="Click to expand details" style="cursor:pointer">'
       + '<td class="t-mono t-ts">' + escHtml(ts) + '</td>'
       + '<td class="t-mono t-ip" data-ip="' + escHtml(l.ip || '') + '">' + escHtml(l.ip || '') + '</td>'
       + '<td><span class="t-flag">' + flag + '</span> ' + escHtml(l.country || 'XX') + '</td>'
@@ -1467,7 +1497,15 @@ function adminDashboardPage(settings, logs, leads, opts) {
       + '<td class="t-tz">' + visitorTz + '</td>'
       + '<td><span class="' + decCls + '">' + escHtml(l.decision || '') + '</span></td>'
       + '<td>' + reasonPill(l.reason) + '</td>'
-      + '<td><button class="quick-block-btn" data-ip="' + escHtml(l.ip || '') + '" data-site="' + escHtml(sId) + '" onclick="quickBlockIp(this)" title="Block this IP">&#9940;</button></td>'
+      + '<td><button class="quick-block-btn" data-ip="' + escHtml(l.ip || '') + '" data-site="' + escHtml(sId) + '" onclick="event.stopPropagation();quickBlockIp(this)" title="Block this IP">&#9940;</button></td>'
+      + '</tr>'
+      + '<tr class="log-detail-row" id="' + detailId + '" style="display:none">'
+      + '<td colspan="10" class="log-detail-cell">'
+      + '<span class="ldd-lbl">UA:</span> <span class="ldd-val">' + ua + '</span>'
+      + ' &nbsp;·&nbsp; <span class="ldd-lbl">Org:</span> <span class="ldd-val">' + org + '</span>'
+      + ' &nbsp;·&nbsp; <span class="ldd-lbl">Plugins:</span> <span class="ldd-val">' + escHtml(String(pl)) + '</span>'
+      + ' &nbsp;·&nbsp; <span class="ldd-lbl">WebDriver:</span> <span class="ldd-val">' + escHtml(String(wd)) + '</span>'
+      + '</td>'
       + '</tr>';
   }).join('');
 
@@ -1495,9 +1533,10 @@ function adminDashboardPage(settings, logs, leads, opts) {
   var leadRows = submits.map(function(l) {
     var ts      = fmtTs(l.ts);
     var flag    = flagEmoji(l.country);
-    var calledBadge = l.called
-      ? '<span class="rpill rpill-green">Called</span>'
-      : '<span class="rpill rpill-grey">Pending</span>';
+    var safeTs  = escHtml(l.ts || '');
+    var calledToggle = l.called
+      ? '<button class="lead-toggle-btn called" data-ts="' + safeTs + '" onclick="toggleLeadCalled(this)" title="Mark as not called">✓ Called</button>'
+      : '<button class="lead-toggle-btn" data-ts="' + safeTs + '" onclick="toggleLeadCalled(this)" title="Mark as called">○ Pending</button>';
     return '<tr>'
       + '<td class="t-mono t-ts">' + escHtml(ts) + '</td>'
       + '<td class="t-mono">' + escHtml(l.ip || '') + '</td>'
@@ -1506,7 +1545,7 @@ function adminDashboardPage(settings, logs, leads, opts) {
       + '<td class="t-mono" style="color:#a855f7;font-weight:700">' + escHtml(l.code || '') + '</td>'
       + '<td>' + adSource(l) + '</td>'
       + '<td class="t-mono">' + escHtml((l.tz || '').slice(0, 30)) + '</td>'
-      + '<td>' + calledBadge + '</td>'
+      + '<td>' + calledToggle + '</td>'
       + '</tr>';
   }).join('');
 
@@ -1815,6 +1854,19 @@ tbody td{padding:7px 11px;color:var(--text2);vertical-align:middle}
 .quick-block-btn{background:none;border:none;cursor:pointer;color:var(--text3);font-size:.88rem;padding:2px 4px;border-radius:4px;transition:color .15s}
 .quick-block-btn:hover{color:var(--red);background:rgba(239,68,68,.1)}
 .quick-block-btn.blocked{color:var(--red);cursor:default}
+/* Log detail expand */
+.log-detail-cell{background:var(--bg3);padding:8px 14px;font-size:.69rem;color:var(--text2);border-top:none;word-break:break-all;line-height:1.7}
+.ldd-lbl{color:var(--text3);font-weight:700;text-transform:uppercase;font-size:.62rem;letter-spacing:.5px}
+.ldd-val{color:var(--text2);font-family:'SF Mono',Menlo,monospace;font-size:.67rem}
+/* Lead called toggle */
+.lead-toggle-btn{background:rgba(255,255,255,.04);border:1px solid var(--border2);border-radius:20px;padding:2px 10px;font-size:.65rem;font-weight:600;cursor:pointer;color:var(--text3);transition:all .15s;white-space:nowrap}
+.lead-toggle-btn:hover{border-color:var(--green);color:var(--green)}
+.lead-toggle-btn.called{background:rgba(34,197,94,.1);border-color:rgba(34,197,94,.3);color:var(--green)}
+.lead-toggle-btn.called:hover{background:rgba(239,68,68,.08);border-color:rgba(239,68,68,.3);color:var(--red)}
+/* Hotkeys panel */
+.hk-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 20px}
+.hk-row{display:flex;align-items:center;gap:8px;font-size:.77rem;color:var(--text2)}
+.hk-key{display:inline-flex;align-items:center;justify-content:center;min-width:24px;height:22px;padding:0 7px;background:var(--bg3);border:1px solid var(--border2);border-bottom:2px solid var(--border2);border-radius:5px;font-family:'SF Mono',Menlo,monospace;font-size:.72rem;color:var(--pri-l);font-weight:700}
 /* Filter bar */
 .filter-bar{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center}
 .filter-input,.filter-select{background:var(--bg2);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-size:0.78rem;padding:6px 11px;outline:none}
@@ -2044,18 +2096,18 @@ textarea{resize:vertical;min-height:80px}
         <div class="kpi-grid">
           <div class="kpi">
             <div class="kpi-label">Today's Traffic</div>
-            <div class="kpi-val">${todayTotal}</div>
+            <div class="kpi-val" id="kpiTotal">${todayTotal}</div>
             <div class="kpi-sub">All decisions today</div>
           </div>
           <div class="kpi kpi-green">
             <div class="kpi-label">Allowed</div>
-            <div class="kpi-val">${todayAllow}</div>
-            <div class="kpi-sub">${todayTotal > 0 ? Math.round(todayAllow/todayTotal*100) : 0}% of today</div>
+            <div class="kpi-val" id="kpiAllow">${todayAllow}</div>
+            <div class="kpi-sub" id="kpiAllowPct">${todayTotal > 0 ? Math.round(todayAllow/todayTotal*100) : 0}% of today</div>
           </div>
           <div class="kpi kpi-red">
             <div class="kpi-label">Blocked</div>
-            <div class="kpi-val">${todayBlock}</div>
-            <div class="kpi-sub">${blockRateToday}% block rate</div>
+            <div class="kpi-val" id="kpiBlock">${todayBlock}</div>
+            <div class="kpi-sub" id="kpiBlockPct">${blockRateToday}% block rate</div>
           </div>
           <div class="kpi kpi-blue">
             <div class="kpi-label">Active Now</div>
@@ -2481,6 +2533,26 @@ textarea{resize:vertical;min-height:80px}
   </main><!-- /f-main -->
 </div><!-- /f-app -->
 
+<!-- ── HOTKEYS PANEL ───────────────────────────────── -->
+<div class="f-modal" id="hotkeysModal">
+  <div class="f-modal-box" style="max-width:440px">
+    <div class="f-modal-hdr">
+      <span class="f-modal-title">⌨ Keyboard Shortcuts</span>
+      <button class="f-modal-close" onclick="closeModal('hotkeysModal')">✕</button>
+    </div>
+    <div class="hk-grid">
+      <div class="hk-row"><span class="hk-key">1</span> Dashboard</div>
+      <div class="hk-row"><span class="hk-key">2</span> Sites</div>
+      <div class="hk-row"><span class="hk-key">3</span> Traffic Logs</div>
+      <div class="hk-row"><span class="hk-key">4</span> Leads</div>
+      <div class="hk-row"><span class="hk-key">5</span> Settings</div>
+      <div class="hk-row"><span class="hk-key">?</span> This panel</div>
+      <div class="hk-row"><span class="hk-key">Esc</span> Close modals</div>
+      <div class="hk-row"><span class="hk-key">N</span> Notifications</div>
+    </div>
+  </div>
+</div>
+
 <!-- ── ADD SITE MODAL ──────────────────────────────── -->
 <div class="f-modal" id="addSiteModal">
   <div class="f-modal-box">
@@ -2802,6 +2874,22 @@ window.addEventListener('DOMContentLoaded', function() {
     var payload, entry;
     try { payload = JSON.parse(e.data); } catch(x) { return; }
 
+    // Handle KPI stats refresh
+    if (payload.type === 'statsUpdate') {
+      var elT = document.getElementById('kpiTotal');
+      var elA = document.getElementById('kpiAllow');
+      var elB = document.getElementById('kpiBlock');
+      var elAP = document.getElementById('kpiAllowPct');
+      var elBP = document.getElementById('kpiBlockPct');
+      if (elT) elT.textContent = payload.todayTotal;
+      if (elA) elA.textContent = payload.todayAllow;
+      if (elB) elB.textContent = payload.todayBlock;
+      var tot = payload.todayTotal || 0;
+      if (elAP && tot > 0) elAP.textContent = Math.round(payload.todayAllow / tot * 100) + '% of today';
+      if (elBP && tot > 0) elBP.textContent = Math.round(payload.todayBlock / tot * 100) + '% block rate';
+      return;
+    }
+
     // Handle live deploy status badge updates for sites
     if (payload.type === 'siteStatus') {
       var dsCls = { live:'db-live', pushed:'db-pushed', building:'db-pushed', pending:'db-pending', failed:'db-failed', 'key-rotated':'db-rotated' };
@@ -2854,7 +2942,42 @@ document.addEventListener('keydown', function(e) {
     var btn = document.querySelector('.sb-link[data-section="' + map[e.key] + '"]');
     navTo(map[e.key], btn);
   }
+  if (e.key === '?' || e.key === '/') { openModal('hotkeysModal'); }
+  if (e.key === 'n' || e.key === 'N') { toggleNotif(); }
 });
+
+// ── Log row expand ────────────────────────────────────────────────────────────
+function toggleLogRow(id) {
+  var row = document.getElementById(id);
+  if (!row) return;
+  var isOpen = row.style.display !== 'none';
+  row.style.display = isOpen ? 'none' : '';
+}
+
+// ── Lead called toggle ────────────────────────────────────────────────────────
+function toggleLeadCalled(btn) {
+  var ts = btn.dataset.ts;
+  if (!ts || btn.disabled) return;
+  btn.disabled = true;
+  fetch('/admin/lead-toggle', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ts: ts })
+  }).then(function(r){ return r.json(); }).then(function(d) {
+    btn.disabled = false;
+    if (d.ok) {
+      if (d.called) {
+        btn.textContent = '✓ Called';
+        btn.classList.add('called');
+        btn.title = 'Mark as not called';
+      } else {
+        btn.textContent = '○ Pending';
+        btn.classList.remove('called');
+        btn.title = 'Mark as called';
+      }
+    } else { showToast('Failed to update lead', 'error'); }
+  }).catch(function(){ btn.disabled = false; showToast('Network error', 'error'); });
+}
 
 // ── CSV export for leads ──────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', function() {

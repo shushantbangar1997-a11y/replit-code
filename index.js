@@ -12,8 +12,12 @@ const PORT = process.env.PORT || 5000;
 const SETTINGS_FILE = path.join(__dirname, 'data', 'settings.json');
 const LOGS_FILE     = path.join(__dirname, 'data', 'logs.json');
 const LEADS_FILE    = path.join(__dirname, 'data', 'leads.json');
-const MAX_LOG_ENTRIES  = 500;
-const MAX_LEAD_ENTRIES = 500;
+const MAX_LOG_ENTRIES  = 10000;
+const MAX_LEAD_ENTRIES = 5000;
+
+const EventEmitter = require('events');
+const logEmitter = new EventEmitter();
+logEmitter.setMaxListeners(200);
 
 function readSettings() {
   try { return JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8')); } catch (e) {
@@ -34,6 +38,7 @@ function appendLog(entry) {
   logs.unshift(entry);
   if (logs.length > MAX_LOG_ENTRIES) logs = logs.slice(0, MAX_LOG_ENTRIES);
   fs.writeFileSync(LOGS_FILE, JSON.stringify(logs, null, 2));
+  logEmitter.emit('newLog', entry);
 }
 
 // ─── Leads helpers ────────────────────────────────────────────────────────────
@@ -46,6 +51,7 @@ function appendLead(entry) {
   leads.unshift(entry);
   if (leads.length > MAX_LEAD_ENTRIES) leads = leads.slice(0, MAX_LEAD_ENTRIES);
   fs.writeFileSync(LEADS_FILE, JSON.stringify(leads, null, 2));
+  logEmitter.emit('newLead', entry);
 }
 
 function markLeadCalled(ip, code) {
@@ -396,11 +402,81 @@ app.get('/admin/logout', function(req, res) {
 });
 
 // ─── Admin dashboard ──────────────────────────────────────────────────────────
+var LOG_PAGE_SIZE  = 100;
+var LEAD_PAGE_SIZE = 50;
+
 app.get('/admin', requireAdmin, function(req, res) {
-  var settings = readSettings();
-  var logs     = readLogs();
-  var leads    = readLeads();
-  res.send(adminDashboardPage(settings, logs, leads));
+  var settings  = readSettings();
+  var allLogs   = readLogs();
+  var allLeads  = readLeads();
+
+  var allSubmits = allLeads.filter(function(l) { return l.type === 'code_submit'; });
+
+  var logTotal  = allLogs.length;
+  var leadTotal = allSubmits.length;
+
+  var logMaxPage  = Math.max(1, Math.ceil(logTotal  / LOG_PAGE_SIZE));
+  var leadMaxPage = Math.max(1, Math.ceil(leadTotal / LEAD_PAGE_SIZE));
+
+  var logPage  = Math.min(logMaxPage,  Math.max(1, parseInt(req.query.logPage)  || 1));
+  var leadPage = Math.min(leadMaxPage, Math.max(1, parseInt(req.query.leadPage) || 1));
+
+  var logStart  = (logPage - 1)  * LOG_PAGE_SIZE;
+  var leadStart = (leadPage - 1) * LEAD_PAGE_SIZE;
+
+  var logs  = allLogs.slice(logStart, logStart + LOG_PAGE_SIZE);
+  var leads = allSubmits.slice(leadStart, leadStart + LEAD_PAGE_SIZE);
+
+  var activeIpTimes = (function() {
+    var cutoff = Date.now() - 3 * 60 * 1000;
+    var seen = {};
+    allLogs.forEach(function(l) {
+      if (l.ip && l.ts) {
+        var t = new Date(l.ts).getTime();
+        if (t > cutoff) seen[l.ip] = Math.max(seen[l.ip] || 0, t);
+      }
+    });
+    return seen;
+  })();
+  var activeCount = Object.keys(activeIpTimes).length;
+
+  var recentEvents = allLogs.slice(0, 8);
+
+  res.send(adminDashboardPage(settings, logs, leads, {
+    logPage: logPage, logTotal: logTotal,
+    leadPage: leadPage, leadTotal: leadTotal,
+    activeCount: activeCount, recentEvents: recentEvents,
+    activeIpTimes: activeIpTimes,
+    allLogs: allLogs, allLeads: allLeads
+  }));
+});
+
+// ─── Admin SSE events ─────────────────────────────────────────────────────────
+app.get('/admin/events', requireAdmin, function(req, res) {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
+  function onLog(entry) {
+    res.write('data: ' + JSON.stringify({ type: 'log', entry: entry }) + '\n\n');
+  }
+  function onLead(entry) {
+    res.write('data: ' + JSON.stringify({ type: 'lead', entry: entry }) + '\n\n');
+  }
+
+  logEmitter.on('newLog', onLog);
+  logEmitter.on('newLead', onLead);
+
+  var keepAlive = setInterval(function() {
+    res.write(': ping\n\n');
+  }, 25000);
+
+  req.on('close', function() {
+    logEmitter.removeListener('newLog', onLog);
+    logEmitter.removeListener('newLead', onLead);
+    clearInterval(keepAlive);
+  });
 });
 
 // ─── Admin settings save (URLs) ───────────────────────────────────────────────
@@ -531,25 +607,35 @@ button:hover{background:#6d28d9}
 </html>`;
 }
 
-function adminDashboardPage(settings, logs, leads) {
-  leads = Array.isArray(leads) ? leads : [];
+function adminDashboardPage(settings, logs, leads, opts) {
+  opts   = opts || {};
+  leads  = Array.isArray(leads) ? leads : [];
+  var logPage      = opts.logPage      || 1;
+  var logTotal     = opts.logTotal     || logs.length;
+  var leadPage     = opts.leadPage     || 1;
+  var leadTotal    = opts.leadTotal    || leads.length;
+  var activeCount  = opts.activeCount  || 0;
+  var recentEvents = Array.isArray(opts.recentEvents) ? opts.recentEvents : [];
+  var activeIpTimes = (opts.activeIpTimes && typeof opts.activeIpTimes === 'object') ? opts.activeIpTimes : {};
+  var statsLogs    = Array.isArray(opts.allLogs)  ? opts.allLogs  : logs;
+  var statsLeads   = Array.isArray(opts.allLeads) ? opts.allLeads : leads;
   var now = new Date();
   var today = now.toISOString().slice(0, 10);
   var timeStr = now.toUTCString().slice(17, 25);
 
   // ── Stats ─────────────────────────────────────────────────────────────────
-  var todayLogs    = logs.filter(function(l) { return l.ts && l.ts.startsWith(today); });
+  var todayLogs    = statsLogs.filter(function(l) { return l.ts && l.ts.startsWith(today); });
   var todayAllow   = todayLogs.filter(function(l) { return l.decision === 'allow'; }).length;
   var todayBlock   = todayLogs.filter(function(l) { return l.decision === 'block'; }).length;
   var todayTotal   = todayAllow + todayBlock;
-  var allAllow     = logs.filter(function(l) { return l.decision === 'allow'; }).length;
-  var allBlock     = logs.filter(function(l) { return l.decision === 'block'; }).length;
+  var allAllow     = statsLogs.filter(function(l) { return l.decision === 'allow'; }).length;
+  var allBlock     = statsLogs.filter(function(l) { return l.decision === 'block'; }).length;
   var allTotal     = allAllow + allBlock;
   var blockRate    = allTotal > 0 ? Math.round(allBlock / allTotal * 100) : 0;
 
   // ── Top countries ─────────────────────────────────────────────────────────
   var countryCounts = {};
-  logs.forEach(function(l) {
+  statsLogs.forEach(function(l) {
     var cc = l.country || 'XX';
     countryCounts[cc] = (countryCounts[cc] || 0) + 1;
   });
@@ -567,7 +653,7 @@ function adminDashboardPage(settings, logs, leads) {
 
   // ── Block reasons (including new ones) ────────────────────────────────────
   var reasonCounts = {};
-  logs.filter(function(l){ return l.decision === 'block'; }).forEach(function(l) {
+  statsLogs.filter(function(l){ return l.decision === 'block'; }).forEach(function(l) {
     var r = l.reason || 'unknown';
     reasonCounts[r] = (reasonCounts[r] || 0) + 1;
   });
@@ -597,7 +683,7 @@ function adminDashboardPage(settings, logs, leads) {
   var blockedIpsList    = Array.isArray(settings.blockedIps) ? settings.blockedIps : [];
   var allowedCountriesList = Array.isArray(settings.allowedCountries) ? settings.allowedCountries : [];
   var freqStoreSize     = ipFreqStore.size;
-  var repeatClicksIn24h = logs.filter(function(l) {
+  var repeatClicksIn24h = statsLogs.filter(function(l) {
     return l.decision === 'block' && l.reason === 'repeat-click' && l.ts &&
       (Date.now() - new Date(l.ts).getTime()) < IP_FREQ_WINDOW_MS;
   }).length;
@@ -626,7 +712,7 @@ function adminDashboardPage(settings, logs, leads) {
     }[r] || 'grey';
     return '<span class="rpill rpill-' + col + '">' + escHtml(r || '') + '</span>';
   }
-  var logRows = logs.slice(0, 150).map(function(l) {
+  var logRows = logs.map(function(l) {
     var cls    = l.decision === 'allow' ? 'allow' : 'block';
     var ts     = l.ts ? l.ts.replace('T',' ').slice(0,19) : '';
     var isp    = (l.isp || '').slice(0, 22);
@@ -649,15 +735,16 @@ function adminDashboardPage(settings, logs, leads) {
   var exportSeen = {};
   var privateRe  = /^(127\.|10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|::1$|fd)/;
   (blockedIpsList).forEach(function(ip) { if (ip && !privateRe.test(ip)) exportSeen[ip] = true; });
-  logs.filter(function(l){ return l.decision === 'block' && l.ip; })
+  statsLogs.filter(function(l){ return l.decision === 'block' && l.ip; })
       .forEach(function(l){ if (!privateRe.test(l.ip)) exportSeen[l.ip] = true; });
   var exportCount = Object.keys(exportSeen).length;
 
   // ── Leads stats ───────────────────────────────────────────────────────────
-  var submits     = leads.filter(function(l) { return l.type === 'code_submit'; });
-  var todaySubmits = submits.filter(function(l) { return l.ts && l.ts.startsWith(today); });
-  var calledLeads  = submits.filter(function(l) { return l.called; });
-  var callRate     = submits.length > 0 ? Math.round(calledLeads.length / submits.length * 100) : 0;
+  var allSubmits   = statsLeads.filter(function(l) { return l.type === 'code_submit'; });
+  var submits      = leads.filter(function(l) { return l.type === 'code_submit'; });
+  var todaySubmits = allSubmits.filter(function(l) { return l.ts && l.ts.startsWith(today); });
+  var calledLeads  = allSubmits.filter(function(l) { return l.called; });
+  var callRate     = allSubmits.length > 0 ? Math.round(calledLeads.length / allSubmits.length * 100) : 0;
 
   function adSource(l) {
     if (l.gclid) return '<span class="rpill rpill-amber">Google Ads</span>';
@@ -665,7 +752,7 @@ function adminDashboardPage(settings, logs, leads) {
     return src ? '<span style="font-size:0.72rem;color:#a78bfa">' + escHtml(src.slice(0, 20)) + '</span>' : '—';
   }
 
-  var leadRows = submits.slice(0, 150).map(function(l) {
+  var leadRows = submits.map(function(l) {
     var ts     = l.ts ? l.ts.replace('T',' ').slice(0,19) : '';
     var device = deviceType(l.ua || '');
     var calledBadge = l.called
@@ -682,12 +769,46 @@ function adminDashboardPage(settings, logs, leads) {
       + '</tr>';
   }).join('');
 
+  // ── Pagination helpers ────────────────────────────────────────────────────
+  function paginationHtml(currentPage, total, pageSize, paramName, otherParam, otherVal) {
+    var totalPages = Math.max(1, Math.ceil(total / pageSize));
+    if (totalPages <= 1) return '';
+    var prev = currentPage > 1 ? currentPage - 1 : null;
+    var next = currentPage < totalPages ? currentPage + 1 : null;
+    function href(p) {
+      var params = paramName + '=' + p;
+      if (otherParam && otherVal > 1) params += '&amp;' + otherParam + '=' + otherVal;
+      return '/admin?' + params;
+    }
+    return '<div class="pagination">'
+      + (prev ? '<a href="' + href(prev) + '" class="pag-btn">&larr; Prev</a>' : '<span class="pag-btn pag-disabled">&larr; Prev</span>')
+      + '<span class="pag-info">Page ' + currentPage + ' of ' + totalPages + ' &nbsp;(&nbsp;' + total + ' total&nbsp;)</span>'
+      + (next ? '<a href="' + href(next) + '" class="pag-btn">Next &rarr;</a>' : '<span class="pag-btn pag-disabled">Next &rarr;</span>')
+      + '</div>';
+  }
+  var logPaginationHtml  = paginationHtml(logPage,  logTotal,  LOG_PAGE_SIZE,  'logPage',  'leadPage', leadPage);
+  var leadPaginationHtml = paginationHtml(leadPage, leadTotal, LEAD_PAGE_SIZE, 'leadPage', 'logPage',  logPage);
+
+  // ── Recent events for live feed (server-rendered initial state) ───────────
+  function liveRow(l) {
+    var ts  = l.ts ? l.ts.replace('T',' ').slice(0,19) : '';
+    var loc = (l.city ? escHtml(l.city) + ', ' : '') + escHtml(l.country || 'XX');
+    var cls = l.decision === 'allow' ? 'lf-allow' : 'lf-block';
+    return '<div class="lf-row"><span class="lf-ts">' + ts + '</span>'
+      + '<span class="lf-ip">' + escHtml(l.ip || '') + '</span>'
+      + '<span class="lf-loc">' + loc + '</span>'
+      + '<span class="lf-dec ' + cls + '">' + escHtml(l.decision || '') + '</span>'
+      + '<span class="lf-reason">' + escHtml(l.reason || '') + '</span></div>';
+  }
+  var liveInitRows = recentEvents.map(liveRow).join('');
+  var activeIpTimesJson = JSON.stringify(activeIpTimes)
+    .replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026');
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta http-equiv="refresh" content="60">
 <title>Cloaking Admin — StreamFix Hub</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
@@ -790,6 +911,32 @@ tr:hover td{background:rgba(124,58,237,0.07)}
 .hint{font-size:0.72rem;color:#555;margin-top:6px}
 .dl-btn{display:inline-block;padding:10px 20px;background:#1a0d2e;border:1px solid #7c3aed;border-radius:9px;color:#c084fc;font-size:0.85rem;font-weight:700;text-decoration:none;transition:background .2s,border-color .2s}
 .dl-btn:hover{background:#2d1060;border-color:#a855f7}
+
+/* ── Live Activity panel ── */
+.live-card{background:#0d1a10;border:1px solid #1a4d2a;border-radius:12px;padding:18px 22px;margin-bottom:18px;display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap}
+.live-left{min-width:160px}
+.live-title{font-size:0.72rem;text-transform:uppercase;letter-spacing:1.2px;color:#4ade80;font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:7px}
+@keyframes livepulse{0%,100%{box-shadow:0 0 0 0 rgba(74,222,128,0.6)}70%{box-shadow:0 0 0 6px rgba(74,222,128,0)}}
+.live-dot{width:9px;height:9px;border-radius:50%;background:#4ade80;display:inline-block;animation:livepulse 1.8s infinite}
+.live-count{font-size:2.4rem;font-weight:800;color:#4ade80;line-height:1}
+.live-count-lbl{font-size:0.7rem;color:#4a8a5e;margin-top:4px}
+.live-feed{flex:1;min-width:0}
+.lf-row{display:flex;gap:8px;align-items:center;padding:5px 0;border-bottom:1px solid #162b1e;font-size:0.74rem;flex-wrap:wrap}
+.lf-row:last-child{border-bottom:none}
+.lf-ts{color:#555;font-family:'SF Mono',Menlo,monospace;min-width:130px}
+.lf-ip{color:#7dd3a8;font-family:'SF Mono',Menlo,monospace;min-width:110px}
+.lf-loc{color:#888;flex:1;min-width:80px}
+.lf-dec{font-weight:700;min-width:44px}
+.lf-allow{color:#4ade80}
+.lf-block{color:#f87171}
+.lf-reason{color:#666;font-size:0.68rem}
+
+/* ── Pagination ── */
+.pagination{display:flex;align-items:center;gap:10px;margin-top:14px;justify-content:center;flex-wrap:wrap}
+.pag-btn{padding:6px 16px;border-radius:8px;background:#1a0d2e;border:1px solid #3d1f6e;color:#c084fc;font-size:0.8rem;font-weight:600;text-decoration:none;transition:background .2s}
+.pag-btn:hover{background:#2d1060}
+.pag-disabled{padding:6px 16px;border-radius:8px;background:#0d0018;border:1px solid #1f1035;color:#444;font-size:0.8rem;font-weight:600;cursor:default}
+.pag-info{font-size:0.78rem;color:#777}
 </style>
 </head>
 <body>
@@ -816,6 +963,18 @@ tr:hover td{background:rgba(124,58,237,0.07)}
 </header>
 
 <div class="container">
+
+  <!-- Live Activity Panel -->
+  <div class="live-card">
+    <div class="live-left">
+      <div class="live-title"><span class="live-dot"></span> Live</div>
+      <div class="live-count" id="live-count">${activeCount}</div>
+      <div class="live-count-lbl">active visitor${activeCount !== 1 ? 's' : ''} (last 3 min)</div>
+    </div>
+    <div class="live-feed">
+      <div id="live-feed">${liveInitRows || '<div style="color:#444;font-size:0.78rem;padding:4px 0">Waiting for traffic…</div>'}</div>
+    </div>
+  </div>
 
   <!-- Row 1: Engine + Stats -->
   <div class="grid2">
@@ -961,7 +1120,7 @@ tr:hover td{background:rgba(124,58,237,0.07)}
     <h2>Leads — Code Submissions</h2>
     <div class="stats-row" style="margin-bottom:16px">
       <div class="stat"><span class="num allow-num">${todaySubmits.length}</span><span class="lbl">Today</span></div>
-      <div class="stat"><span class="num total-num">${submits.length}</span><span class="lbl">All-time</span></div>
+      <div class="stat"><span class="num total-num">${allSubmits.length}</span><span class="lbl">All-time</span></div>
       <div class="stat"><span class="num" style="color:#c084fc">${calledLeads.length}</span><span class="lbl">Called</span></div>
       <div class="stat"><span class="num rate-num">${callRate}%</span><span class="lbl">Call Rate</span></div>
     </div>
@@ -983,11 +1142,12 @@ tr:hover td{background:rgba(124,58,237,0.07)}
         </tbody>
       </table>
     </div>
+    ${leadPaginationHtml}
   </div>
 
   <!-- Decision Log -->
   <div class="card">
-    <h2>Decision Log — Last ${Math.min(logs.length, 150)} entries (auto-refreshes every 60s)</h2>
+    <h2>Decision Log — ${logTotal} entries total</h2>
     <div class="log-wrap">
       <table>
         <thead>
@@ -1008,9 +1168,65 @@ tr:hover td{background:rgba(124,58,237,0.07)}
         </tbody>
       </table>
     </div>
+    ${logPaginationHtml}
   </div>
 
 </div>
+<script>
+(function() {
+  var feed = document.getElementById('live-feed');
+  var countEl = document.getElementById('live-count');
+  if (!feed || !countEl || !window.EventSource) return;
+
+  var activeTimes = {};
+
+  function escH(s) {
+    return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function makeRow(e) {
+    var ts  = (e.ts||'').replace('T',' ').slice(0,19);
+    var loc = (e.city ? escH(e.city) + ', ' : '') + escH(e.country||'XX');
+    var cls = e.decision==='allow' ? 'lf-allow' : 'lf-block';
+    var row = document.createElement('div');
+    row.className = 'lf-row';
+    row.innerHTML = '<span class="lf-ts">'+ts+'</span>'
+      + '<span class="lf-ip">'+escH(e.ip||'')+'</span>'
+      + '<span class="lf-loc">'+loc+'</span>'
+      + '<span class="lf-dec '+cls+'">'+escH(e.decision||'')+'</span>'
+      + '<span class="lf-reason">'+escH(e.reason||'')+'</span>';
+    return row;
+  }
+
+  function updateCount() {
+    var cutoff = Date.now() - 3 * 60 * 1000;
+    var n = 0;
+    for (var ip in activeTimes) { if (activeTimes[ip] > cutoff) n++; }
+    countEl.textContent = n;
+  }
+
+  var seedTimes = ${activeIpTimesJson};
+  for (var sip in seedTimes) { activeTimes[sip] = seedTimes[sip]; }
+  updateCount();
+
+  var es = new EventSource('/admin/events');
+  es.onmessage = function(ev) {
+    var msg;
+    try { msg = JSON.parse(ev.data); } catch(e) { return; }
+    if (msg.type !== 'log') return;
+    var entry = msg.entry;
+    if (entry.ip) activeTimes[entry.ip] = Date.now();
+    updateCount();
+    var placeholder = feed.querySelector('div[style]');
+    if (placeholder) placeholder.remove();
+    var row = makeRow(entry);
+    feed.insertBefore(row, feed.firstChild);
+    var rows = feed.querySelectorAll('.lf-row');
+    while (rows.length > 8) { feed.removeChild(feed.lastChild); rows = feed.querySelectorAll('.lf-row'); }
+  };
+  es.onerror = function() {};
+})();
+</script>
 </body>
 </html>`;
 }

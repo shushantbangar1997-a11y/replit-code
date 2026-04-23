@@ -11,8 +11,8 @@
             logoAlt:   '',
             logoText:  '',
             service:   'this service',
-            phone:     '+1 888-608-8345',
-            phoneTel:  '+18886088345',
+            phone:     '888 455 6125',
+            phoneTel:  '+18884556125',
             delay:     1000
         }, cfg);
 

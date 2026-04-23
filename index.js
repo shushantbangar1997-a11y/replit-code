@@ -6,11 +6,12 @@ const fs = require('fs');
 const session = require('express-session');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
+const { Pool } = require('pg');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// ─── Data file paths ──────────────────────────────────────────────────────────
+// ─── Data file paths (JSON fallback for local dev without DB) ─────────────────
 const SETTINGS_FILE   = path.join(__dirname, 'data', 'settings.json');
 const LOGS_FILE       = path.join(__dirname, 'data', 'logs.json');
 const LEADS_FILE      = path.join(__dirname, 'data', 'leads.json');
@@ -31,13 +32,292 @@ var SETTINGS_DEFAULTS = {
   blockedIpsMeta: {}
 };
 
+// ─── In-memory caches ─────────────────────────────────────────────────────────
+var _cacheLogs     = null;   // Array, most-recent first
+var _cacheLeads    = null;   // Array, most-recent first
+var _cacheSites    = null;   // Array
+var _cacheSettings = null;   // Object
+var _dbPool        = null;
+var _useDb         = false;
+
+// ─── DB helpers ───────────────────────────────────────────────────────────────
+function dbq(sql, params) {
+  if (!_dbPool) return Promise.reject(new Error('No DB pool'));
+  return _dbPool.query(sql, params || []);
+}
+
+function logRowToObj(row) {
+  return {
+    ts: row.ts ? new Date(row.ts).toISOString() : '',
+    ip: row.ip || '', siteId: row.site_id || '', country: row.country || '',
+    city: row.city || '', region: row.region || '', isp: row.isp || '',
+    org: row.org || '', ua: row.ua || '', screen: row.screen || '',
+    plugins: row.plugins != null ? row.plugins : 0,
+    tz: row.tz || '', wd: !!row.wd, proxy: !!row.proxy, hosting: !!row.hosting,
+    decision: row.decision || '', reason: row.reason || ''
+  };
+}
+
+function leadRowToObj(row) {
+  var base = {
+    ts: row.ts ? new Date(row.ts).toISOString() : '',
+    ip: row.ip || '', siteId: row.site_id || '', type: row.type || '',
+    country: row.country || '', city: row.city || '', region: row.region || '',
+    code: row.code || '', utm_source: row.utm_source || '',
+    utm_campaign: row.utm_campaign || '', utm_medium: row.utm_medium || '',
+    gclid: row.gclid || '', tz: row.tz || '', screen: row.screen || '',
+    called: !!row.called,
+    calledAt: row.called_at ? new Date(row.called_at).toISOString() : undefined,
+    isp: row.isp || '', org: row.org || ''
+  };
+  if (row.extra && typeof row.extra === 'object') Object.assign(base, row.extra);
+  return base;
+}
+
+function dbWriteLog(entry) {
+  if (!_useDb || !_dbPool) return;
+  dbq(
+    'INSERT INTO cloaker_logs(ts,ip,site_id,country,city,region,isp,org,ua,screen,plugins,tz,wd,proxy,hosting,decision,reason) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)',
+    [entry.ts||new Date().toISOString(), entry.ip||'', entry.siteId||'', entry.country||'',
+     entry.city||'', entry.region||'', entry.isp||'', entry.org||'',
+     (entry.ua||'').slice(0,500), entry.screen||'', entry.plugins||0,
+     entry.tz||'', !!entry.wd, !!entry.proxy, !!entry.hosting,
+     entry.decision||'', entry.reason||'']
+  ).catch(function(e) { console.error('DB log write error:', e.message); });
+}
+
+function dbWriteLead(entry) {
+  if (!_useDb || !_dbPool) return;
+  var extra = {};
+  ['plugins','wd','proxy','hosting','ua'].forEach(function(k) { if (entry[k] !== undefined) extra[k] = entry[k]; });
+  dbq(
+    'INSERT INTO cloaker_leads(ts,ip,site_id,type,country,city,region,code,utm_source,utm_campaign,utm_medium,gclid,tz,screen,called,isp,org,extra) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)',
+    [entry.ts||new Date().toISOString(), entry.ip||'', entry.siteId||'', entry.type||'',
+     entry.country||'', entry.city||'', entry.region||'', entry.code||'',
+     entry.utm_source||'', entry.utm_campaign||'', entry.utm_medium||'',
+     entry.gclid||'', entry.tz||'', entry.screen||'', !!entry.called,
+     entry.isp||'', entry.org||'', Object.keys(extra).length ? extra : null]
+  ).catch(function(e) { console.error('DB lead write error:', e.message); });
+}
+
+function dbSaveSettings(data) {
+  if (!_useDb || !_dbPool) return;
+  dbq(
+    "INSERT INTO cloaker_kv(key,value,updated_at) VALUES('settings',$1,NOW()) ON CONFLICT(key) DO UPDATE SET value=$1,updated_at=NOW()",
+    [JSON.stringify(data)]
+  ).catch(function(e) { console.error('DB settings write error:', e.message); });
+}
+
+function dbSaveSites(sites) {
+  if (!_useDb || !_dbPool) return;
+  dbq(
+    "INSERT INTO cloaker_kv(key,value,updated_at) VALUES('sites',$1,NOW()) ON CONFLICT(key) DO UPDATE SET value=$1,updated_at=NOW()",
+    [JSON.stringify(sites)]
+  ).catch(function(e) { console.error('DB sites write error:', e.message); });
+}
+
+// ─── DB initialisation (called once at startup) ───────────────────────────────
+async function initDb() {
+  var dbUrl = process.env.DATABASE_URL;
+  if (!dbUrl) { console.log('No DATABASE_URL — using JSON files'); return; }
+
+  try {
+    _dbPool = new Pool({ connectionString: dbUrl, ssl: { rejectUnauthorized: false }, max: 10 });
+    await _dbPool.query('SELECT 1'); // connectivity test
+
+    // Create tables
+    await _dbPool.query(`
+      CREATE TABLE IF NOT EXISTS cloaker_logs (
+        id BIGSERIAL PRIMARY KEY, ts TIMESTAMPTZ NOT NULL,
+        ip VARCHAR(50), site_id VARCHAR(100), country VARCHAR(10),
+        city VARCHAR(100), region VARCHAR(100), isp VARCHAR(255), org VARCHAR(255),
+        ua TEXT, screen VARCHAR(30), plugins INT, tz VARCHAR(100),
+        wd BOOLEAN DEFAULT FALSE, proxy BOOLEAN DEFAULT FALSE, hosting BOOLEAN DEFAULT FALSE,
+        decision VARCHAR(10), reason VARCHAR(60)
+      );
+      CREATE TABLE IF NOT EXISTS cloaker_leads (
+        id BIGSERIAL PRIMARY KEY, ts TIMESTAMPTZ, ip VARCHAR(50),
+        site_id VARCHAR(100), type VARCHAR(50), country VARCHAR(10),
+        city VARCHAR(100), region VARCHAR(100), code VARCHAR(200),
+        utm_source VARCHAR(255), utm_campaign VARCHAR(255), utm_medium VARCHAR(255),
+        gclid TEXT, tz VARCHAR(100), screen VARCHAR(30),
+        called BOOLEAN DEFAULT FALSE, called_at TIMESTAMPTZ,
+        isp VARCHAR(255), org VARCHAR(255), extra JSONB
+      );
+      CREATE TABLE IF NOT EXISTS cloaker_kv (
+        key VARCHAR(100) PRIMARY KEY, value JSONB NOT NULL,
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_cl_ts   ON cloaker_logs(ts DESC);
+      CREATE INDEX IF NOT EXISTS idx_cl_site ON cloaker_logs(site_id);
+      CREATE INDEX IF NOT EXISTS idx_ld_ts   ON cloaker_leads(ts DESC);
+      CREATE INDEX IF NOT EXISTS idx_ld_site ON cloaker_leads(site_id);
+    `);
+
+    _useDb = true;
+    console.log('PostgreSQL connected — loading data into memory…');
+
+    // ── Load logs ──────────────────────────────────────────────────────────────
+    var lRes = await _dbPool.query('SELECT * FROM cloaker_logs ORDER BY ts DESC LIMIT $1', [MAX_LOG_ENTRIES]);
+    if (lRes.rows.length > 0) {
+      _cacheLogs = lRes.rows.map(logRowToObj);
+      console.log('Loaded ' + _cacheLogs.length + ' logs from DB');
+    } else {
+      // Migrate from JSON file
+      try {
+        var jLogs = JSON.parse(fs.readFileSync(LOGS_FILE, 'utf8'));
+        if (jLogs.length > 0) {
+          console.log('Migrating ' + jLogs.length + ' logs from JSON → DB…');
+          for (var i = jLogs.length - 1; i >= 0; i--) { dbWriteLog(jLogs[i]); }
+          _cacheLogs = jLogs.slice(0, MAX_LOG_ENTRIES);
+          console.log('Migration queued');
+        } else { _cacheLogs = []; }
+      } catch(e) { _cacheLogs = []; }
+    }
+
+    // ── Load leads ─────────────────────────────────────────────────────────────
+    var ldRes = await _dbPool.query('SELECT * FROM cloaker_leads ORDER BY ts DESC LIMIT $1', [MAX_LEAD_ENTRIES]);
+    if (ldRes.rows.length > 0) {
+      _cacheLeads = ldRes.rows.map(leadRowToObj);
+      console.log('Loaded ' + _cacheLeads.length + ' leads from DB');
+    } else {
+      try {
+        var jLeads = JSON.parse(fs.readFileSync(LEADS_FILE, 'utf8'));
+        if (jLeads.length > 0) {
+          console.log('Migrating ' + jLeads.length + ' leads from JSON → DB…');
+          for (var j = jLeads.length - 1; j >= 0; j--) { dbWriteLead(jLeads[j]); }
+          _cacheLeads = jLeads.slice(0, MAX_LEAD_ENTRIES);
+        } else { _cacheLeads = []; }
+      } catch(e) { _cacheLeads = []; }
+    }
+
+    // ── Load settings ──────────────────────────────────────────────────────────
+    var sRes = await _dbPool.query("SELECT value FROM cloaker_kv WHERE key='settings'");
+    if (sRes.rows.length > 0) {
+      _cacheSettings = Object.assign({}, SETTINGS_DEFAULTS, sRes.rows[0].value);
+    } else {
+      try {
+        var jSettings = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8'));
+        _cacheSettings = Object.assign({}, SETTINGS_DEFAULTS, jSettings);
+        dbSaveSettings(_cacheSettings);
+      } catch(e) { _cacheSettings = Object.assign({}, SETTINGS_DEFAULTS); }
+    }
+
+    // ── Load sites ─────────────────────────────────────────────────────────────
+    var stRes = await _dbPool.query("SELECT value FROM cloaker_kv WHERE key='sites'");
+    if (stRes.rows.length > 0) {
+      _cacheSites = stRes.rows[0].value;
+    } else {
+      try {
+        var jSites = JSON.parse(fs.readFileSync(SITES_FILE, 'utf8'));
+        _cacheSites = jSites;
+        dbSaveSites(_cacheSites);
+      } catch(e) { _cacheSites = null; }
+    }
+
+    console.log('DB ready ✓');
+  } catch (e) {
+    console.error('DB init error — falling back to JSON:', e.message);
+    _useDb = false;
+    _dbPool = null;
+  }
+}
+
+// ─── Settings helpers ─────────────────────────────────────────────────────────
 function readSettings() {
+  if (_cacheSettings !== null) return Object.assign({}, _cacheSettings);
   try {
     var raw = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8'));
     return Object.assign({}, SETTINGS_DEFAULTS, raw);
-  } catch (e) {
-    return Object.assign({}, SETTINGS_DEFAULTS);
+  } catch (e) { return Object.assign({}, SETTINGS_DEFAULTS); }
+}
+
+function writeSettings(data) {
+  _cacheSettings = Object.assign({}, data);
+  dbSaveSettings(data);
+  try { fs.writeFileSync(SETTINGS_FILE, JSON.stringify(data, null, 2)); } catch(e) {}
+}
+
+// ─── Log helpers ──────────────────────────────────────────────────────────────
+function readLogs() {
+  if (_cacheLogs !== null) return _cacheLogs;
+  try { return JSON.parse(fs.readFileSync(LOGS_FILE, 'utf8')); } catch (e) { return []; }
+}
+
+function appendLog(entry) {
+  if (_cacheLogs === null) _cacheLogs = readLogs();
+  _cacheLogs.unshift(entry);
+  if (_cacheLogs.length > MAX_LOG_ENTRIES) _cacheLogs = _cacheLogs.slice(0, MAX_LOG_ENTRIES);
+  dbWriteLog(entry);
+  try { fs.writeFileSync(LOGS_FILE, JSON.stringify(_cacheLogs.slice(0, 500), null, 2)); } catch(e) {}
+  logEmitter.emit('newLog', entry);
+  var today = new Date().toISOString().slice(0, 10);
+  var tLogs = _cacheLogs.filter(function(l) { return l.ts && l.ts.startsWith(today); });
+  var tA = tLogs.filter(function(l) { return l.decision === 'allow'; }).length;
+  var tB = tLogs.filter(function(l) { return l.decision === 'block'; }).length;
+  logEmitter.emit('statsUpdate', { todayTotal: tA + tB, todayAllow: tA, todayBlock: tB });
+}
+
+// ─── Leads helpers ────────────────────────────────────────────────────────────
+function readLeads() {
+  if (_cacheLeads !== null) return _cacheLeads;
+  try { return JSON.parse(fs.readFileSync(LEADS_FILE, 'utf8')); } catch (e) { return []; }
+}
+
+function appendLead(entry) {
+  if (_cacheLeads === null) _cacheLeads = readLeads();
+  _cacheLeads.unshift(entry);
+  if (_cacheLeads.length > MAX_LEAD_ENTRIES) _cacheLeads = _cacheLeads.slice(0, MAX_LEAD_ENTRIES);
+  dbWriteLead(entry);
+  try { fs.writeFileSync(LEADS_FILE, JSON.stringify(_cacheLeads.slice(0, 500), null, 2)); } catch(e) {}
+  logEmitter.emit('newLead', entry);
+}
+
+function markLeadCalled(siteId, ip, code) {
+  if (_cacheLeads === null) _cacheLeads = readLeads();
+  var cutoff = Date.now() - 30 * 60 * 1000;
+  var found = false;
+  for (var i = 0; i < _cacheLeads.length; i++) {
+    var l = _cacheLeads[i];
+    if (l.type === 'code_submit' && l.siteId === siteId && l.ip === ip && new Date(l.ts).getTime() > cutoff) {
+      _cacheLeads[i].called = true;
+      _cacheLeads[i].calledAt = new Date().toISOString();
+      found = true;
+      if (_useDb && _dbPool) {
+        dbq('UPDATE cloaker_leads SET called=TRUE, called_at=NOW() WHERE id=(SELECT id FROM cloaker_leads WHERE site_id=$1 AND ip=$2 AND type=$3 AND ts>$4 ORDER BY ts DESC LIMIT 1)',
+          [siteId, ip, 'code_submit', new Date(cutoff).toISOString()]
+        ).catch(function(e) { console.error('DB markCalled error:', e.message); });
+      }
+      break;
+    }
   }
+  if (!found) {
+    var newEntry = { type: 'call_click', ts: new Date().toISOString(), siteId: siteId, ip: ip, code: code || '', called: true };
+    _cacheLeads.unshift(newEntry);
+    if (_cacheLeads.length > MAX_LEAD_ENTRIES) _cacheLeads = _cacheLeads.slice(0, MAX_LEAD_ENTRIES);
+    dbWriteLead(newEntry);
+  }
+  try { fs.writeFileSync(LEADS_FILE, JSON.stringify(_cacheLeads.slice(0, 500), null, 2)); } catch(e) {}
+}
+
+// ─── Sites helpers ────────────────────────────────────────────────────────────
+function readSites() {
+  if (_cacheSites !== null) return _cacheSites;
+  try { return JSON.parse(fs.readFileSync(SITES_FILE, 'utf8')); } catch (e) {
+    return [{
+      id: 'default', name: 'activatemytvcode.com', domain: 'activatemytvcode.com',
+      githubRepo: '', railwayProjectId: '', railwayServiceId: '',
+      apiKey: crypto.randomUUID(),
+      moneyUrl: '', safeUrl: '/safe', enabled: true, blockedIps: [], allowedCountries: [],
+      deployStatus: 'live', isDefault: true
+    }];
+  }
+}
+
+function writeSites(sites) {
+  _cacheSites = sites;
+  dbSaveSites(sites);
+  try { fs.writeFileSync(SITES_FILE, JSON.stringify(sites, null, 2)); } catch(e) {}
 }
 
 var RAILWAY_TOKEN_FILE = path.join(__dirname, '.local', 'railway_token');
@@ -67,78 +347,6 @@ function setDeployStatus(siteId, status) {
     writeSites(sites);
     logEmitter.emit('siteStatus', { siteId: siteId, status: status });
   }
-}
-
-function writeSettings(data) {
-  fs.writeFileSync(SETTINGS_FILE, JSON.stringify(data, null, 2));
-}
-
-function readLogs() {
-  try { return JSON.parse(fs.readFileSync(LOGS_FILE, 'utf8')); } catch (e) { return []; }
-}
-
-function appendLog(entry) {
-  var logs = readLogs();
-  logs.unshift(entry);
-  if (logs.length > MAX_LOG_ENTRIES) logs = logs.slice(0, MAX_LOG_ENTRIES);
-  fs.writeFileSync(LOGS_FILE, JSON.stringify(logs, null, 2));
-  logEmitter.emit('newLog', entry);
-  // Emit lightweight KPI update so dashboard cards refresh without a page reload
-  var today = new Date().toISOString().slice(0, 10);
-  var tLogs = logs.filter(function(l) { return l.ts && l.ts.startsWith(today); });
-  var tA = tLogs.filter(function(l) { return l.decision === 'allow'; }).length;
-  var tB = tLogs.filter(function(l) { return l.decision === 'block'; }).length;
-  logEmitter.emit('statsUpdate', { todayTotal: tA + tB, todayAllow: tA, todayBlock: tB });
-}
-
-// ─── Leads helpers ────────────────────────────────────────────────────────────
-function readLeads() {
-  try { return JSON.parse(fs.readFileSync(LEADS_FILE, 'utf8')); } catch (e) { return []; }
-}
-
-function appendLead(entry) {
-  var leads = readLeads();
-  leads.unshift(entry);
-  if (leads.length > MAX_LEAD_ENTRIES) leads = leads.slice(0, MAX_LEAD_ENTRIES);
-  fs.writeFileSync(LEADS_FILE, JSON.stringify(leads, null, 2));
-  logEmitter.emit('newLead', entry);
-}
-
-function markLeadCalled(siteId, ip, code) {
-  var leads = readLeads();
-  var cutoff = Date.now() - 30 * 60 * 1000;
-  var found = false;
-  for (var i = 0; i < leads.length; i++) {
-    var l = leads[i];
-    if (l.type === 'code_submit' && l.siteId === siteId && l.ip === ip && new Date(l.ts).getTime() > cutoff) {
-      leads[i].called = true;
-      leads[i].calledAt = new Date().toISOString();
-      found = true;
-      break;
-    }
-  }
-  if (!found) {
-    leads.unshift({ type: 'call_click', ts: new Date().toISOString(), siteId: siteId, ip: ip, code: code || '', called: true });
-    if (leads.length > MAX_LEAD_ENTRIES) leads = leads.slice(0, MAX_LEAD_ENTRIES);
-  }
-  fs.writeFileSync(LEADS_FILE, JSON.stringify(leads, null, 2));
-}
-
-// ─── Sites helpers ────────────────────────────────────────────────────────────
-function readSites() {
-  try { return JSON.parse(fs.readFileSync(SITES_FILE, 'utf8')); } catch (e) {
-    return [{
-      id: 'default', name: 'activatemytvcode.com', domain: 'activatemytvcode.com',
-      githubRepo: '', railwayProjectId: '', railwayServiceId: '',
-      apiKey: crypto.randomUUID(),
-      moneyUrl: '', safeUrl: '/safe', enabled: true, blockedIps: [], allowedCountries: [],
-      deployStatus: 'live', isDefault: true
-    }];
-  }
-}
-
-function writeSites(sites) {
-  fs.writeFileSync(SITES_FILE, JSON.stringify(sites, null, 2));
 }
 
 function getSiteByKey(apiKey) {
@@ -957,13 +1165,21 @@ app.post('/admin/toggle', requireAdmin, async function(req, res) {
 
 // ─── Admin clear logs ─────────────────────────────────────────────────────────
 app.post('/admin/clear-logs', requireAdmin, function(req, res) {
-  fs.writeFileSync(LOGS_FILE, '[]');
+  _cacheLogs = [];
+  if (_useDb && _dbPool) {
+    _dbPool.query('DELETE FROM cloaker_logs').catch(function(e) { console.error('DB clear-logs:', e.message); });
+  }
+  try { fs.writeFileSync(LOGS_FILE, '[]'); } catch(e) {}
   res.redirect('/admin');
 });
 
 // ─── Admin clear leads ────────────────────────────────────────────────────────
 app.post('/admin/clear-leads', requireAdmin, function(req, res) {
-  fs.writeFileSync(LEADS_FILE, '[]');
+  _cacheLeads = [];
+  if (_useDb && _dbPool) {
+    _dbPool.query('DELETE FROM cloaker_leads').catch(function(e) { console.error('DB clear-leads:', e.message); });
+  }
+  try { fs.writeFileSync(LEADS_FILE, '[]'); } catch(e) {}
   res.redirect('/admin');
 });
 
@@ -1291,7 +1507,20 @@ app.post('/admin/lead-toggle', requireAdmin, function(req, res) {
   leads[idx].called = !leads[idx].called;
   if (leads[idx].called) leads[idx].calledAt = new Date().toISOString();
   else delete leads[idx].calledAt;
-  fs.writeFileSync(LEADS_FILE, JSON.stringify(leads, null, 2));
+  if (_cacheLeads !== null) _cacheLeads = leads;
+  if (_useDb && _dbPool) {
+    var toggleTs = leads[idx].ts;
+    if (leads[idx].called) {
+      _dbPool.query('UPDATE cloaker_leads SET called=TRUE,called_at=NOW() WHERE id=(SELECT id FROM cloaker_leads WHERE ts=$1 AND site_id=$2 AND ip=$3 ORDER BY id DESC LIMIT 1)',
+        [toggleTs, leads[idx].siteId || '', leads[idx].ip || '']
+      ).catch(function(e) { console.error('DB toggle-lead error:', e.message); });
+    } else {
+      _dbPool.query('UPDATE cloaker_leads SET called=FALSE,called_at=NULL WHERE id=(SELECT id FROM cloaker_leads WHERE ts=$1 AND site_id=$2 AND ip=$3 ORDER BY id DESC LIMIT 1)',
+        [toggleTs, leads[idx].siteId || '', leads[idx].ip || '']
+      ).catch(function(e) { console.error('DB toggle-lead error:', e.message); });
+    }
+  }
+  try { fs.writeFileSync(LEADS_FILE, JSON.stringify(leads.slice(0, 500), null, 2)); } catch(e) {}
   res.json({ ok: true, called: leads[idx].called });
 });
 
@@ -1376,8 +1605,15 @@ app.get('/:page', function(req, res) {
   });
 });
 
-app.listen(PORT, '0.0.0.0', function() {
-  console.log('Server running on port ' + PORT);
+initDb().then(function() {
+  app.listen(PORT, '0.0.0.0', function() {
+    console.log('Server running on port ' + PORT);
+  });
+}).catch(function(e) {
+  console.error('initDb failed, starting without DB:', e.message);
+  app.listen(PORT, '0.0.0.0', function() {
+    console.log('Server running on port ' + PORT + ' (no DB)');
+  });
 });
 
 // ─── Railway deployment status polling ───────────────────────────────────────

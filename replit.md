@@ -11,11 +11,12 @@ The admin panel is rebranded as **FILTER** — a full SaaS-style UI with a colla
 - **Runtime**: Node.js with Express
 - **Entry**: `index.js` — all routes and server logic in one file
 - **Static files**: `public/` — HTML pages served directly
-- **Data storage**: `data/` — JSON flat files (no database)
-  - `data/settings.json` — default site cloaking settings (backwards compat)
-  - `data/sites.json` — multi-site registry: API keys, per-site URLs, GitHub repo, Railway IDs, deploy status
-  - `data/logs.json` — rolling log of last 500 cloaking decisions (tagged with siteId)
-  - `data/leads.json` — rolling log of last 500 lead events (tagged with siteId)
+- **Data storage**: PostgreSQL (primary) with JSON flat-file fallback for local dev
+  - When `DATABASE_URL` env var is present, all data is persisted to Postgres (survives Railway redeploys)
+  - Tables: `cloaker_logs` (every visitor decision, unlimited), `cloaker_leads` (lead events), `cloaker_kv` (sites + settings as JSONB)
+  - JSON files in `data/` are written as a secondary backup and used when no DB is configured
+  - On first boot with a fresh DB, existing JSON data is automatically migrated into Postgres
+  - **Railway setup**: add a PostgreSQL plugin in the Railway dashboard → Railway auto-sets `DATABASE_URL`
 
 ## Key Routes
 | Route | Description |

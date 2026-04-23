@@ -2209,9 +2209,6 @@ textarea{resize:vertical;min-height:80px}
   .form-grid2{grid-template-columns:1fr}
 }
 </style>
-<script>
-(function(){var t=localStorage.getItem('filterTheme');if(t==='light')document.documentElement.classList.add('theme-light-pending');})();
-</script>
 </head>
 <body>
 <script>
@@ -3129,6 +3126,7 @@ function applyCustomRange() {
   params.set('from', from);
   params.set('to', to);
   params.delete('logPage');
+  params.delete('leadPage');
   window.location.search = params.toString();
 }
 
@@ -3467,22 +3465,25 @@ window.addEventListener('DOMContentLoaded', function() {
     var payload, entry;
     try { payload = JSON.parse(e.data); } catch(x) { return; }
 
-    // Handle KPI stats refresh
+    // Handle KPI stats refresh (only overwrite when viewing 24h — other ranges show server-rendered values)
     if (payload.type === 'statsUpdate') {
-      var elT = document.getElementById('kpiTotal');
-      var elA = document.getElementById('kpiAllow');
-      var elB = document.getElementById('kpiBlock');
-      var elAP = document.getElementById('kpiAllowPct');
-      var elBP = document.getElementById('kpiBlockPct');
-      var tot = payload.todayTotal || 0;
-      var blk = payload.todayBlock || 0;
-      var alw = payload.todayAllow || 0;
-      var blockRate = tot > 0 ? Math.round(blk / tot * 100) : 0;
-      if (elT) elT.textContent = tot;
-      if (elB) elB.textContent = blockRate + '%';
-      if (elA) elA.textContent = tot === 0 ? '—' : blockRate;
-      if (elBP) elBP.textContent = blk + ' blocked';
-      if (elAP) elAP.textContent = alw + ' allowed';
+      var curRange = (new URLSearchParams(window.location.search)).get('range') || '24h';
+      if (curRange === '24h') {
+        var elT = document.getElementById('kpiTotal');
+        var elA = document.getElementById('kpiAllow');
+        var elB = document.getElementById('kpiBlock');
+        var elAP = document.getElementById('kpiAllowPct');
+        var elBP = document.getElementById('kpiBlockPct');
+        var tot = payload.todayTotal || 0;
+        var blk = payload.todayBlock || 0;
+        var alw = payload.todayAllow || 0;
+        var blockRate = tot > 0 ? Math.round(blk / tot * 100) : 0;
+        if (elT) elT.textContent = tot;
+        if (elB) elB.textContent = blockRate + '%';
+        if (elA) elA.textContent = tot === 0 ? '—' : blockRate;
+        if (elBP) elBP.textContent = blk + ' blocked';
+        if (elAP) elAP.textContent = alw + ' allowed';
+      }
       return;
     }
 

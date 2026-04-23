@@ -28,8 +28,17 @@ function readSettings() {
   }
 }
 
+var RAILWAY_TOKEN_FILE = path.join(__dirname, '.local', 'railway_token');
+
 function getRailwayToken() {
-  return process.env.RAILWAY_API_TOKEN || '';
+  if (process.env.RAILWAY_API_TOKEN) return process.env.RAILWAY_API_TOKEN;
+  try { var t = fs.readFileSync(RAILWAY_TOKEN_FILE, 'utf8').trim(); return t || ''; } catch(e) { return ''; }
+}
+function setRailwayToken(token) {
+  var dir = path.dirname(RAILWAY_TOKEN_FILE);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  if (token) { fs.writeFileSync(RAILWAY_TOKEN_FILE, token, { mode: 0o600 }); }
+  else { try { fs.unlinkSync(RAILWAY_TOKEN_FILE); } catch(e) {} }
 }
 
 function setDeployStatus(siteId, status) {
@@ -130,11 +139,11 @@ function getSiteSettings(apiKey) {
   var global = readSettings();
   if (!site) return global;
   return {
-    moneyUrl:         site.moneyUrl || global.moneyUrl || '',
-    safeUrl:          site.safeUrl  || global.safeUrl  || '/safe',
-    // Default site's enabled state is managed via settings.json (admin toggle)
+    // For the default site: settings.json (admin settings form) is always authoritative for URLs/rules
+    // For non-default sites: per-site values are independent (empty = no restriction, not a fallback)
+    moneyUrl:         site.isDefault ? (global.moneyUrl || '') : (site.moneyUrl || ''),
+    safeUrl:          site.isDefault ? (global.safeUrl  || '/safe') : (site.safeUrl || '/safe'),
     enabled:          site.isDefault ? (global.enabled !== false) : (site.enabled !== false),
-    // Non-default sites have fully independent settings; empty arrays = no restriction (not a global fallback)
     blockedIps:       site.isDefault ? (global.blockedIps || []) : (Array.isArray(site.blockedIps) ? site.blockedIps : []),
     allowedCountries: site.isDefault ? (global.allowedCountries || []) : (Array.isArray(site.allowedCountries) ? site.allowedCountries : [])
   };
@@ -858,6 +867,13 @@ app.post('/admin/settings', requireAdmin, function(req, res) {
   settings.safeUrl  = (req.body.safeUrl  || '/safe').trim();
   writeSettings(settings);
   res.redirect('/admin');
+});
+
+// ─── Railway token setup ──────────────────────────────────────────────────────
+app.post('/admin/settings/railway-token', requireAdmin, function(req, res) {
+  var token = (req.body.railwayToken || '').trim();
+  setRailwayToken(token); // stores in .local/railway_token (env var takes priority)
+  res.redirect('/admin#settings');
 });
 
 // ─── Admin toggle cloaking ────────────────────────────────────────────────────
@@ -2341,16 +2357,22 @@ textarea{resize:vertical;min-height:80px}
             <div class="f-card-title">Railway Integration</div>
             <div class="flex-gap8 mb12">
               ${hasRailwayToken
-                ? '<span class="db-live">● Connected</span><span class="hint">Railway API token is set — auto-redeploy and deploy monitoring are active</span>'
-                : '<span class="db-pending">○ Not connected</span><span class="hint" style="color:var(--amber)">Set <strong>RAILWAY_API_TOKEN</strong> as an environment secret to enable</span>'}
+                ? '<span class="db-live">● Connected</span><span class="hint">Railway API token is configured — auto-redeploy and deploy monitoring are active</span>'
+                : '<span class="db-pending">○ Not connected</span><span class="hint" style="color:var(--amber)">Enter your Railway API token below to enable deploy monitoring</span>'}
             </div>
-            <p class="hint">Your Railway API token is read from the <strong>RAILWAY_API_TOKEN</strong> environment secret. To set it:</p>
-            <ol class="hint" style="margin:8px 0 0 16px;line-height:1.8">
-              <li>Open <strong>Railway → Your Project → Variables</strong> (or Replit Secrets panel)</li>
-              <li>Add a secret named <code>RAILWAY_API_TOKEN</code> with your token value</li>
-              <li>Restart this hub service for the token to take effect</li>
-            </ol>
-            <p class="hint" style="margin-top:8px">Once connected, FILTER will <strong>auto-discover Railway project &amp; service IDs</strong> from the GitHub repo URL when you add a new site, and will trigger live redeployments and stream deploy status updates in real-time.</p>
+            <p class="hint mb12">Your Railway API token lets FILTER trigger live redeployments and stream deploy status in real-time. The <code>RAILWAY_API_TOKEN</code> environment variable takes priority over the form below.</p>
+            <form method="POST" action="/admin/settings/railway-token">
+              <div class="form-row" style="gap:8px;align-items:center;flex-wrap:nowrap">
+                <input type="password" name="railwayToken" autocomplete="new-password"
+                  placeholder="${hasRailwayToken ? '••••••••••••••••  (token is set)' : 'Paste Railway API token…'}"
+                  style="flex:1;background:#0d0018;border:1px solid #2e1655;color:#e2d9ff;padding:8px 12px;border-radius:8px;font-size:0.85rem">
+                <button type="submit" class="btn-primary" style="padding:8px 18px;font-size:0.85rem;white-space:nowrap">Save Token</button>
+                ${hasRailwayToken
+                  ? '<button type="submit" name="railwayToken" value="" style="background:#1a0030;border:1px solid #7f1d1d;color:#f87171;padding:8px 12px;border-radius:8px;font-size:0.78rem;cursor:pointer;white-space:nowrap">Clear</button>'
+                  : ''}
+              </div>
+            </form>
+            <p class="hint" style="margin-top:8px">Once connected, FILTER will <strong>auto-discover Railway project &amp; service IDs</strong> from the GitHub repo URL when you add a new site, and deploy status badges update live in the Sites tab without page refresh.</p>
           </div>
         </div>
 

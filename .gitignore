@@ -6,3 +6,4 @@ replit.nix
 zipFile.zip
 .env
 *.log
+.local/railway_token

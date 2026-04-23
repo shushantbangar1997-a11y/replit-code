@@ -11,7 +11,7 @@
             logoAlt:   '',
             logoText:  '',
             service:   'this service',
-            phone:     '888 455 6125',
+            phone:     '+1 888-455-6125',
             phoneTel:  '+18884556125',
             delay:     1000
         }, cfg);

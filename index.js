@@ -785,7 +785,9 @@ app.get('/admin', requireAdmin, function(req, res) {
   var sites      = readSites();
   var siteFilter = req.query.site || '';
   var siteCreated = req.query.siteCreated === '1';
-  var rangeParam = ['7d','30d','90d'].includes(req.query.range) ? req.query.range : '24h';
+  var rangeParam = ['7d','30d','90d','custom'].includes(req.query.range) ? req.query.range : '24h';
+  var rangeFrom  = (req.query.from  || '').replace(/[^0-9\-]/g, '').slice(0, 10);
+  var rangeTo    = (req.query.to    || '').replace(/[^0-9\-]/g, '').slice(0, 10);
 
   // Find selected site object (null = All Sites)
   var selectedSite = siteFilter ? sites.find(function(s) { return s.id === siteFilter; }) : null;
@@ -864,7 +866,9 @@ app.get('/admin', requireAdmin, function(req, res) {
     displayTz: req.session.displayTz || 'UTC',
     tzAutoDetected: !!req.session.tzAutoDetected,
     globalSettings: globalSettings,
-    range: rangeParam
+    range: rangeParam,
+    rangeFrom: rangeFrom,
+    rangeTo: rangeTo
   }));
 });
 
@@ -1479,6 +1483,8 @@ function adminDashboardPage(settings, logs, leads, opts) {
   var tzAutoDetected  = opts.tzAutoDetected || false;
   var globalSettings  = opts.globalSettings || settings;
   var range        = opts.range || '24h';
+  var rangeFrom    = opts.rangeFrom || '';
+  var rangeTo      = opts.rangeTo || '';
   var now = new Date();
   var today = now.toISOString().slice(0, 10);
   var timeStr = now.toUTCString().slice(17, 25);
@@ -1492,9 +1498,20 @@ function adminDashboardPage(settings, logs, leads, opts) {
   }
 
   // ── Stats ─────────────────────────────────────────────────────────────────
-  var todayLogs    = rangeDays === 0
-    ? statsLogs.filter(function(l) { return l.ts && l.ts.startsWith(today); })
-    : statsLogs.filter(function(l) { return l.ts && l.ts.slice(0,10) >= rangeCutoff; });
+  var todayLogs;
+  if (range === 'custom' && rangeFrom && rangeTo) {
+    var rfrom = rangeFrom <= rangeTo ? rangeFrom : rangeTo;
+    var rto   = rangeFrom <= rangeTo ? rangeTo   : rangeFrom;
+    todayLogs = statsLogs.filter(function(l) {
+      if (!l.ts) return false;
+      var d = l.ts.slice(0, 10);
+      return d >= rfrom && d <= rto;
+    });
+  } else if (rangeDays === 0) {
+    todayLogs = statsLogs.filter(function(l) { return l.ts && l.ts.startsWith(today); });
+  } else {
+    todayLogs = statsLogs.filter(function(l) { return l.ts && l.ts.slice(0,10) >= rangeCutoff; });
+  }
   var todayAllow   = todayLogs.filter(function(l) { return l.decision === 'allow'; }).length;
   var todayBlock   = todayLogs.filter(function(l) { return l.decision === 'block'; }).length;
   var todayTotal   = todayAllow + todayBlock;
@@ -1505,7 +1522,7 @@ function adminDashboardPage(settings, logs, leads, opts) {
 
   // ── Top countries ─────────────────────────────────────────────────────────
   var countryStats = {};
-  statsLogs.forEach(function(l) {
+  todayLogs.forEach(function(l) {
     var cc = l.country || 'XX';
     if (!countryStats[cc]) countryStats[cc] = { hits: 0, allow: 0, block: 0 };
     countryStats[cc].hits++;
@@ -1542,7 +1559,7 @@ function adminDashboardPage(settings, logs, leads, opts) {
 
   // ── Block reasons (including new ones) ────────────────────────────────────
   var reasonCounts = {};
-  statsLogs.filter(function(l){ return l.decision === 'block'; }).forEach(function(l) {
+  todayLogs.filter(function(l){ return l.decision === 'block'; }).forEach(function(l) {
     var r = l.reason || 'unknown';
     reasonCounts[r] = (reasonCounts[r] || 0) + 1;
   });
@@ -1798,7 +1815,7 @@ function adminDashboardPage(settings, logs, leads, opts) {
   // ── Compact reason table for dashboard ───────────────────────────────────
   var reasonTableRows = reasonOrder.filter(function(r){ return reasonCounts[r] > 0; }).map(function(r) {
     var cnt  = reasonCounts[r];
-    var pct  = allBlock > 0 ? Math.round(cnt / allBlock * 100) : 0;
+    var pct  = todayBlock > 0 ? Math.round(cnt / todayBlock * 100) : 0;
     var col  = reasonColors[r] || 'grey';
     return '<tr><td>' + escHtml(r) + '</td><td class="t-right"><span class="rpill rpill-' + col + '">' + cnt + '</span></td><td class="t-right t-muted">' + pct + '%</td></tr>';
   }).join('') || '<tr><td colspan="3" class="t-muted t-center">No blocks recorded</td></tr>';
@@ -2330,6 +2347,13 @@ textarea{resize:vertical;min-height:80px}
               <button class="tr-btn${range === '7d' ? ' active' : ''}" data-range="7d" onclick="setTimeRange(this)">7d</button>
               <button class="tr-btn${range === '30d' ? ' active' : ''}" data-range="30d" onclick="setTimeRange(this)">30d</button>
               <button class="tr-btn${range === '90d' ? ' active' : ''}" data-range="90d" onclick="setTimeRange(this)">90d</button>
+              <button class="tr-btn${range === 'custom' ? ' active' : ''}" onclick="toggleCustomRange()">Custom ▾</button>
+            </div>
+            <div id="customRangeBox" style="display:${range === 'custom' ? 'flex' : 'none'};align-items:center;gap:6px;margin-top:6px;flex-wrap:wrap">
+              <input type="date" id="crFrom" class="filter-input" style="padding:4px 8px;font-size:.75rem" value="${escHtml(rangeFrom)}">
+              <span style="color:var(--text3);font-size:.8rem">to</span>
+              <input type="date" id="crTo" class="filter-input" style="padding:4px 8px;font-size:.75rem" value="${escHtml(rangeTo)}">
+              <button class="btn-ghost btn-sm" onclick="applyCustomRange()">Apply</button>
             </div>
             ${siteCreated ? '<div class="rpill rpill-green">✓ Site created</div>' : ''}
           </div>
@@ -2367,13 +2391,13 @@ textarea{resize:vertical;min-height:80px}
             <div id="donutWrap">
               <canvas id="donutCanvas" width="160" height="160"></canvas>
               <div class="donut-center">
-                <div class="donut-pct" style="color:var(--red)" id="donutPct">${blockRate}%</div>
+                <div class="donut-pct" style="color:var(--red)" id="donutPct">${blockRateToday}%</div>
                 <div class="donut-lbl">blocked</div>
               </div>
             </div>
             <div class="chart-legend">
-              <div class="leg-item"><span class="leg-dot" style="background:var(--green)"></span>Allow (${allAllow})</div>
-              <div class="leg-item"><span class="leg-dot" style="background:var(--red)"></span>Block (${allBlock})</div>
+              <div class="leg-item"><span class="leg-dot" style="background:var(--green)"></span>Allow (${todayAllow})</div>
+              <div class="leg-item"><span class="leg-dot" style="background:var(--red)"></span>Block (${todayBlock})</div>
             </div>
           </div>
 
@@ -3064,6 +3088,8 @@ function setTimeRange(btn) {
   var range = btn.dataset.range;
   var params = new URLSearchParams(window.location.search);
   params.set('range', range);
+  params.delete('from');
+  params.delete('to');
   params.delete('logPage');
   params.delete('leadPage');
   window.location.search = params.toString();
@@ -3081,8 +3107,29 @@ function closeSidebar() {
 
 // ── Site filter ─────────────────────────────────────────────────────────────
 function changeSite(val) {
+  var params = new URLSearchParams(window.location.search);
+  if (val) { params.set('site', val); } else { params.delete('site'); }
+  params.delete('logPage');
+  params.delete('leadPage');
   var hash = window.location.hash || '#dashboard';
-  window.location.href = '/admin' + (val ? '?site=' + val : '') + hash;
+  window.location.href = '/admin?' + params.toString() + hash;
+}
+
+// ── Custom date range picker toggle ────────────────────────────────────────────
+function toggleCustomRange() {
+  var box = document.getElementById('customRangeBox');
+  if (box) { box.style.display = box.style.display === 'none' ? 'flex' : 'none'; }
+}
+function applyCustomRange() {
+  var from = document.getElementById('crFrom').value;
+  var to   = document.getElementById('crTo').value;
+  if (!from || !to) return;
+  var params = new URLSearchParams(window.location.search);
+  params.set('range', 'custom');
+  params.set('from', from);
+  params.set('to', to);
+  params.delete('logPage');
+  window.location.search = params.toString();
 }
 
 // ── Clock ───────────────────────────────────────────────────────────────────
@@ -3344,7 +3391,7 @@ window.addEventListener('DOMContentLoaded', function() {
   var dc = document.getElementById('donutCanvas');
   if (dc) {
     var ctx = dc.getContext('2d');
-    var allow = ${allAllow}, block = ${allBlock}, total = allow + block;
+    var allow = ${todayAllow}, block = ${todayBlock}, total = allow + block;
     if (total === 0) { allow = 1; total = 1; }
     var blockAngle = (block / total) * Math.PI * 2;
     var r = 70, cx = 80, cy = 80, thick = 18;

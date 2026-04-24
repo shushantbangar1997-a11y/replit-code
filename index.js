@@ -1958,19 +1958,20 @@ function adminDashboardPage(settings, logs, leads, opts) {
     if (l.type !== 'code_submit') return;
     var ch = l.channel;
     if (!ch) return;
-    var label = ch.charAt(0).toUpperCase() + ch.slice(1);
-    if (ch === 'disney') label = 'Disney+';
-    if (ch === 'paramount') label = 'Paramount+';
-    if (ch === 'espn') label = 'ESPN';
-    if (ch === 'starz') label = 'STARZ';
+    var CH_KEY_MAP = { amazon:'Amazon Prime', peacock:'Peacock', disney:'Disney+', hulu:'Hulu', paramount:'Paramount+', fox:'FOX', espn:'ESPN', starz:'STARZ', vizio:'Vizio' };
+    var label = CH_KEY_MAP[ch] || (ch.charAt(0).toUpperCase() + ch.slice(1));
     if (!channelStats[label]) channelStats[label] = { hits: 0, allow: 0, block: 0, leads: 0 };
     channelStats[label].leads++;
   });
+  var LABEL_TO_KEY = { 'Amazon Prime':'amazon', 'Peacock':'peacock', 'Disney+':'disney', 'Hulu':'hulu', 'Paramount+':'paramount', 'FOX':'fox', 'ESPN':'espn', 'STARZ':'starz', 'Vizio':'vizio' };
   var channelKeys = Object.keys(CHANNEL_PATH_MAP_SRV).filter(function(k) { return channelStats[k] && (channelStats[k].hits > 0 || channelStats[k].leads > 0); });
-  var channelTableRows = channelKeys.length ? channelKeys.sort(function(a,b){ return channelStats[b].hits - channelStats[a].hits; }).map(function(ch) {
+  var sortedChannelKeys = channelKeys.slice().sort(function(a,b){ return channelStats[b].hits - channelStats[a].hits; });
+  function makeChannelRow(ch, forSites) {
     var s = channelStats[ch];
     var rate = s.hits > 0 ? Math.round(s.block / s.hits * 100) : 0;
-    return '<tr style="border-bottom:1px solid var(--border)">'
+    var key = LABEL_TO_KEY[ch] || ch.toLowerCase().replace('+','').trim();
+    var attr = forSites ? ' data-ch="' + escHtml(key) + '"' : '';
+    return '<tr' + attr + ' style="border-bottom:1px solid var(--border)">'
       + '<td style="padding:7px 8px;font-weight:600;font-size:.78rem">' + escHtml(ch) + '</td>'
       + '<td style="padding:7px 8px;text-align:right;font-size:.78rem">' + s.hits + '</td>'
       + '<td style="padding:7px 8px;text-align:right;font-size:.78rem;color:var(--green)">' + s.allow + '</td>'
@@ -1978,7 +1979,10 @@ function adminDashboardPage(settings, logs, leads, opts) {
       + '<td style="padding:7px 8px;text-align:right;font-size:.78rem">' + rate + '%</td>'
       + '<td style="padding:7px 8px;text-align:right;font-size:.78rem;color:#3b82f6;font-weight:700">' + (s.leads || 0) + '</td>'
       + '</tr>';
-  }).join('') : '<tr><td colspan="6" style="padding:16px;text-align:center;color:var(--text3);font-size:.78rem">No channel traffic in this period</td></tr>';
+  }
+  var emptyChRow = '<tr><td colspan="6" style="padding:16px;text-align:center;color:var(--text3);font-size:.78rem">No channel traffic in this period</td></tr>';
+  var channelTableRows = sortedChannelKeys.length ? sortedChannelKeys.map(function(ch){ return makeChannelRow(ch, false); }).join('') : emptyChRow;
+  var siteChannelTableRows = sortedChannelKeys.length ? sortedChannelKeys.map(function(ch){ return makeChannelRow(ch, true); }).join('') : emptyChRow;
 
   // ── Top countries ─────────────────────────────────────────────────────────
   var countryStats = {};
@@ -3301,6 +3305,26 @@ textarea{resize:vertical;min-height:80px}
           <button class="tr-btn" data-ch="vizio" onclick="filterSites('vizio')">Vizio</button>
         </div>
 
+        <!-- Channel stats from log page data -->
+        <div class="f-card" style="margin-bottom:16px;padding:14px 16px 10px">
+          <div style="font-size:.75rem;font-weight:700;color:var(--text3);margin-bottom:10px;text-transform:uppercase;letter-spacing:.3px">Traffic by Channel (this period)</div>
+          <div style="overflow-x:auto">
+            <table style="width:100%;border-collapse:collapse" id="siteChannelStatsTable">
+              <thead>
+                <tr style="border-bottom:1px solid var(--border)">
+                  <th style="text-align:left;padding:4px 8px;color:var(--text3);font-size:.6rem;text-transform:uppercase;letter-spacing:.5px;font-weight:700">Channel</th>
+                  <th style="text-align:right;padding:4px 8px;color:var(--text3);font-size:.6rem;text-transform:uppercase;letter-spacing:.5px;font-weight:700">Hits</th>
+                  <th style="text-align:right;padding:4px 8px;color:var(--text3);font-size:.6rem;text-transform:uppercase;letter-spacing:.5px;font-weight:700">Allow</th>
+                  <th style="text-align:right;padding:4px 8px;color:var(--text3);font-size:.6rem;text-transform:uppercase;letter-spacing:.5px;font-weight:700">Block</th>
+                  <th style="text-align:right;padding:4px 8px;color:var(--text3);font-size:.6rem;text-transform:uppercase;letter-spacing:.5px;font-weight:700">Block%</th>
+                  <th style="text-align:right;padding:4px 8px;color:var(--text3);font-size:.6rem;text-transform:uppercase;letter-spacing:.5px;font-weight:700">Leads</th>
+                </tr>
+              </thead>
+              <tbody id="siteChannelStatsBody">${siteChannelTableRows}</tbody>
+            </table>
+          </div>
+        </div>
+
         ${!hasGithubToken ? '<div class="f-alert f-alert-warn"><strong>GitHub auto-inject is disabled.</strong> Set the <code>GITHUB_TOKEN</code> secret (Personal Access Token with <em>repo</em> scope) to enable automatic script injection into your repositories.</div>' : ''}
 
         <div class="site-list" id="siteListWrap">
@@ -4270,6 +4294,11 @@ function filterSites(ch) {
   items.forEach(function(item) {
     item.style.display = (!ch || item.dataset.channel === ch) ? '' : 'none';
   });
+  var statRows = document.querySelectorAll('#siteChannelStatsBody tr[data-ch]');
+  statRows.forEach(function(row) {
+    row.style.display = (!ch || row.dataset.ch === ch) ? '' : 'none';
+    row.style.background = (ch && row.dataset.ch === ch) ? 'rgba(59,130,246,0.07)' : '';
+  });
 }
 function filterLogs() {
   var search  = (document.getElementById('logSearch').value || '').toLowerCase();
@@ -4300,7 +4329,8 @@ function filterLeads() {
   rows.forEach(function(row) {
     var text = row.textContent.toLowerCase();
     var matchSearch  = !search  || text.includes(search);
-    var matchChannel = !channel || pageMatchesChannel(row.dataset.channel || '', channel);
+    var rowCh = row.dataset.channel || '';
+    var matchChannel = !channel || rowCh === channel || (channel === 'amazon' && !rowCh);
     var matchStatus  = !status  || row.dataset.status === status;
     row.style.display = (matchSearch && matchChannel && matchStatus) ? '' : 'none';
   });

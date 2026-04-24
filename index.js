@@ -260,6 +260,20 @@ function appendLog(entry) {
   dbWriteLog(entry);
   try { fs.writeFileSync(LOGS_FILE, JSON.stringify(_cacheLogs.slice(0, 500), null, 2)); } catch(e) {}
   logEmitter.emit('newLog', entry);
+  if (entry.ip) {
+    activeVisitors.set(entry.ip, {
+      ip: entry.ip,
+      country: entry.country || 'XX',
+      city: entry.city || '',
+      isp: entry.isp || '',
+      org: entry.org || '',
+      ua: entry.ua || '',
+      siteId: entry.siteId || '',
+      lastSeen: Date.now(),
+      decision: entry.decision || ''
+    });
+    logEmitter.emit('visitorsUpdate', getActiveVisitorsList());
+  }
   var today = new Date().toISOString().slice(0, 10);
   var tLogs = _cacheLogs.filter(function(l) { return l.ts && l.ts.startsWith(today); });
   var tA = tLogs.filter(function(l) { return l.decision === 'allow'; }).length;
@@ -670,6 +684,27 @@ var ipFreqStore = new Map();
 var IP_FREQ_MAX = 10000;
 var IP_FREQ_WINDOW_MS = 24 * 60 * 60 * 1000; // 24 hours
 
+// Map<ip, {ip,country,city,isp,ua,siteId,lastSeen,decision}> — live visitor store
+var activeVisitors = new Map();
+
+function getActiveVisitorsList() {
+  var cutoff = Date.now() - 5 * 60 * 1000;
+  var list = [];
+  activeVisitors.forEach(function(v) {
+    if (v.lastSeen > cutoff) list.push(v);
+  });
+  list.sort(function(a, b) { return b.lastSeen - a.lastSeen; });
+  return list;
+}
+
+setInterval(function() {
+  var cutoff = Date.now() - 5 * 60 * 1000;
+  activeVisitors.forEach(function(v, ip) {
+    if (v.lastSeen <= cutoff) activeVisitors.delete(ip);
+  });
+  logEmitter.emit('visitorsUpdate', getActiveVisitorsList());
+}, 60000);
+
 function checkFrequency(ip) {
   var now = Date.now();
   var last = ipFreqStore.get(ip);
@@ -1076,7 +1111,7 @@ app.get('/' + ADMIN_PATH, requireAdmin, function(req, res) {
     });
     return seen;
   })();
-  var activeCount = Object.keys(activeIpTimes).length;
+  var activeCount = getActiveVisitorsList().length;
   var recentEvents = allLogs.slice(0, 8);
 
   var hubUrl = 'https://' + (process.env.REPLIT_DEV_DOMAIN || req.headers.host || 'localhost');
@@ -1121,11 +1156,15 @@ app.get('/' + ADMIN_PATH + '/events', requireAdmin, function(req, res) {
   function onStatsUpdate(payload) {
     res.write('data: ' + JSON.stringify({ type: 'statsUpdate', todayTotal: payload.todayTotal, todayAllow: payload.todayAllow, todayBlock: payload.todayBlock }) + '\n\n');
   }
+  function onVisitorsUpdate(visitors) {
+    res.write('data: ' + JSON.stringify({ type: 'visitorsUpdate', visitors: visitors }) + '\n\n');
+  }
 
   logEmitter.on('newLog', onLog);
   logEmitter.on('newLead', onLead);
   logEmitter.on('siteStatus', onSiteStatus);
   logEmitter.on('statsUpdate', onStatsUpdate);
+  logEmitter.on('visitorsUpdate', onVisitorsUpdate);
 
   var keepAlive = setInterval(function() {
     res.write(': ping\n\n');
@@ -1136,8 +1175,14 @@ app.get('/' + ADMIN_PATH + '/events', requireAdmin, function(req, res) {
     logEmitter.removeListener('newLead', onLead);
     logEmitter.removeListener('siteStatus', onSiteStatus);
     logEmitter.removeListener('statsUpdate', onStatsUpdate);
+    logEmitter.removeListener('visitorsUpdate', onVisitorsUpdate);
     clearInterval(keepAlive);
   });
+});
+
+// ─── Live visitors JSON endpoint ──────────────────────────────────────────────
+app.get('/' + ADMIN_PATH + '/live-visitors', requireAdmin, function(req, res) {
+  res.json({ ok: true, visitors: getActiveVisitorsList() });
 });
 
 // ─── Admin settings save (URLs) ───────────────────────────────────────────────
@@ -2475,7 +2520,9 @@ body.dark .kpi-ib-orange{background:rgba(251,146,60,.12)}.kpi-ib-orange svg{colo
 /* Live ticker */
 .live-top{display:flex;align-items:center;gap:8px;margin-bottom:12px}
 .live-dot{width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse 1.4s infinite}
-.live-cnt{font-size:1.3rem;font-weight:800;color:var(--green);margin-left:auto}
+.live-cnt{font-size:1.3rem;font-weight:800;color:var(--green)}
+.live-cnt-btn{display:inline-flex;align-items:center;gap:5px;background:rgba(63,185,80,.08);border:1px solid rgba(63,185,80,.2);border-radius:20px;padding:3px 10px;cursor:pointer;color:inherit;transition:background .15s;margin-left:auto}
+.live-cnt-btn:hover{background:rgba(63,185,80,.18)}
 .lt-feed{display:flex;flex-direction:column;gap:3px;max-height:240px;overflow-y:auto}
 .lt-row{display:grid;grid-template-columns:80px 1fr auto;gap:6px;align-items:center;padding:5px 7px;border-radius:6px;font-size:0.7rem}
 .lt-row:hover{background:var(--bg3)}
@@ -2484,6 +2531,28 @@ body.dark .kpi-ib-orange{background:rgba(251,146,60,.12)}.kpi-ib-orange svg{colo
 .lt-dec-allow{color:var(--green);font-weight:700;font-size:0.66rem;text-transform:uppercase;text-align:right}
 .lt-dec-block{color:var(--red);font-weight:700;font-size:0.66rem;text-transform:uppercase;text-align:right}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+/* Visitor drawer */
+.vd-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:900}
+.vd-overlay.open{display:block}
+.vd-drawer{position:fixed;top:0;right:0;height:100%;width:min(480px,100vw);background:var(--bg2);border-left:1px solid var(--border);z-index:901;display:flex;flex-direction:column;transform:translateX(100%);transition:transform .25s cubic-bezier(.4,0,.2,1)}
+.vd-drawer.open{transform:translateX(0)}
+.vd-header{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--border);flex-shrink:0}
+.vd-close{background:none;border:none;color:var(--text3);cursor:pointer;font-size:1.1rem;padding:2px 6px;border-radius:4px}
+.vd-close:hover{background:var(--bg3);color:var(--text1)}
+.vd-count{background:rgba(63,185,80,.15);color:var(--green);border-radius:12px;padding:1px 8px;font-size:.72rem;font-weight:700}
+.vd-body{flex:1;overflow-y:auto;padding:8px 0}
+.vd-empty{text-align:center;padding:40px 20px;font-size:.8rem;color:var(--text3)}
+.vd-row{display:grid;grid-template-columns:1fr auto;gap:6px;align-items:start;padding:10px 18px;border-bottom:1px solid var(--border);transition:background .1s}
+.vd-row:hover{background:var(--bg3)}
+.vd-row-main{display:flex;flex-direction:column;gap:3px;min-width:0}
+.vd-ip{font-family:'SF Mono',Menlo,monospace;font-size:.75rem;color:var(--text1);font-weight:600}
+.vd-meta{font-size:.68rem;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vd-meta2{font-size:.67rem;color:var(--text3);display:flex;gap:6px;flex-wrap:wrap}
+.vd-site{font-size:.65rem;background:var(--bg3);border-radius:4px;padding:1px 5px;color:var(--text2)}
+.vd-ago{font-size:.65rem;color:var(--text3)}
+.vd-block-btn{font-size:.68rem;padding:3px 9px;border-radius:6px;cursor:pointer;background:rgba(240,71,71,.1);border:1px solid rgba(240,71,71,.25);color:var(--red);white-space:nowrap;align-self:center;transition:background .15s}
+.vd-block-btn:hover{background:rgba(240,71,71,.25)}
+.vd-block-btn.done{opacity:.5;cursor:default}
 /* Tables */
 .f-table-wrap{overflow-x:auto;border-radius:8px;border:1px solid var(--border)}
 table{width:100%;border-collapse:collapse;font-size:0.76rem}
@@ -2952,13 +3021,30 @@ textarea{resize:vertical;min-height:80px}
           <div class="f-card">
             <div class="f-card-title">
               Live Activity
-              <div class="live-top" style="margin:0;gap:6px">
+              <button class="live-cnt-btn" id="liveVisitorBtn" onclick="openVisitorDrawer()" title="View live visitors">
                 <span class="live-dot"></span>
                 <span class="live-cnt" id="liveCnt">${activeCount}</span>
-              </div>
+                <span style="font-size:.65rem;font-weight:400;color:var(--text3)">active</span>
+              </button>
             </div>
             <div class="lt-feed" id="ltFeed">
               ${liveInitRows || '<div style="text-align:center;padding:20px;font-size:.75rem;color:var(--text3)">Waiting for traffic…</div>'}
+            </div>
+          </div>
+
+          <!-- Live visitor drawer overlay -->
+          <div class="vd-overlay" id="vdOverlay" onclick="closeVisitorDrawer()"></div>
+          <div class="vd-drawer" id="vdDrawer">
+            <div class="vd-header">
+              <div style="display:flex;align-items:center;gap:8px">
+                <span class="live-dot"></span>
+                <span style="font-weight:600;font-size:.9rem">Live Visitors</span>
+                <span class="vd-count" id="vdCount">0</span>
+              </div>
+              <button class="vd-close" onclick="closeVisitorDrawer()" title="Close">&#x2715;</button>
+            </div>
+            <div class="vd-body" id="vdBody">
+              <div class="vd-empty">Loading…</div>
             </div>
           </div>
         </div>
@@ -4013,6 +4099,127 @@ window.addEventListener('DOMContentLoaded', function() {
   }
 });
 
+// ── Live Visitor Drawer ───────────────────────────────────────────────────────
+(function() {
+  var drawerOpen = false;
+  var overlay = document.getElementById('vdOverlay');
+  var drawer  = document.getElementById('vdDrawer');
+  var body    = document.getElementById('vdBody');
+  var countEl = document.getElementById('vdCount');
+
+  function parseUA(ua) {
+    if (!ua) return { browser: '?', os: '?' };
+    var browser = '?', os = '?';
+    if (/Edg\//i.test(ua))            browser = 'Edge';
+    else if (/OPR\//i.test(ua))       browser = 'Opera';
+    else if (/Chrome\//i.test(ua))    browser = 'Chrome';
+    else if (/Firefox\//i.test(ua))   browser = 'Firefox';
+    else if (/Safari\//i.test(ua))    browser = 'Safari';
+    else if (/MSIE|Trident/i.test(ua)) browser = 'IE';
+    if (/Windows/i.test(ua))          os = 'Windows';
+    else if (/iPhone/i.test(ua))      os = 'iPhone';
+    else if (/iPad/i.test(ua))        os = 'iPad';
+    else if (/Android/i.test(ua))     os = 'Android';
+    else if (/Macintosh/i.test(ua))   os = 'macOS';
+    else if (/Linux/i.test(ua))       os = 'Linux';
+    return { browser: browser, os: os };
+  }
+
+  function countryFlag(cc) {
+    if (!cc || cc.length !== 2) return '';
+    var base = 127397;
+    return String.fromCodePoint(base + cc.charCodeAt(0), base + cc.charCodeAt(1)) + ' ';
+  }
+
+  function timeAgo(ts) {
+    var diff = Math.floor((Date.now() - ts) / 1000);
+    if (diff < 10) return 'just now';
+    if (diff < 60) return diff + 's ago';
+    var m = Math.floor(diff / 60);
+    return m + ' min ago';
+  }
+
+  function renderVisitors(visitors) {
+    if (!body) return;
+    if (!visitors || visitors.length === 0) {
+      body.innerHTML = '<div class="vd-empty">No active visitors in the last 5 minutes.</div>';
+      if (countEl) countEl.textContent = '0';
+      return;
+    }
+    if (countEl) countEl.textContent = visitors.length;
+    body.innerHTML = visitors.map(function(v) {
+      var ua = parseUA(v.ua);
+      var flag = countryFlag(v.country);
+      var loc = flag + (v.city ? v.city + ', ' : '') + (v.country || '');
+      var decCls = v.decision === 'allow' ? 'color:var(--green)' : 'color:var(--red)';
+      return '<div class="vd-row">'
+        + '<div class="vd-row-main">'
+        + '<span class="vd-ip">' + escHtmlClient(v.ip || '') + '</span>'
+        + '<span class="vd-meta">' + escHtmlClient(loc) + ((v.isp || v.org) ? ' &middot; ' + escHtmlClient(v.isp || v.org) + (v.isp && v.org && v.isp !== v.org ? ' / ' + escHtmlClient(v.org) : '') : '') + '</span>'
+        + '<div class="vd-meta2">'
+        + '<span class="vd-site">' + escHtmlClient(v.siteId || 'default') + '</span>'
+        + '<span>' + ua.browser + ' / ' + ua.os + '</span>'
+        + '<span class="vd-ago">' + timeAgo(v.lastSeen) + '</span>'
+        + (v.decision ? '<span style="font-size:.65rem;font-weight:700;' + decCls + '">' + escHtmlClient(v.decision) + '</span>' : '')
+        + '</div>'
+        + '</div>'
+        + '<button class="vd-block-btn" data-ip="' + escHtmlClient(v.ip || '') + '" data-site="' + escHtmlClient(v.siteId || 'default') + '" onclick="vdBlockIp(this)">Block</button>'
+        + '</div>';
+    }).join('');
+  }
+
+  function escHtmlClient(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function loadVisitors() {
+    fetch('/${ADMIN_PATH}/live-visitors')
+      .then(function(r){ return r.json(); })
+      .then(function(d){ if (d.ok) renderVisitors(d.visitors); })
+      .catch(function(){ if (body) body.innerHTML = '<div class="vd-empty">Failed to load visitors.</div>'; });
+  }
+
+  window.openVisitorDrawer = function() {
+    if (!overlay || !drawer) return;
+    drawerOpen = true;
+    overlay.classList.add('open');
+    drawer.classList.add('open');
+    loadVisitors();
+  };
+
+  window.closeVisitorDrawer = function() {
+    if (!overlay || !drawer) return;
+    drawerOpen = false;
+    overlay.classList.remove('open');
+    drawer.classList.remove('open');
+  };
+
+  window.vdBlockIp = function(btn) {
+    if (btn.classList.contains('done')) return;
+    var ip = btn.dataset.ip || '';
+    var siteId = btn.dataset.site || 'default';
+    if (!ip) return;
+    btn.disabled = true;
+    btn.textContent = '…';
+    fetch('/${ADMIN_PATH}/block-ip-ajax', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ip: ip, siteId: siteId })
+    }).then(function(r){ return r.json(); }).then(function(d){
+      if (d.ok) { btn.textContent = '✓ Blocked'; btn.classList.add('done'); }
+      else { btn.textContent = 'Block'; btn.disabled = false; }
+    }).catch(function(){ btn.textContent = 'Block'; btn.disabled = false; });
+  };
+
+  // Expose for SSE handler
+  window._vdRenderVisitors = function(visitors) {
+    if (drawerOpen) renderVisitors(visitors);
+    // Also update the liveCnt badge
+    var cnt = document.getElementById('liveCnt');
+    if (cnt) cnt.textContent = visitors ? visitors.length : 0;
+  };
+})();
+
 // ── SSE Live feed ─────────────────────────────────────────────────────────────
 (function() {
   var activeTimes = ${activeIpTimesJson};
@@ -4085,9 +4292,15 @@ window.addEventListener('DOMContentLoaded', function() {
       return;
     }
 
+    // Handle live visitor list update
+    if (payload.type === 'visitorsUpdate') {
+      if (window._vdRenderVisitors) window._vdRenderVisitors(payload.visitors);
+      return;
+    }
+
     entry = payload.entry || payload;
     if (entry.ip) activeTimes[entry.ip] = Date.now();
-    updateCount();
+    // liveCnt is updated by the visitorsUpdate SSE event (5-minute window) that follows each log entry
 
     if (feed) {
       var ph = feed.querySelector('[style]');

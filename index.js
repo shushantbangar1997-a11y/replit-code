@@ -1491,6 +1491,21 @@ app.post('/admin/sites/:id/delete', requireAdmin, function(req, res) {
   res.redirect('/admin');
 });
 
+// ─── Manual re-inject (admin AJAX) ───────────────────────────────────────────
+app.post('/admin/sites/:id/inject', requireAdmin, async function(req, res) {
+  var id = req.params.id;
+  var sites = readSites();
+  var site = sites.find(function(s) { return s.id === id; });
+  if (!site) return res.json({ ok: false, reason: 'site-not-found' });
+  var hubUrl = 'https://' + (process.env.REPLIT_DEV_DOMAIN || req.headers.host || 'localhost');
+  try {
+    var result = await githubInject(site, hubUrl);
+    return res.json(result);
+  } catch (e) {
+    return res.json({ ok: false, reason: 'error', message: e.message });
+  }
+});
+
 // ─── Lead called toggle (admin AJAX) ─────────────────────────────────────────
 app.post('/admin/lead-toggle', requireAdmin, function(req, res) {
   var ts     = (req.body.ts     || '').trim();
@@ -2202,6 +2217,9 @@ function adminDashboardPage(settings, logs, leads, opts) {
       +   '</form>'
       +   '<div class="sl-actions">'
       +     '<button class="sl-settings" onclick="toggleSlRow(this,\'slx-' + sid + '\')">\u2699 Settings</button>'
+      +     (hasGithubToken && s.githubRepo
+          ? '<button class="btn-ghost btn-sm reinject-btn" onclick="reInjectSite(\'' + sid + '\',this)" title="Re-push cloaking script to GitHub repo">\u2B06 Re-inject</button>'
+          : '')
       +     (s.isDefault ? '' :
       +       '<form method="POST" action="/admin/sites/' + sid + '/regenerate-key" class="inline" onsubmit="return confirm(\'Rotate API key? Old key stops immediately.\')">'
       +         '<button type="submit" class="btn-ghost btn-sm">\u21BB Rotate</button>'
@@ -3706,6 +3724,46 @@ function copySnippetById(id, btn) {
     var orig = btn.textContent; btn.textContent = '✓ Copied'; btn.style.color = 'var(--green)';
     setTimeout(function(){ btn.textContent = orig; btn.style.color = ''; }, 2000);
   }).catch(function(){ prompt('Copy snippet:', el.textContent); });
+}
+
+// ── Re-inject cloaking script into GitHub repo ────────────────────────────────
+function reInjectSite(siteId, btn) {
+  var orig = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '\u2026Pushing';
+  fetch('/admin/sites/' + encodeURIComponent(siteId) + '/inject', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' }
+  }).then(function(r) { return r.json(); }).then(function(d) {
+    if (d.ok) {
+      btn.textContent = '\u2713 Pushed';
+      var files = (d.injected || []).join(', ');
+      showToast('Script injected into: ' + (files || 'repo'), 'success');
+      var row = document.querySelector('[data-site-id="' + siteId + '"]');
+      if (row) {
+        var badge = row.querySelector('.db-live,.db-pushed,.db-pending,.db-failed,.db-rotated');
+        if (badge) { badge.className = 'db-pushed'; badge.textContent = 'GitHub \u2713'; }
+      }
+    } else {
+      btn.textContent = '\u2717 Failed';
+      var reasons = {
+        'no-token': 'GitHub token not set',
+        'no-repo': 'No repo configured for this site',
+        'invalid-repo': 'Invalid GitHub repo URL',
+        'repo-not-found': 'Repo not found (check token permissions)',
+        'no-html-files': 'No HTML files found in repo',
+        'inject-failed': 'GitHub rejected the file update',
+        'site-not-found': 'Site not found'
+      };
+      showToast('Re-inject failed: ' + (reasons[d.reason] || d.reason || 'Unknown error'), 'error');
+    }
+  }).catch(function() {
+    btn.textContent = '\u2717 Failed';
+    showToast('Network error — could not reach server', 'error');
+  }).finally(function() {
+    setTimeout(function() { btn.textContent = orig; btn.disabled = false; }, 2200);
+  });
 }
 
 // ── Quick block IP ────────────────────────────────────────────────────────────

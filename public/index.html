@@ -872,7 +872,7 @@
             if (timer) clearTimeout(timer);
             if (clicks >= 5) {
                 clicks = 0;
-                window.location.href = '/admin/login';
+                window.location.href = '__ADMIN_LOGIN_PATH__';
                 return;
             }
             timer = setTimeout(function() { clicks = 0; }, 4000);

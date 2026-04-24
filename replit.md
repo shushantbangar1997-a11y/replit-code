@@ -31,21 +31,23 @@ The admin panel is rebranded as **FILTER** — a full SaaS-style UI with a colla
 | `/api/track/lead` | Lead capture endpoint (public POST) — accepts X-Site-Key header |
 | `/sites/:siteId/safe` | Hub-hosted safe page for each registered site |
 | `/sites/:siteId/money` | Hub-hosted money redirect for each registered site |
-| `/admin/login` | Admin login page |
-| `/admin` | Admin dashboard (auth required); ?site= for per-site filtering |
-| `/admin/logout` | Clears session |
-| `/admin/settings` | Saves money/safe URLs for default site (POST, auth required) |
-| `/admin/toggle` | Toggles cloaking on/off for default site (POST, auth required) |
-| `/admin/sites` | Add new site (POST) |
-| `/admin/sites/:id/settings` | Update site settings + re-inject script (POST) |
-| `/admin/sites/:id/regenerate-key` | Rotate API key + re-inject (POST) |
-| `/admin/sites/:id/delete` | Delete site (POST) |
-| `/admin/sites/:id/toggle` | Pause/resume site (POST) |
-| `/admin/blocked-ips` | Saves permanently blocked IPs |
-| `/admin/allowed-countries` | Saves allowed country filter |
-| `/admin/clear-logs` | Clears decision log |
-| `/admin/clear-leads` | Clears leads log |
-| `/admin/clear-frequency` | Resets in-memory repeat-click tracker |
+| `/{ADMIN_PATH}/login` | Admin login page (ADMIN_PATH env var, default: manage-zx7q2) |
+| `/{ADMIN_PATH}` | Admin dashboard (auth required); ?site= for per-site filtering |
+| `/{ADMIN_PATH}/logout` | Clears session |
+| `/{ADMIN_PATH}/settings` | Saves money/safe URLs for default site (POST, auth required) |
+| `/{ADMIN_PATH}/toggle` | Toggles cloaking on/off for default site (POST, auth required) |
+| `/{ADMIN_PATH}/sites` | Add new site (POST) |
+| `/{ADMIN_PATH}/sites/:id/settings` | Update site settings + re-inject script (POST) |
+| `/{ADMIN_PATH}/sites/:id/regenerate-key` | Rotate API key + re-inject (POST) |
+| `/{ADMIN_PATH}/sites/:id/delete` | Delete site (POST) |
+| `/{ADMIN_PATH}/sites/:id/toggle` | Pause/resume site (POST) |
+| `/{ADMIN_PATH}/blocked-ips` | Saves permanently blocked IPs |
+| `/{ADMIN_PATH}/allowed-countries` | Saves allowed country filter |
+| `/{ADMIN_PATH}/clear-logs` | Clears decision log |
+| `/{ADMIN_PATH}/clear-leads` | Clears leads log |
+| `/{ADMIN_PATH}/clear-frequency` | Resets in-memory repeat-click tracker |
+| `/admin` | Returns 404 (path moved to ADMIN_PATH) |
+| `/admin/login` | Returns 404 (path moved to ADMIN_PATH) |
 
 ## Cloaking Engine
 The `/api/cloak` endpoint:
@@ -63,7 +65,8 @@ The `/api/track/lead` endpoint:
 - Both fire-and-forget from the frontend — zero UX impact.
 
 ## Admin Panel (FILTER)
-- Accessible at `/admin`, protected by session-based auth (bcrypt, 8h cookie)
+- Accessible at `/{ADMIN_PATH}` (default: `/manage-zx7q2`), configured via ADMIN_PATH env var; `/admin` and `/admin/login` return 404
+- Protected by session-based auth (bcrypt, 8h cookie)
 - Password set via `ADMIN_PASSWORD` environment variable (required — no hardcoded fallback)
 - Session secret from `SESSION_SECRET` environment variable (required)
 - **FILTER UI** — left sidebar nav, hash-based section routing (#dashboard, #sites, #logs, #leads, #blocked-ips, #settings)
@@ -75,8 +78,8 @@ The `/api/track/lead` endpoint:
 - Settings: tabbed (Engine, Security, Blocked IPs, Countries, Integrations, Timezone, Password, Danger Zone)
   - Security tab: individual feature toggles (VPN/proxy/datacenter/bot-UA/repeat-click/ISP blocking) + custom ISP keyword textarea
   - Password tab: change admin password with current-password verification
-- Timezone: configurable display timezone (default UTC) — saved to session via POST /admin/set-timezone
-- New routes: `POST /admin/set-timezone`, `POST /admin/block-ip-ajax`, `POST /admin/unblock-ip-ajax`, `POST /admin/change-password`, `POST /admin/settings/features`
+- Timezone: configurable display timezone (default UTC) — saved to session via POST /{ADMIN_PATH}/set-timezone
+- New routes: `POST /{ADMIN_PATH}/set-timezone`, `POST /{ADMIN_PATH}/block-ip-ajax`, `POST /{ADMIN_PATH}/unblock-ip-ajax`, `POST /{ADMIN_PATH}/change-password`, `POST /{ADMIN_PATH}/settings/features`
 
 ## Environment Variables
 | Variable | Purpose |
@@ -84,6 +87,7 @@ The `/api/track/lead` endpoint:
 | `PORT` | Server port (default 5000) |
 | `SESSION_SECRET` | Express session signing secret (required) |
 | `ADMIN_PASSWORD` | Admin panel password — hashed with bcrypt on startup (required) |
+| `ADMIN_PATH` | Secret URL prefix for admin panel (default: manage-zx7q2) — no leading/trailing slashes |
 | `GITHUB_TOKEN` | GitHub Personal Access Token (repo scope) — enables auto-inject |
 | `RAILWAY_API_TOKEN` | Railway API token — enables deploy monitoring |
 

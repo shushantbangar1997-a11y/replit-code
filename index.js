@@ -12,6 +12,14 @@ const app = express();
 app.disable('x-powered-by');
 const PORT = process.env.PORT || 5000;
 
+// ─── Admin path (secret, non-guessable URL prefix) ────────────────────────────
+// Set ADMIN_PATH env var to override the default slug. No leading/trailing slashes.
+var _ADMIN_PATH_RAW = (process.env.ADMIN_PATH || '').replace(/^\/+|\/+$/g, '');
+var ADMIN_PATH = /^[a-zA-Z0-9_-]{4,}$/.test(_ADMIN_PATH_RAW) ? _ADMIN_PATH_RAW : 'manage-zx7q2';
+if (_ADMIN_PATH_RAW && _ADMIN_PATH_RAW !== ADMIN_PATH) {
+  console.warn('[WARN] ADMIN_PATH value "' + _ADMIN_PATH_RAW + '" is invalid (must be 4+ alphanumeric/-/_ chars). Using default.');
+}
+
 // ─── Data file paths (JSON fallback for local dev without DB) ─────────────────
 const SETTINGS_FILE   = path.join(__dirname, 'data', 'settings.json');
 const LOGS_FILE       = path.join(__dirname, 'data', 'logs.json');
@@ -752,7 +760,7 @@ function checkIP(ip) {
 }
 
 // ─── Middleware ───────────────────────────────────────────────────────────────
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'), { index: false }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(session({
@@ -769,7 +777,14 @@ function requireAdmin(req, res, next) {
 
 // ─── Public routes ────────────────────────────────────────────────────────────
 app.get('/', function(req, res) {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  try {
+    var html = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
+    html = html.replace('__ADMIN_LOGIN_PATH__', '/' + ADMIN_PATH + '/login');
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(html);
+  } catch (e) {
+    res.status(500).send('Error');
+  }
 });
 
 app.get('/peacock', function(req, res) {
@@ -966,32 +981,36 @@ app.post('/api/v1/event', async function(req, res) {
   } catch (e) { /* silently swallow — never break client experience */ }
 });
 
+// ─── Old /admin paths → 404 (keep undiscoverable) ────────────────────────────
+app.all('/admin', function(req, res) { res.status(404).send('Not found'); });
+app.all('/admin/login', function(req, res) { res.status(404).send('Not found'); });
+
 // ─── Admin login ──────────────────────────────────────────────────────────────
-app.get('/admin/login', function(req, res) {
-  if (req.session && req.session.adminAuth) return res.redirect('/admin');
+app.get('/' + ADMIN_PATH + '/login', function(req, res) {
+  if (req.session && req.session.adminAuth) return res.redirect('/' + ADMIN_PATH);
   var error = req.query.error ? '<p class="error">Invalid credentials. Try again.</p>' : '';
   res.send(adminLoginPage(error));
 });
 
-app.post('/admin/login', function(req, res) {
+app.post('/' + ADMIN_PATH + '/login', function(req, res) {
   var password = req.body.password || '';
   if (bcrypt.compareSync(password, ADMIN_PASSWORD_HASH)) {
     req.session.adminAuth = true;
-    return res.redirect('/admin');
+    return res.redirect('/' + ADMIN_PATH);
   }
-  res.redirect('/admin/login?error=1');
+  res.redirect('/' + ADMIN_PATH + '/login?error=1');
 });
 
 // ─── Admin logout ─────────────────────────────────────────────────────────────
-app.get('/admin/logout', function(req, res) {
-  req.session.destroy(function() { res.redirect('/admin/login'); });
+app.get('/' + ADMIN_PATH + '/logout', function(req, res) {
+  req.session.destroy(function() { res.redirect('/' + ADMIN_PATH + '/login'); });
 });
 
 // ─── Admin dashboard ──────────────────────────────────────────────────────────
 var LOG_PAGE_SIZE  = 100;
 var LEAD_PAGE_SIZE = 50;
 
-app.get('/admin', requireAdmin, function(req, res) {
+app.get('/' + ADMIN_PATH, requireAdmin, function(req, res) {
   var globalSettings = readSettings();
   var sites      = readSites();
   var siteFilter = req.query.site || '';
@@ -1084,7 +1103,7 @@ app.get('/admin', requireAdmin, function(req, res) {
 });
 
 // ─── Admin SSE events ─────────────────────────────────────────────────────────
-app.get('/admin/events', requireAdmin, function(req, res) {
+app.get('/' + ADMIN_PATH + '/events', requireAdmin, function(req, res) {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
@@ -1122,23 +1141,23 @@ app.get('/admin/events', requireAdmin, function(req, res) {
 });
 
 // ─── Admin settings save (URLs) ───────────────────────────────────────────────
-app.post('/admin/settings', requireAdmin, function(req, res) {
+app.post('/' + ADMIN_PATH + '/settings', requireAdmin, function(req, res) {
   var settings = readSettings();
   settings.moneyUrl = (req.body.moneyUrl || '').trim();
   settings.safeUrl  = (req.body.safeUrl  || '/safe').trim();
   writeSettings(settings);
-  res.redirect('/admin');
+  res.redirect('/' + ADMIN_PATH);
 });
 
 // ─── Railway token setup ──────────────────────────────────────────────────────
-app.post('/admin/settings/railway-token', requireAdmin, function(req, res) {
+app.post('/' + ADMIN_PATH + '/settings/railway-token', requireAdmin, function(req, res) {
   var token = (req.body.railwayToken || '').trim();
   setRailwayToken(token); // stores in .local/railway_token (env var takes priority)
-  res.redirect('/admin#settings');
+  res.redirect('/' + ADMIN_PATH + '#settings');
 });
 
 // ─── Admin toggle cloaking ────────────────────────────────────────────────────
-app.post('/admin/toggle', requireAdmin, async function(req, res) {
+app.post('/' + ADMIN_PATH + '/toggle', requireAdmin, async function(req, res) {
   var settings = readSettings();
   settings.enabled = !settings.enabled;
   writeSettings(settings);
@@ -1156,31 +1175,31 @@ app.post('/admin/toggle', requireAdmin, async function(req, res) {
       }
     }).catch(function() {});
   }
-  res.redirect('/admin');
+  res.redirect('/' + ADMIN_PATH);
 });
 
 // ─── Admin clear logs ─────────────────────────────────────────────────────────
-app.post('/admin/clear-logs', requireAdmin, function(req, res) {
+app.post('/' + ADMIN_PATH + '/clear-logs', requireAdmin, function(req, res) {
   _cacheLogs = [];
   if (_useDb && _dbPool) {
     _dbPool.query('DELETE FROM cloaker_logs').catch(function(e) { console.error('DB clear-logs:', e.message); });
   }
   try { fs.writeFileSync(LOGS_FILE, '[]'); } catch(e) {}
-  res.redirect('/admin');
+  res.redirect('/' + ADMIN_PATH);
 });
 
 // ─── Admin clear leads ────────────────────────────────────────────────────────
-app.post('/admin/clear-leads', requireAdmin, function(req, res) {
+app.post('/' + ADMIN_PATH + '/clear-leads', requireAdmin, function(req, res) {
   _cacheLeads = [];
   if (_useDb && _dbPool) {
     _dbPool.query('DELETE FROM cloaker_leads').catch(function(e) { console.error('DB clear-leads:', e.message); });
   }
   try { fs.writeFileSync(LEADS_FILE, '[]'); } catch(e) {}
-  res.redirect('/admin');
+  res.redirect('/' + ADMIN_PATH);
 });
 
 // ─── Admin save blocked IPs ───────────────────────────────────────────────────
-app.post('/admin/blocked-ips', requireAdmin, function(req, res) {
+app.post('/' + ADMIN_PATH + '/blocked-ips', requireAdmin, function(req, res) {
   var settings = readSettings();
   var raw = (req.body.blockedIps || '').trim();
   settings.blockedIps = raw
@@ -1188,11 +1207,11 @@ app.post('/admin/blocked-ips', requireAdmin, function(req, res) {
     .map(function(s) { return s.trim(); })
     .filter(function(s) { return s.length > 0; });
   writeSettings(settings);
-  res.redirect('/admin');
+  res.redirect('/' + ADMIN_PATH);
 });
 
 // ─── Admin save allowed countries ────────────────────────────────────────────
-app.post('/admin/allowed-countries', requireAdmin, function(req, res) {
+app.post('/' + ADMIN_PATH + '/allowed-countries', requireAdmin, function(req, res) {
   var settings = readSettings();
   var raw = (req.body.allowedCountries || '').trim();
   settings.allowedCountries = raw
@@ -1200,11 +1219,11 @@ app.post('/admin/allowed-countries', requireAdmin, function(req, res) {
     .map(function(s) { return s.trim().toUpperCase(); })
     .filter(function(s) { return s.length === 2; });
   writeSettings(settings);
-  res.redirect('/admin');
+  res.redirect('/' + ADMIN_PATH);
 });
 
 // ─── Admin export blocked IPs for Google Ads ──────────────────────────────────
-app.get('/admin/blocked-ips-export', requireAdmin, function(req, res) {
+app.get('/' + ADMIN_PATH + '/blocked-ips-export', requireAdmin, function(req, res) {
   var settings  = readSettings();
   var logs      = readLogs();
   var seen      = {};
@@ -1223,12 +1242,12 @@ app.get('/admin/blocked-ips-export', requireAdmin, function(req, res) {
   res.send(unique.join('\n'));
 });
 
-app.post('/admin/clear-frequency', requireAdmin, function(req, res) {
+app.post('/' + ADMIN_PATH + '/clear-frequency', requireAdmin, function(req, res) {
   clearFrequencyStore();
-  res.redirect('/admin');
+  res.redirect('/' + ADMIN_PATH);
 });
 
-app.post('/admin/set-timezone', requireAdmin, function(req, res) {
+app.post('/' + ADMIN_PATH + '/set-timezone', requireAdmin, function(req, res) {
   var tz = (req.body.tz || 'UTC').trim();
   try { new Intl.DateTimeFormat('en', { timeZone: tz }); } catch(e) {
     return res.json({ ok: false, error: 'Invalid timezone' });
@@ -1245,7 +1264,7 @@ function isValidIp(ip) {
   return /^[\da-fA-F:]{2,39}$/.test(ip) && ip.includes(':');
 }
 
-app.post('/admin/block-ip-ajax', requireAdmin, function(req, res) {
+app.post('/' + ADMIN_PATH + '/block-ip-ajax', requireAdmin, function(req, res) {
   var ip     = (req.body.ip || '').trim();
   var siteId = (req.body.siteId || 'default').trim();
   if (!ip) return res.json({ ok: false, error: 'No IP' });
@@ -1271,7 +1290,7 @@ app.post('/admin/block-ip-ajax', requireAdmin, function(req, res) {
 });
 
 // ─── Admin unblock IP (AJAX) ──────────────────────────────────────────────────
-app.post('/admin/unblock-ip-ajax', requireAdmin, function(req, res) {
+app.post('/' + ADMIN_PATH + '/unblock-ip-ajax', requireAdmin, function(req, res) {
   var ip     = (req.body.ip || '').trim();
   var siteId = (req.body.siteId || 'default').trim();
   if (!ip) return res.json({ ok: false, error: 'No IP' });
@@ -1295,7 +1314,7 @@ app.post('/admin/unblock-ip-ajax', requireAdmin, function(req, res) {
 });
 
 // ─── Admin change password ────────────────────────────────────────────────────
-app.post('/admin/change-password', requireAdmin, function(req, res) {
+app.post('/' + ADMIN_PATH + '/change-password', requireAdmin, function(req, res) {
   var currentPwd = req.body.currentPassword || '';
   var newPwd     = req.body.newPassword     || '';
   var confirmPwd = req.body.confirmPassword || '';
@@ -1314,7 +1333,7 @@ app.post('/admin/change-password', requireAdmin, function(req, res) {
 });
 
 // ─── Admin save feature toggles + ISP keywords ────────────────────────────────
-app.post('/admin/settings/features', requireAdmin, function(req, res) {
+app.post('/' + ADMIN_PATH + '/settings/features', requireAdmin, function(req, res) {
   var cfg = readSettings();
   function boolField(name) {
     var v = req.body[name];
@@ -1330,16 +1349,16 @@ app.post('/admin/settings/features', requireAdmin, function(req, res) {
   var kw = (req.body.suspiciousIspKeywords || '').split(/[\n,]+/).map(function(s) { return s.trim().toLowerCase(); }).filter(Boolean);
   cfg.suspiciousIspKeywords = kw;
   writeSettings(cfg);
-  res.redirect('/admin?stab=security#settings');
+  res.redirect('/' + ADMIN_PATH + '?stab=security#settings');
 });
 
 // ─── Admin sites management ───────────────────────────────────────────────────
-app.post('/admin/sites', requireAdmin, async function(req, res) {
+app.post('/' + ADMIN_PATH + '/sites', requireAdmin, async function(req, res) {
   var name      = (req.body.name || '').trim();
   var domain    = (req.body.domain || '').trim().replace(/^https?:\/\//, '').replace(/\/$/, '');
   var githubRepo = (req.body.githubRepo || '').trim();
   var moneyUrl  = (req.body.moneyUrl || '').trim();
-  if (!name) return res.redirect('/admin?siteErr=name');
+  if (!name) return res.redirect('/' + ADMIN_PATH + '?siteErr=name');
 
   var hubUrl = 'https://' + (process.env.REPLIT_DEV_DOMAIN || req.headers.host || 'localhost');
   var id = 'site-' + Date.now();
@@ -1389,14 +1408,14 @@ app.post('/admin/sites', requireAdmin, async function(req, res) {
     }).catch(function() {});
   }
 
-  res.redirect('/admin?site=' + id + '&siteCreated=1');
+  res.redirect('/' + ADMIN_PATH + '?site=' + id + '&siteCreated=1');
 });
 
-app.post('/admin/sites/:id/settings', requireAdmin, async function(req, res) {
+app.post('/' + ADMIN_PATH + '/sites/:id/settings', requireAdmin, async function(req, res) {
   var id = req.params.id;
   var sites = readSites();
   var idx = sites.findIndex(function(s) { return s.id === id; });
-  if (idx === -1) return res.redirect('/admin');
+  if (idx === -1) return res.redirect('/' + ADMIN_PATH);
 
   var hubUrl = 'https://' + (process.env.REPLIT_DEV_DOMAIN || req.headers.host || 'localhost');
   var site = sites[idx];
@@ -1446,14 +1465,14 @@ app.post('/admin/sites/:id/settings', requireAdmin, async function(req, res) {
   }
 
   var qs = site.isDefault ? '' : '?site=' + id;
-  res.redirect('/admin' + qs);
+  res.redirect('/' + ADMIN_PATH + qs);
 });
 
-app.post('/admin/sites/:id/regenerate-key', requireAdmin, async function(req, res) {
+app.post('/' + ADMIN_PATH + '/sites/:id/regenerate-key', requireAdmin, async function(req, res) {
   var id = req.params.id;
   var sites = readSites();
   var idx = sites.findIndex(function(s) { return s.id === id; });
-  if (idx === -1) return res.redirect('/admin');
+  if (idx === -1) return res.redirect('/' + ADMIN_PATH);
 
   var hubUrl = 'https://' + (process.env.REPLIT_DEV_DOMAIN || req.headers.host || 'localhost');
   sites[idx].apiKey = crypto.randomUUID();
@@ -1475,20 +1494,20 @@ app.post('/admin/sites/:id/regenerate-key', requireAdmin, async function(req, re
   }
 
   var qs = sites[idx].isDefault ? '' : '?site=' + id;
-  res.redirect('/admin' + qs);
+  res.redirect('/' + ADMIN_PATH + qs);
 });
 
-app.post('/admin/sites/:id/delete', requireAdmin, function(req, res) {
+app.post('/' + ADMIN_PATH + '/sites/:id/delete', requireAdmin, function(req, res) {
   var id = req.params.id;
   var sites = readSites();
   var site = sites.find(function(s) { return s.id === id; });
-  if (!site || site.isDefault) return res.redirect('/admin'); // protect default
+  if (!site || site.isDefault) return res.redirect('/' + ADMIN_PATH); // protect default
   writeSites(sites.filter(function(s) { return s.id !== id; }));
-  res.redirect('/admin');
+  res.redirect('/' + ADMIN_PATH);
 });
 
 // ─── Manual re-inject (admin AJAX) ───────────────────────────────────────────
-app.post('/admin/sites/:id/inject', requireAdmin, async function(req, res) {
+app.post('/' + ADMIN_PATH + '/sites/:id/inject', requireAdmin, async function(req, res) {
   var id = req.params.id;
   var sites = readSites();
   var site = sites.find(function(s) { return s.id === id; });
@@ -1503,7 +1522,7 @@ app.post('/admin/sites/:id/inject', requireAdmin, async function(req, res) {
 });
 
 // ─── Lead called toggle (admin AJAX) ─────────────────────────────────────────
-app.post('/admin/lead-toggle', requireAdmin, function(req, res) {
+app.post('/' + ADMIN_PATH + '/lead-toggle', requireAdmin, function(req, res) {
   var ts     = (req.body.ts     || '').trim();
   var siteId = (req.body.siteId || '').trim();
   var ip     = (req.body.ip     || '').trim();
@@ -1535,7 +1554,7 @@ app.post('/admin/lead-toggle', requireAdmin, function(req, res) {
   res.json({ ok: true, called: leads[idx].called });
 });
 
-app.post('/admin/sites/:id/toggle', requireAdmin, async function(req, res) {
+app.post('/' + ADMIN_PATH + '/sites/:id/toggle', requireAdmin, async function(req, res) {
   var id = req.params.id;
   var sites = readSites();
   var idx = sites.findIndex(function(s) { return s.id === id; });
@@ -1564,7 +1583,7 @@ app.post('/admin/sites/:id/toggle', requireAdmin, async function(req, res) {
     }
   }
   var qs = (idx !== -1 && sites[idx] && !sites[idx].isDefault) ? '?site=' + id : '';
-  res.redirect('/admin' + qs);
+  res.redirect('/' + ADMIN_PATH + qs);
 });
 
 // ─── Hub-hosted safe and money pages ─────────────────────────────────────────
@@ -1732,7 +1751,7 @@ button:hover{background:#2563eb}
     </div>
   </div>
   <h1>Sign in to your dashboard</h1>
-  <form method="POST" action="/admin/login">
+  <form method="POST" action="/${ADMIN_PATH}/login">
     <label for="password">Admin Password</label>
     <input type="password" id="password" name="password" autofocus autocomplete="current-password" placeholder="Enter password">
     <button type="submit">Sign In →</button>
@@ -2142,7 +2161,7 @@ function adminDashboardPage(settings, logs, leads, opts) {
       var params = paramName + '=' + p;
       if (otherParam && otherVal > 1) params += '&amp;' + otherParam + '=' + otherVal;
       if (siteFilter) params += '&amp;site=' + encodeURIComponent(siteFilter);
-      return '/admin?' + params;
+      return '/' + ADMIN_PATH + '?' + params;
     }
     return '<div class="pagination">'
       + (prev ? '<a href="' + href(prev) + '" class="pag-btn">&larr; Prev</a>' : '<span class="pag-btn pag-disabled">&larr; Prev</span>')
@@ -2220,7 +2239,7 @@ function adminDashboardPage(settings, logs, leads, opts) {
       +   '<div class="sl-key-wrap"><span class="sl-key-val" title="' + escHtml(s.apiKey || '') + '">' + escHtml(mk) + '</span>'
       +     '<button class="btn-ghost btn-sm" onclick="copyKey(\'\',\'' + escHtml(s.apiKey || '') + '\',this)" style="padding:2px 7px;font-size:0.68rem">Copy</button>'
       +   '</div>'
-      +   '<form method="POST" action="/admin/sites/' + sid + '/toggle" class="inline">'
+      +   '<form method="POST" action="/' + ADMIN_PATH + '/sites/' + sid + '/toggle" class="inline">'
       +     '<label class="ts-wrap"><input type="checkbox" class="ts-input" ' + (isEnabled ? 'checked' : '') + ' onchange="this.closest(\'form\').submit()"><span class="ts-track"></span>'
       +     '<span class="ts-label" style="font-size:0.75rem">' + (isEnabled ? 'Active' : 'Paused') + '</span></label>'
       +   '</form>'
@@ -2230,10 +2249,10 @@ function adminDashboardPage(settings, logs, leads, opts) {
           ? '<button class="btn-ghost btn-sm reinject-btn" onclick="reInjectSite(\'' + sid + '\',this)" title="Re-push cloaking script to GitHub repo">\u2B06 Re-inject</button>'
           : '')
       +     (s.isDefault ? '' :
-      +       '<form method="POST" action="/admin/sites/' + sid + '/regenerate-key" class="inline" onsubmit="return confirm(\'Rotate API key? Old key stops immediately.\')">'
+      +       '<form method="POST" action="/' + ADMIN_PATH + '/sites/' + sid + '/regenerate-key" class="inline" onsubmit="return confirm(\'Rotate API key? Old key stops immediately.\')">'
       +         '<button type="submit" class="btn-ghost btn-sm">\u21BB Rotate</button>'
       +       '</form>'
-      +       '<form method="POST" action="/admin/sites/' + sid + '/delete" class="inline" onsubmit="return confirm(\'Delete ' + escHtml(s.name) + '? Cannot be undone.\')">'
+      +       '<form method="POST" action="/' + ADMIN_PATH + '/sites/' + sid + '/delete" class="inline" onsubmit="return confirm(\'Delete ' + escHtml(s.name) + '? Cannot be undone.\')">'
       +         '<button type="submit" class="btn-danger btn-sm">Delete</button>'
       +       '</form>')
       +   '</div>'
@@ -2246,7 +2265,7 @@ function adminDashboardPage(settings, logs, leads, opts) {
       +     '<button class="sl-tab" onclick="switchSlTab(this,\'slt-rw-' + sid + '\')">Railway</button>'
       +   '</div>'
       +   '<div class="sl-tab-content active" id="slt-g-' + sid + '">'
-      +     '<form method="POST" action="/admin/sites/' + sid + '/settings">'
+      +     '<form method="POST" action="/' + ADMIN_PATH + '/sites/' + sid + '/settings">'
       +       '<div class="form-grid2">'
       +         '<div class="form-row"><label>Site Name</label><input type="text" name="name" value="' + escHtml(s.name) + '"></div>'
       +         '<div class="form-row"><label>Domain</label><input type="text" name="domain" value="' + escHtml(s.domain || '') + '" placeholder="example.com"></div>'
@@ -2259,7 +2278,7 @@ function adminDashboardPage(settings, logs, leads, opts) {
       +     '</form>'
       +   '</div>'
       +   '<div class="sl-tab-content" id="slt-sec-' + sid + '">'
-      +     '<form method="POST" action="/admin/sites/' + sid + '/settings">'
+      +     '<form method="POST" action="/' + ADMIN_PATH + '/sites/' + sid + '/settings">'
       +       '<div class="form-row"><label>Blocked IPs (one per line)</label><textarea name="blockedIps" rows="5">' + escHtml((s.blockedIps || []).join('\n')) + '</textarea></div>'
       +       '<input type="hidden" name="name" value="' + escHtml(s.name) + '">'
       +       '<input type="hidden" name="domain" value="' + escHtml(s.domain || '') + '">'
@@ -2273,7 +2292,7 @@ function adminDashboardPage(settings, logs, leads, opts) {
       +     '<div class="mt12 flex-gap8"><span class="hint">Hub safe: <a href="' + escHtml(safeHref) + '" target="_blank" style="color:var(--pri-l)">' + escHtml(safeHref) + '</a></span></div>'
       +   '</div>'
       +   '<div class="sl-tab-content" id="slt-rw-' + sid + '">'
-      +     '<form method="POST" action="/admin/sites/' + sid + '/settings">'
+      +     '<form method="POST" action="/' + ADMIN_PATH + '/sites/' + sid + '/settings">'
       +       '<div class="form-grid2">'
       +         '<div class="form-row"><label>Railway Project ID</label><input type="text" name="railwayProjectId" value="' + escHtml(s.railwayProjectId || '') + '" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"></div>'
       +         '<div class="form-row"><label>Railway Service ID</label><input type="text" name="railwayServiceId" value="' + escHtml(s.railwayServiceId || '') + '" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"></div>'
@@ -2740,7 +2759,7 @@ textarea{resize:vertical;min-height:80px}
         <span class="sb-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
         <span class="sb-link-lbl">Settings</span>
       </button>
-      <a class="sb-link" href="/admin?stab=security#settings" title="Features">
+      <a class="sb-link" href="/${ADMIN_PATH}?stab=security#settings" title="Features">
         <span class="sb-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg></span>
         <span class="sb-link-lbl">Features</span>
       </a>
@@ -2757,7 +2776,7 @@ textarea{resize:vertical;min-height:80px}
 
     <!-- Bottom controls -->
     <div class="sb-bottom">
-      <a class="sb-ctrl logout" href="/admin/logout" title="Log out">
+      <a class="sb-ctrl logout" href="/${ADMIN_PATH}/logout" title="Log out">
         <span class="sb-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></span>
         <span class="sb-ctrl-lbl">Log out</span>
       </a>
@@ -2960,7 +2979,7 @@ textarea{resize:vertical;min-height:80px}
             ${countryRows}
             <div class="mt12" style="font-size:.69rem;color:var(--text3)">
               ${exportCount} unique IPs available for Google Ads exclusion
-              &nbsp;<a href="/admin/blocked-ips-export" style="color:var(--pri-l)">Export →</a>
+              &nbsp;<a href="/${ADMIN_PATH}/blocked-ips-export" style="color:var(--pri-l)">Export →</a>
             </div>
           </div>
         </div>
@@ -2974,7 +2993,7 @@ textarea{resize:vertical;min-height:80px}
                 ? '<span class="db-live">● ENABLED</span>'
                 : '<span class="db-pending">○ DISABLED</span>'}
             </div>
-            <form method="POST" action="/admin/toggle">
+            <form method="POST" action="/${ADMIN_PATH}/toggle">
               <label class="ts-wrap">
                 <input type="checkbox" class="ts-input" ${settings.enabled ? 'checked' : ''} onchange="this.closest('form').submit()">
                 <span class="ts-track"></span>
@@ -3019,7 +3038,7 @@ textarea{resize:vertical;min-height:80px}
             <div class="sec-title">Click Log</div>
             <div class="sec-sub">Real-time and historical traffic across all campaigns</div>
           </div>
-          <a href="/admin/blocked-ips-export" class="btn-ghost btn-sm">⬇ Export Blocked IPs</a>
+          <a href="/${ADMIN_PATH}/blocked-ips-export" class="btn-ghost btn-sm">⬇ Export Blocked IPs</a>
         </div>
 
         <div class="cl-header-bar">
@@ -3101,7 +3120,7 @@ textarea{resize:vertical;min-height:80px}
         <div class="sec-header">
           <div>
             <div class="sec-title">Blocked IPs</div>
-            <div class="sec-sub">${blockedIpsList.length} IPs manually blocked &nbsp;·&nbsp; <a href="/admin/blocked-ips-export" style="color:var(--pri-l)">Export for Google Ads →</a></div>
+            <div class="sec-sub">${blockedIpsList.length} IPs manually blocked &nbsp;·&nbsp; <a href="/${ADMIN_PATH}/blocked-ips-export" style="color:var(--pri-l)">Export for Google Ads →</a></div>
           </div>
           <div class="flex-gap8">
             <input type="text" id="manualBlockIpInput" placeholder="Enter IP to block…" style="background:var(--bg2);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-size:.82rem;padding:7px 12px;outline:none;width:190px" onkeydown="if(event.key==='Enter')manualBlockIpBtn()">
@@ -3162,7 +3181,7 @@ textarea{resize:vertical;min-height:80px}
           <div class="f-card mb16">
             <div class="f-card-title">Detection Modules</div>
             <p class="hint mb16">Toggle individual detection checks. Disabled checks are skipped; all visitors still pass through active checks.</p>
-            <form method="POST" action="/admin/settings/features">
+            <form method="POST" action="/${ADMIN_PATH}/settings/features">
               <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:18px">
                 <div>
                   <label class="ts-wrap" style="margin-bottom:12px;cursor:pointer">
@@ -3255,7 +3274,7 @@ textarea{resize:vertical;min-height:80px}
           <div class="f-card mb16">
             <div class="f-card-title">Cloaking Engine</div>
             <div class="flex-gap8 mb16">
-              <form method="POST" action="/admin/toggle">
+              <form method="POST" action="/${ADMIN_PATH}/toggle">
                 <label class="ts-wrap">
                   <input type="checkbox" class="ts-input" ${settings.enabled ? 'checked' : ''} onchange="this.closest('form').submit()">
                   <span class="ts-track"></span>
@@ -3267,7 +3286,7 @@ textarea{resize:vertical;min-height:80px}
           </div>
           <div class="f-card">
             <div class="f-card-title">Default Site URLs</div>
-            <form method="POST" action="/admin/settings">
+            <form method="POST" action="/${ADMIN_PATH}/settings">
               <div class="form-grid2">
                 <div class="form-row">
                   <label>Money URL <span class="hint" style="display:inline">(real visitors go here)</span></label>
@@ -3287,10 +3306,10 @@ textarea{resize:vertical;min-height:80px}
         <div class="stab-content" id="stab-ips">
           <div class="f-card">
             <div class="f-card-title">Permanently Blocked IPs
-              <a href="/admin/blocked-ips-export" class="btn-ghost btn-sm">⬇ Export for Google Ads</a>
+              <a href="/${ADMIN_PATH}/blocked-ips-export" class="btn-ghost btn-sm">⬇ Export for Google Ads</a>
             </div>
             <p class="hint mb12">These IPs are always blocked, regardless of geo or fingerprint checks. ${exportCount} unique IPs ready for export.</p>
-            <form method="POST" action="/admin/blocked-ips">
+            <form method="POST" action="/${ADMIN_PATH}/blocked-ips">
               <div class="form-row">
                 <label>Blocked IP list (one per line)</label>
                 <textarea name="blockedIps" rows="8" id="blockedIpsInput">${escHtml(blockedIpsList.join('\n'))}</textarea>
@@ -3308,14 +3327,14 @@ textarea{resize:vertical;min-height:80px}
           <div class="f-card">
             <div class="f-card-title">Country Filter</div>
             <p class="hint mb12">Only allow visitors from these countries. Leave blank to allow all countries. Use ISO 2-letter codes (US, GB, CA, IN, AU…)</p>
-            <form method="POST" action="/admin/allowed-countries">
+            <form method="POST" action="/${ADMIN_PATH}/allowed-countries">
               <div class="form-row">
                 <label>Allowed countries</label>
                 <input type="text" name="allowedCountries" value="${escHtml(allowedCountriesList.join(', '))}" placeholder="US CA GB AU IN — blank means allow all">
               </div>
               <div class="flex-gap8 mt12">
                 <button type="submit" class="btn-pri">Save Filter</button>
-                ${allowedCountriesList.length > 0 ? '<form method="POST" action="/admin/allowed-countries" class="inline"><input type="hidden" name="allowedCountries" value=""><button type="submit" class="btn-danger" onclick="return confirm(\'Remove country filter?\')">Remove Filter</button></form>' : ''}
+                ${allowedCountriesList.length > 0 ? '<form method="POST" action="/' + ADMIN_PATH + '/allowed-countries" class="inline"><input type="hidden" name="allowedCountries" value=""><button type="submit" class="btn-danger" onclick="return confirm(\'Remove country filter?\')">Remove Filter</button></form>' : ''}
               </div>
             </form>
             ${allowedCountriesList.length > 0 ? '<div class="mt12"><span class="hint">Active filter: </span>' + allowedCountriesList.map(function(c){ return '<span class="rpill rpill-amber" style="margin:2px">' + escHtml(c) + '</span>'; }).join('') + '</div>' : ''}
@@ -3341,7 +3360,7 @@ textarea{resize:vertical;min-height:80px}
                 : '<span class="db-pending">○ Not connected</span><span class="hint" style="color:var(--amber)">Enter your Railway API token below to enable deploy monitoring</span>'}
             </div>
             <p class="hint mb12">Your Railway API token lets FILTER trigger live redeployments and stream deploy status in real-time. The <code>RAILWAY_API_TOKEN</code> environment variable takes priority over the form below.</p>
-            <form method="POST" action="/admin/settings/railway-token">
+            <form method="POST" action="/${ADMIN_PATH}/settings/railway-token">
               <div class="form-row" style="gap:8px;align-items:center;flex-wrap:nowrap">
                 <input type="password" name="railwayToken" autocomplete="new-password"
                   placeholder="${hasRailwayToken ? '••••••••••••••••  (token is set)' : 'Paste Railway API token…'}"
@@ -3413,7 +3432,7 @@ textarea{resize:vertical;min-height:80px}
                   <div style="font-size:.82rem;font-weight:600">Clear Traffic Logs</div>
                   <div class="hint">${logTotal} records will be deleted</div>
                 </div>
-                <form method="POST" action="/admin/clear-logs">
+                <form method="POST" action="/${ADMIN_PATH}/clear-logs">
                   <button type="submit" class="btn-danger" onclick="return confirm('Delete all ${logTotal} traffic log records? Cannot be undone.')">Clear Logs</button>
                 </form>
               </div>
@@ -3422,7 +3441,7 @@ textarea{resize:vertical;min-height:80px}
                   <div style="font-size:.82rem;font-weight:600">Clear Leads</div>
                   <div class="hint">${leadTotal} lead records will be deleted</div>
                 </div>
-                <form method="POST" action="/admin/clear-leads">
+                <form method="POST" action="/${ADMIN_PATH}/clear-leads">
                   <button type="submit" class="btn-danger" onclick="return confirm('Delete all ${leadTotal} lead records? Cannot be undone.')">Clear Leads</button>
                 </form>
               </div>
@@ -3431,7 +3450,7 @@ textarea{resize:vertical;min-height:80px}
                   <div style="font-size:.82rem;font-weight:600">Reset Frequency Tracker</div>
                   <div class="hint">${freqStoreSize} entries in memory store</div>
                 </div>
-                <form method="POST" action="/admin/clear-frequency">
+                <form method="POST" action="/${ADMIN_PATH}/clear-frequency">
                   <button type="submit" class="btn-danger">Reset Tracker</button>
                 </form>
               </div>
@@ -3472,7 +3491,7 @@ textarea{resize:vertical;min-height:80px}
       <span class="f-modal-title">+ Add New Site</span>
       <button class="f-modal-close" onclick="closeModal('addSiteModal')">✕</button>
     </div>
-    <form method="POST" action="/admin/sites">
+    <form method="POST" action="/${ADMIN_PATH}/sites">
       <div class="form-grid2">
         <div class="form-row">
           <label>Site Name *</label>
@@ -3542,7 +3561,7 @@ document.addEventListener('DOMContentLoaded', function() {
       var detected = Intl.DateTimeFormat().resolvedOptions().timeZone;
       var current  = ${JSON.stringify(displayTz)};
       if (detected && detected !== current) {
-        fetch('/admin/set-timezone', {
+        fetch('/${ADMIN_PATH}/set-timezone', {
           method: 'POST',
           headers: {'Content-Type':'application/json'},
           body: JSON.stringify({tz: detected, source: 'auto'})
@@ -3621,7 +3640,7 @@ function changeSite(val) {
   params.delete('logPage');
   params.delete('leadPage');
   var hash = window.location.hash || '#dashboard';
-  window.location.href = '/admin?' + params.toString() + hash;
+  window.location.href = '/${ADMIN_PATH}?' + params.toString() + hash;
 }
 
 // ── Custom date range picker toggle ────────────────────────────────────────────
@@ -3659,7 +3678,7 @@ updateClock();
 // ── Timezone save ───────────────────────────────────────────────────────────
 function saveTz() {
   var tz = document.getElementById('tzSelector').value;
-  fetch('/admin/set-timezone', {
+  fetch('/${ADMIN_PATH}/set-timezone', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ tz: tz })
@@ -3740,7 +3759,7 @@ function reInjectSite(siteId, btn) {
   var orig = btn.textContent;
   btn.disabled = true;
   btn.textContent = '\u2026Pushing';
-  fetch('/admin/sites/' + encodeURIComponent(siteId) + '/inject', {
+  fetch('/${ADMIN_PATH}/sites/' + encodeURIComponent(siteId) + '/inject', {
     method: 'POST',
     credentials: 'same-origin',
     headers: { 'Content-Type': 'application/json' }
@@ -3783,7 +3802,7 @@ function quickBlockIp(btn) {
   var site = btn.dataset.site;
   if (!ip || btn.classList.contains('blocked')) return;
   if (!confirm('Block IP ' + ip + ' immediately?')) return;
-  fetch('/admin/block-ip-ajax', {
+  fetch('/${ADMIN_PATH}/block-ip-ajax', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ip: ip, siteId: site })
@@ -3800,7 +3819,7 @@ function quickBlockIp(btn) {
 // ── Unblock IP (called by event delegation on .unblock-ip-btn) ────────────────
 function unblockIp(ip, siteId, btn) {
   if (!confirm('Remove ' + ip + ' from the block list?')) return;
-  fetch('/admin/unblock-ip-ajax', {
+  fetch('/${ADMIN_PATH}/unblock-ip-ajax', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ip: ip, siteId: siteId || 'default' })
@@ -3834,7 +3853,7 @@ function manualBlockIpBtn() {
   var input = document.getElementById('manualBlockIpInput');
   var ip = (input ? input.value : '').trim();
   if (!ip) return showToast('Enter an IP address first', 'error');
-  fetch('/admin/block-ip-ajax', {
+  fetch('/${ADMIN_PATH}/block-ip-ajax', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ip: ip, siteId: 'default' })
@@ -3872,7 +3891,7 @@ function changePassword() {
   var nw   = document.getElementById('pwNew').value;
   var conf = document.getElementById('pwConfirm').value;
   var msg  = document.getElementById('pwMsg');
-  fetch('/admin/change-password', {
+  fetch('/${ADMIN_PATH}/change-password', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ currentPassword: cur, newPassword: nw, confirmPassword: conf })
@@ -4023,7 +4042,7 @@ window.addEventListener('DOMContentLoaded', function() {
   }
 
   if (!window.EventSource) return;
-  var es = new EventSource('/admin/events');
+  var es = new EventSource('/${ADMIN_PATH}/events');
   es.onmessage = function(e) {
     var payload, entry;
     try { payload = JSON.parse(e.data); } catch(x) { return; }
@@ -4119,7 +4138,7 @@ function toggleLeadCalled(btn) {
   var ts = btn.dataset.ts;
   if (!ts || btn.disabled) return;
   btn.disabled = true;
-  fetch('/admin/lead-toggle', {
+  fetch('/${ADMIN_PATH}/lead-toggle', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ts: ts, siteId: btn.dataset.site || '', ip: btn.dataset.ip || '' })

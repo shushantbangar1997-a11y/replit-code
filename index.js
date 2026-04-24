@@ -3742,6 +3742,7 @@ function reInjectSite(siteId, btn) {
       showToast('Script injected into: ' + (files || 'repo'), 'success');
       var row = document.querySelector('[data-site-id="' + siteId + '"]');
       if (row) {
+        row.dataset.deployStatus = 'pushed';
         var badge = row.querySelector('.db-live,.db-pushed,.db-pending,.db-failed,.db-rotated');
         if (badge) { badge.className = 'db-pushed'; badge.textContent = 'GitHub \u2713'; }
       }
@@ -3756,7 +3757,8 @@ function reInjectSite(siteId, btn) {
         'inject-failed': 'GitHub rejected the file update',
         'site-not-found': 'Site not found'
       };
-      showToast('Re-inject failed: ' + (reasons[d.reason] || d.reason || 'Unknown error'), 'error');
+      var errMsg = (d.reason === 'error' && d.message) ? d.message : (reasons[d.reason] || d.reason || 'Unknown error');
+      showToast('Re-inject failed: ' + errMsg, 'error');
     }
   }).catch(function() {
     btn.textContent = '\u2717 Failed';

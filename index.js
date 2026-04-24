@@ -2292,11 +2292,28 @@ function adminDashboardPage(settings, logs, leads, opts) {
     return src ? '<span style="font-size:0.72rem;color:#a78bfa">' + escHtml(src.slice(0, 20)) + '</span>' : '—';
   }
 
+  function derivedLeadChannel(l) {
+    if (l.channel) return l.channel;
+    var site = sites.find(function(s) { return s.id === l.siteId; });
+    if (!site) return '';
+    var src = ((site.name || '') + ' ' + (site.domain || '') + ' ' + (site.moneyUrl || '')).toLowerCase();
+    if (/peacock/.test(src)) return 'peacock';
+    if (/disney/.test(src)) return 'disney';
+    if (/hulu/.test(src)) return 'hulu';
+    if (/paramount/.test(src)) return 'paramount';
+    if (/fox\b|fox-/.test(src)) return 'fox';
+    if (/espn/.test(src)) return 'espn';
+    if (/starz/.test(src)) return 'starz';
+    if (/vizio/.test(src)) return 'vizio';
+    if (/amazon|prime/.test(src)) return 'amazon';
+    return '';
+  }
+
   var leadRows = submits.map(function(l) {
     var ts      = fmtTs(l.ts);
     var flag    = flagEmoji(l.country);
     var safeTs  = escHtml(l.ts || '');
-    var ch      = escHtml(l.channel || '');
+    var ch      = escHtml(derivedLeadChannel(l));
     var st      = l.called ? 'called' : 'pending';
     var calledToggle = l.called
       ? '<button class="lead-toggle-btn called" data-ts="' + safeTs + '" data-site="' + escHtml(l.siteId || '') + '" data-ip="' + escHtml(l.ip || '') + '" onclick="toggleLeadCalled(this)" title="Mark as not called">✓ Called</button>'
@@ -2380,20 +2397,24 @@ function adminDashboardPage(settings, logs, leads, opts) {
   }).join('') || '<tr><td colspan="3" class="t-muted t-center">No blocks recorded</td></tr>';
 
   // ── New site list rows for FILTER UI ─────────────────────────────────────
-  function siteChannelPill(s) {
+  function derivedSiteChannelKey(s) {
     var src = ((s.name || '') + ' ' + (s.domain || '') + ' ' + (s.moneyUrl || '')).toLowerCase();
-    var ch = '';
-    if (/peacock/.test(src)) ch = 'Peacock';
-    else if (/disney/.test(src)) ch = 'Disney+';
-    else if (/hulu/.test(src)) ch = 'Hulu';
-    else if (/paramount/.test(src)) ch = 'Paramount+';
-    else if (/fox\b|fox-/.test(src)) ch = 'FOX';
-    else if (/espn/.test(src)) ch = 'ESPN';
-    else if (/starz/.test(src)) ch = 'STARZ';
-    else if (/vizio/.test(src)) ch = 'Vizio';
-    else if (/amazon|prime/.test(src)) ch = 'Amazon Prime';
-    if (!ch) return '';
-    return ' <span class="rpill rpill-blue" style="font-size:0.62rem;vertical-align:middle">' + escHtml(ch) + '</span>';
+    if (/peacock/.test(src)) return 'peacock';
+    if (/disney/.test(src)) return 'disney';
+    if (/hulu/.test(src)) return 'hulu';
+    if (/paramount/.test(src)) return 'paramount';
+    if (/fox\b|fox-/.test(src)) return 'fox';
+    if (/espn/.test(src)) return 'espn';
+    if (/starz/.test(src)) return 'starz';
+    if (/vizio/.test(src)) return 'vizio';
+    if (/amazon|prime/.test(src)) return 'amazon';
+    return '';
+  }
+  var CHANNEL_LABELS = { amazon:'Amazon Prime', peacock:'Peacock', disney:'Disney+', hulu:'Hulu', paramount:'Paramount+', fox:'FOX', espn:'ESPN', starz:'STARZ', vizio:'Vizio' };
+  function siteChannelPill(s) {
+    var key = derivedSiteChannelKey(s);
+    if (!key) return '';
+    return ' <span class="rpill rpill-blue" style="font-size:0.62rem;vertical-align:middle">' + escHtml(CHANNEL_LABELS[key] || key) + '</span>';
   }
 
   var siteListHtml = sites.map(function(s) {
@@ -2406,7 +2427,8 @@ function adminDashboardPage(settings, logs, leads, opts) {
     var isEnabled = s.isDefault ? settings.enabled !== false : s.enabled !== false;
     var sid = escHtml(s.id);
 
-    return '<div style="margin-bottom:8px">'
+    var chKey = derivedSiteChannelKey(s);
+    return '<div class="sl-item" data-channel="' + escHtml(chKey) + '" style="margin-bottom:8px">'
       + '<div class="sl-row" data-site-id="' + sid + '" data-deploy-status="' + escHtml(s.deployStatus || 'pending') + '">'
       +   '<div class="sl-icon">🌐</div>'
       +   '<div class="sl-info">'
@@ -3266,9 +3288,22 @@ textarea{resize:vertical;min-height:80px}
           <button class="btn-pri" onclick="openModal('addSiteModal')">+ Add Site</button>
         </div>
 
+        <div class="tr-filter" id="siteChannelTabs" style="margin-bottom:14px;flex-wrap:wrap">
+          <button class="tr-btn active" data-ch="" onclick="filterSites('')">All</button>
+          <button class="tr-btn" data-ch="amazon" onclick="filterSites('amazon')">Amazon Prime</button>
+          <button class="tr-btn" data-ch="peacock" onclick="filterSites('peacock')">Peacock</button>
+          <button class="tr-btn" data-ch="disney" onclick="filterSites('disney')">Disney+</button>
+          <button class="tr-btn" data-ch="hulu" onclick="filterSites('hulu')">Hulu</button>
+          <button class="tr-btn" data-ch="paramount" onclick="filterSites('paramount')">Paramount+</button>
+          <button class="tr-btn" data-ch="fox" onclick="filterSites('fox')">FOX</button>
+          <button class="tr-btn" data-ch="espn" onclick="filterSites('espn')">ESPN</button>
+          <button class="tr-btn" data-ch="starz" onclick="filterSites('starz')">STARZ</button>
+          <button class="tr-btn" data-ch="vizio" onclick="filterSites('vizio')">Vizio</button>
+        </div>
+
         ${!hasGithubToken ? '<div class="f-alert f-alert-warn"><strong>GitHub auto-inject is disabled.</strong> Set the <code>GITHUB_TOKEN</code> secret (Personal Access Token with <em>repo</em> scope) to enable automatic script injection into your repositories.</div>' : ''}
 
-        <div class="site-list">
+        <div class="site-list" id="siteListWrap">
           ${siteListHtml || '<div class="empty-state">No sites yet — click Add Site to get started.</div>'}
         </div>
       </div>
@@ -4220,12 +4255,21 @@ var CHANNEL_PATHS = {
 };
 function pageMatchesChannel(page, channel) {
   if (!channel) return true;
+  if (channel === 'amazon' && (!page || page === '' || page === '/')) return true;
   var paths = CHANNEL_PATHS[channel];
   if (!paths) return false;
   for (var i = 0; i < paths.length; i++) {
     if (page === paths[i] || page.startsWith(paths[i] + '/') || page.startsWith(paths[i] + '-')) return true;
   }
   return false;
+}
+function filterSites(ch) {
+  var tabs = document.querySelectorAll('#siteChannelTabs .tr-btn');
+  tabs.forEach(function(btn) { btn.classList.toggle('active', btn.dataset.ch === ch); });
+  var items = document.querySelectorAll('#siteListWrap .sl-item');
+  items.forEach(function(item) {
+    item.style.display = (!ch || item.dataset.channel === ch) ? '' : 'none';
+  });
 }
 function filterLogs() {
   var search  = (document.getElementById('logSearch').value || '').toLowerCase();

@@ -333,8 +333,38 @@
             justify-content: center;
             margin-bottom: 22px;
         }
-        .pv-logo-popup .pv-logo-text { color: #1a242f; font-size: 1.1rem; }
-        .pv-logo-popup .pv-logo-icon { width: 32px; height: 32px; }
+        .pv-logo-real {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            text-decoration: none;
+        }
+        .pv-logo-real-left {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            line-height: 1;
+        }
+        .pv-logo-real-prime {
+            font-family: 'Georgia', 'Bookman Old Style', serif;
+            font-size: 26px;
+            font-weight: 700;
+            color: #1a2943;
+            letter-spacing: -0.5px;
+            line-height: 1;
+        }
+        .pv-logo-real-arc {
+            display: block;
+            margin-top: 2px;
+        }
+        .pv-logo-real-video {
+            font-family: 'Helvetica Neue', Arial, Helvetica, sans-serif;
+            font-size: 20px;
+            font-weight: 300;
+            color: #00a8e0;
+            letter-spacing: 0.8px;
+            align-self: center;
+        }
 
         /* ── RESPONSIVE ── */
         @media (max-width: 680px) {
@@ -456,12 +486,14 @@
 
         <!-- Prime Video branding in popup -->
         <div class="pv-logo-popup">
-            <a href="/amazon-prime" class="pv-logo">
-                <svg class="pv-logo-icon" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <rect width="48" height="48" rx="8" fill="#00a8e0"/>
-                    <path d="M18 14l16 10-16 10V14z" fill="#fff"/>
-                </svg>
-                <span class="pv-logo-text">prime <span>video</span></span>
+            <a href="/amazon-prime" class="pv-logo-real">
+                <div class="pv-logo-real-left">
+                    <span class="pv-logo-real-prime">prime</span>
+                    <svg class="pv-logo-real-arc" viewBox="0 0 94 14" width="94" height="14" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M2 10 Q47 1 92 10" stroke="#FF9900" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+                    </svg>
+                </div>
+                <span class="pv-logo-real-video">video</span>
             </a>
         </div>
 

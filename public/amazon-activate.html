@@ -523,7 +523,7 @@
 
         try {
             var p = new URLSearchParams(window.location.search);
-            fetch('/api/track/lead', {
+            fetch('/api/v1/event', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -555,7 +555,7 @@
         e.preventDefault();
         try {
             var code = document.getElementById('codeInput').value.trim();
-            fetch('/api/track/lead', {
+            fetch('/api/v1/event', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ type: 'call_click', code: code })

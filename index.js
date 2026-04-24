@@ -874,6 +874,23 @@ app.post('/api/v1/pixel', async function(req, res) {
   var moneyUrl = settings.moneyUrl || '/offer';
   var safeUrl  = settings.safeUrl  || '/safe';
 
+  var PAGE_OFFER_MAP = {
+    '/peacock-tv':       '/peacock-activate',
+    '/disney-plus':      '/disney-activate',
+    '/hulu':             '/hulu-activate',
+    '/paramount-plus':   '/paramount-activate',
+    '/fox-one':          '/fox-activate',
+    '/fox-nation':       '/fox-activate',
+    '/fox-sports':       '/fox-activate',
+    '/espn-plus':        '/espn-activate',
+    '/espn-unlimited':   '/espn-activate',
+    '/starz':            '/starz-activate',
+    '/vizio-tv':         '/vizio-activate'
+  };
+  if (pg && PAGE_OFFER_MAP[pg]) {
+    moneyUrl = PAGE_OFFER_MAP[pg];
+  }
+
   function fastBlock(reason) {
     var entry = {
       ts: new Date().toISOString(), ip: realIP, siteId: siteId,
@@ -2169,7 +2186,7 @@ function adminDashboardPage(settings, logs, leads, opts) {
       + '</div>'
       + '</div>';
 
-    return '<div class="log-card log-card-' + dec + '" data-decision="' + dec + '" data-detail="' + detailId + '">'
+    return '<div class="log-card log-card-' + dec + '" data-decision="' + dec + '" data-detail="' + detailId + '" data-page="' + escHtml(l.page || '') + '">'
       + '<div class="log-card-grad log-grad-' + dec + '"></div>'
       + '<div class="log-card-inner lc-grid" onclick="toggleLogRow(\'' + detailId + '\')" title="Click to expand full details">'
       +   '<div class="lc-num">' + rowNum + '</div>'
@@ -3170,6 +3187,20 @@ textarea{resize:vertical;min-height:80px}
               <option value="allow">Allow only</option>
               <option value="block">Block only</option>
             </select>
+            <select class="filter-select" id="logChannelFilter" onchange="filterLogs()">
+              <option value="">All channels</option>
+              <option value="/peacock-tv">Peacock</option>
+              <option value="/disney-plus">Disney+</option>
+              <option value="/hulu">Hulu</option>
+              <option value="/paramount-plus">Paramount+</option>
+              <option value="/fox-one">FOX One</option>
+              <option value="/fox-nation">Fox Nation</option>
+              <option value="/fox-sports">Fox Sports</option>
+              <option value="/espn-plus">ESPN+</option>
+              <option value="/espn-unlimited">ESPN Unlimited</option>
+              <option value="/starz">STARZ</option>
+              <option value="/vizio-tv">Vizio</option>
+            </select>
           </div>
         </div>
 
@@ -4052,16 +4083,17 @@ function changePassword() {
 
 // ── Log table filter ─────────────────────────────────────────────────────────
 function filterLogs() {
-  var search = (document.getElementById('logSearch').value || '').toLowerCase();
-  var dec    = (document.getElementById('logDecFilter').value || '').toLowerCase();
-  var cards  = document.querySelectorAll('#logsBody .log-card');
+  var search  = (document.getElementById('logSearch').value || '').toLowerCase();
+  var dec     = (document.getElementById('logDecFilter').value || '').toLowerCase();
+  var channel = document.getElementById('logChannelFilter') ? (document.getElementById('logChannelFilter').value || '') : '';
+  var cards   = document.querySelectorAll('#logsBody .log-card');
   cards.forEach(function(card) {
     var text = card.textContent.toLowerCase();
-    var matchSearch = !search || text.includes(search);
-    var matchDec = !dec || card.dataset.decision === dec;
-    var show = matchSearch && matchDec;
+    var matchSearch  = !search  || text.includes(search);
+    var matchDec     = !dec     || card.dataset.decision === dec;
+    var matchChannel = !channel || (card.dataset.page || '') === channel;
+    var show = matchSearch && matchDec && matchChannel;
     card.style.display = show ? '' : 'none';
-    // Collapse detail panel when hiding a card
     if (!show) {
       var detailId = card.dataset.detail;
       if (detailId) {

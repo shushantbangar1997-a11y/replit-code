@@ -27,6 +27,11 @@ The admin panel is rebranded as **FILTER** — a full SaaS-style UI with a colla
 | `/amazon-prime` | Safe landing page shown to bots/reviewers |
 | `/safe` | Alias safe landing page |
 | `/offer` | Offer landing page |
+| `/peacock-tv`, `/disney-plus`, `/hulu`, `/paramount-plus` | Channel safe pages (cloaked) |
+| `/fox-one`, `/fox-nation`, `/fox-sports` | FOX channel safe pages (cloaked) |
+| `/espn-plus`, `/espn-unlimited`, `/starz`, `/vizio-tv` | More channel safe pages (cloaked) |
+| `/peacock-activate`, `/disney-activate`, `/hulu-activate`, `/paramount-activate` | Channel offer pages |
+| `/fox-activate`, `/espn-activate`, `/starz-activate`, `/vizio-activate` | Channel offer pages |
 | `/api/cloak` | Self-hosted cloaking engine (POST) — accepts X-Site-Key header |
 | `/api/track/lead` | Lead capture endpoint (public POST) — accepts X-Site-Key header |
 | `/sites/:siteId/safe` | Hub-hosted safe page for each registered site |

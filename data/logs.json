@@ -1,5 +1,24 @@
 [
   {
+    "ts": "2026-04-24T01:03:20.295Z",
+    "ip": "127.0.0.1",
+    "siteId": "default",
+    "country": "XX",
+    "city": "",
+    "region": "",
+    "isp": "",
+    "org": "",
+    "ua": "curl/8.14.1",
+    "screen": "1920x1080",
+    "plugins": 3,
+    "tz": "America/New_York",
+    "wd": false,
+    "proxy": false,
+    "hosting": false,
+    "decision": "block",
+    "reason": "bot-ua"
+  },
+  {
     "ts": "2026-04-24T01:00:13.557Z",
     "ip": "127.0.0.1",
     "siteId": "default",

@@ -2316,6 +2316,13 @@ function adminDashboardPage(settings, logs, leads, opts) {
     return '';
   }
 
+  var CHANNEL_LABELS = { peacock: 'Peacock', disney: 'Disney+', hulu: 'Hulu', paramount: 'Paramount+', fox: 'FOX', espn: 'ESPN+', starz: 'STARZ', vizio: 'Vizio', amazon: 'Amazon' };
+  var CHANNEL_COLORS = { peacock: '#7e22ce', disney: '#1a77f2', hulu: '#16a34a', paramount: '#0064ff', fox: '#e0031c', espn: '#cc0000', starz: '#c8102e', vizio: '#1d3557', amazon: '#00a8e1' };
+  function channelBadge(ch) {
+    if (!ch || !CHANNEL_LABELS[ch]) return '<span style="color:#888">—</span>';
+    return '<span style="background:' + CHANNEL_COLORS[ch] + ';color:#fff;padding:2px 9px;border-radius:4px;font-size:0.72rem;font-weight:700;white-space:nowrap;letter-spacing:0.2px">' + CHANNEL_LABELS[ch] + '</span>';
+  }
+
   var leadRows = submits.map(function(l) {
     var ts      = fmtTs(l.ts);
     var flag    = flagEmoji(l.country);
@@ -2331,6 +2338,7 @@ function adminDashboardPage(settings, logs, leads, opts) {
       + '<td><span class="t-flag">' + flag + '</span> ' + escHtml(l.country || 'XX') + '</td>'
       + '<td>' + escHtml(l.city || '') + '</td>'
       + '<td class="t-mono" style="color:#3b82f6;font-weight:700">' + escHtml(l.code || '') + '</td>'
+      + '<td>' + channelBadge(ch) + '</td>'
       + '<td>' + adSource(l) + '</td>'
       + '<td class="t-mono">' + escHtml((l.tz || '').slice(0, 30)) + '</td>'
       + '<td>' + calledToggle + '</td>'
@@ -3436,13 +3444,14 @@ textarea{resize:vertical;min-height:80px}
                   <th>Country</th>
                   <th>City</th>
                   <th>Code</th>
+                  <th>Channel</th>
                   <th>Source / UTM</th>
                   <th>Visitor TZ</th>
                   <th>Called?</th>
                 </tr>
               </thead>
               <tbody id="leadsTableBody">
-                ${leadRows || '<tr><td colspan="8" class="empty-state">No leads yet</td></tr>'}
+                ${leadRows || '<tr><td colspan="9" class="empty-state">No leads yet</td></tr>'}
               </tbody>
             </table>
           </div>

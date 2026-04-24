@@ -344,6 +344,7 @@ function writeSites(sites) {
 }
 
 var RAILWAY_TOKEN_FILE = path.join(__dirname, '.local', 'railway_token');
+var GITHUB_TOKEN_FILE  = path.join(__dirname, '.local', 'github_token');
 
 function getRailwayToken() {
   if (process.env.RAILWAY_API_TOKEN) return process.env.RAILWAY_API_TOKEN;
@@ -354,6 +355,17 @@ function setRailwayToken(token) {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   if (token) { fs.writeFileSync(RAILWAY_TOKEN_FILE, token, { mode: 0o600 }); }
   else { try { fs.unlinkSync(RAILWAY_TOKEN_FILE); } catch(e) {} }
+}
+
+function getGithubToken() {
+  if (process.env.GITHUB_TOKEN) return process.env.GITHUB_TOKEN;
+  try { var t = fs.readFileSync(GITHUB_TOKEN_FILE, 'utf8').trim(); return t || ''; } catch(e) { return ''; }
+}
+function setGithubToken(token) {
+  var dir = path.dirname(GITHUB_TOKEN_FILE);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  if (token) { fs.writeFileSync(GITHUB_TOKEN_FILE, token, { mode: 0o600 }); }
+  else { try { fs.unlinkSync(GITHUB_TOKEN_FILE); } catch(e) {} }
 }
 
 function setDeployStatus(siteId, status) {
@@ -454,7 +466,7 @@ function githubApiRequest(method, urlPath, token, body) {
 }
 
 async function githubInject(site, hubUrl) {
-  var token = process.env.GITHUB_TOKEN;
+  var token = getGithubToken();
   if (!token || !site.githubRepo) {
     return { ok: false, reason: token ? 'no-repo' : 'no-token' };
   }
@@ -1126,7 +1138,7 @@ app.get('/' + ADMIN_PATH, requireAdmin, function(req, res) {
     selectedSite: selectedSite,
     hubUrl: hubUrl,
     siteCreated: siteCreated,
-    hasGithubToken: !!process.env.GITHUB_TOKEN,
+    hasGithubToken: !!getGithubToken(),
     hasRailwayToken: !!getRailwayToken(),
     displayTz: req.session.displayTz || 'UTC',
     tzAutoDetected: !!req.session.tzAutoDetected,
@@ -1201,6 +1213,13 @@ app.post('/' + ADMIN_PATH + '/settings/railway-token', requireAdmin, function(re
   res.redirect('/' + ADMIN_PATH + '#settings');
 });
 
+// ─── GitHub token setup ───────────────────────────────────────────────────────
+app.post('/' + ADMIN_PATH + '/settings/github-token', requireAdmin, function(req, res) {
+  var token = (req.body.githubToken || '').trim();
+  setGithubToken(token); // stores in .local/github_token (env var takes priority)
+  res.redirect('/' + ADMIN_PATH + '#settings');
+});
+
 // ─── Admin toggle cloaking ────────────────────────────────────────────────────
 app.post('/' + ADMIN_PATH + '/toggle', requireAdmin, async function(req, res) {
   var settings = readSettings();
@@ -1209,7 +1228,7 @@ app.post('/' + ADMIN_PATH + '/toggle', requireAdmin, async function(req, res) {
   // Re-inject script + trigger Railway redeploy for default site
   var sites = readSites();
   var defSite = sites.find(function(s) { return s.isDefault; });
-  if (defSite && defSite.githubRepo && process.env.GITHUB_TOKEN) {
+  if (defSite && defSite.githubRepo && getGithubToken()) {
     var hubUrl = 'https://' + (process.env.REPLIT_DEV_DOMAIN || req.headers.host || 'localhost');
     githubInject(defSite, hubUrl).then(function(r) {
       if (r && r.ok) {
@@ -1403,17 +1422,19 @@ app.post('/' + ADMIN_PATH + '/sites', requireAdmin, async function(req, res) {
   var domain    = (req.body.domain || '').trim().replace(/^https?:\/\//, '').replace(/\/$/, '');
   var githubRepo = (req.body.githubRepo || '').trim();
   var moneyUrl  = (req.body.moneyUrl || '').trim();
+  var adUrl     = (req.body.adUrl || '').trim();
   if (!name) return res.redirect('/' + ADMIN_PATH + '?siteErr=name');
 
   var hubUrl = 'https://' + (process.env.REPLIT_DEV_DOMAIN || req.headers.host || 'localhost');
   var id = 'site-' + Date.now();
   var apiKey = crypto.randomUUID();
-  var safeUrl = hubUrl + '/sites/' + id + '/safe';
+  var customSafeUrl = (req.body.safeUrl || '').trim();
+  var safeUrl = customSafeUrl || (hubUrl + '/sites/' + id + '/safe');
 
   var newSite = {
     id: id, name: name, domain: domain, githubRepo: githubRepo,
     railwayProjectId: '', railwayServiceId: '',
-    apiKey: apiKey, moneyUrl: moneyUrl, safeUrl: safeUrl,
+    apiKey: apiKey, moneyUrl: moneyUrl, safeUrl: safeUrl, adUrl: adUrl,
     enabled: true, blockedIps: [], allowedCountries: [],
     deployStatus: 'pending', isDefault: false,
     createdAt: new Date().toISOString()
@@ -1424,7 +1445,7 @@ app.post('/' + ADMIN_PATH + '/sites', requireAdmin, async function(req, res) {
   writeSites(sites);
 
   // Background: auto-discover Railway IDs from GitHub repo URL, then inject + deploy
-  if (githubRepo && process.env.GITHUB_TOKEN) {
+  if (githubRepo && getGithubToken()) {
     // Auto-discover Railway projectId/serviceId from the provided GitHub repo URL
     autoDiscoverRailwayIds(githubRepo).then(function(ids) {
       if (ids) {
@@ -1471,6 +1492,7 @@ app.post('/' + ADMIN_PATH + '/sites/:id/settings', requireAdmin, async function(
   site.railwayServiceId = (req.body.railwayServiceId !== undefined) ? req.body.railwayServiceId.trim() : site.railwayServiceId;
   site.moneyUrl         = (req.body.moneyUrl !== undefined) ? req.body.moneyUrl.trim() : site.moneyUrl;
   site.safeUrl          = (req.body.safeUrl  !== undefined && req.body.safeUrl.trim()) ? req.body.safeUrl.trim() : site.safeUrl;
+  site.adUrl            = (req.body.adUrl    !== undefined) ? req.body.adUrl.trim() : (site.adUrl || '');
   if (req.body.enabled !== undefined) {
     site.enabled = req.body.enabled !== 'false';
   }
@@ -1497,7 +1519,7 @@ app.post('/' + ADMIN_PATH + '/sites/:id/settings', requireAdmin, async function(
   }
 
   // Re-inject if GitHub repo set and token available, then trigger Railway redeploy
-  if (site.githubRepo && process.env.GITHUB_TOKEN) {
+  if (site.githubRepo && getGithubToken()) {
     githubInject(site, hubUrl).then(function(r) {
       if (r && r.ok) {
         // githubInject already set 'pushed' status + SSE emit; trigger Railway redeploy next
@@ -1525,7 +1547,7 @@ app.post('/' + ADMIN_PATH + '/sites/:id/regenerate-key', requireAdmin, async fun
   writeSites(sites);
 
   // Re-inject with new key, trigger Railway redeploy, then poll status
-  if (sites[idx].githubRepo && process.env.GITHUB_TOKEN) {
+  if (sites[idx].githubRepo && getGithubToken()) {
     var siteSnapshot = sites[idx];
     githubInject(siteSnapshot, hubUrl).then(function(r) {
       if (r && r.ok) {
@@ -1614,7 +1636,7 @@ app.post('/' + ADMIN_PATH + '/sites/:id/toggle', requireAdmin, async function(re
     }
     // Re-inject script so GitHub/Railway picks up the change
     var hubUrl = 'https://' + (process.env.REPLIT_DEV_DOMAIN || req.headers.host || 'localhost');
-    if (sites[idx].githubRepo && process.env.GITHUB_TOKEN) {
+    if (sites[idx].githubRepo && getGithubToken()) {
       var toggledSite = sites[idx];
       githubInject(toggledSite, hubUrl).then(function(r) {
         if (r && r.ok) {
@@ -1681,7 +1703,7 @@ app.get('/:page', function(req, res) {
 });
 
 function scheduleStartupReInject() {
-  if (!process.env.GITHUB_TOKEN) return;
+  if (!getGithubToken()) return;
   var hubDomain = process.env.REPLIT_DEV_DOMAIN || process.env.RAILWAY_PUBLIC_DOMAIN || null;
   if (!hubDomain) return;
   var hubUrl = 'https://' + hubDomain;
@@ -2314,10 +2336,11 @@ function adminDashboardPage(settings, logs, leads, opts) {
       +       '<div class="form-grid2">'
       +         '<div class="form-row"><label>Site Name</label><input type="text" name="name" value="' + escHtml(s.name) + '"></div>'
       +         '<div class="form-row"><label>Domain</label><input type="text" name="domain" value="' + escHtml(s.domain || '') + '" placeholder="example.com"></div>'
-      +         '<div class="form-row"><label>Money URL</label><input type="text" name="moneyUrl" value="' + escHtml(s.moneyUrl || '') + '" placeholder="https://your-offer-url.com"></div>'
-      +         '<div class="form-row"><label>Safe URL <span class="hint" style="display:inline">(blank = hub)</span></label><input type="text" name="safeUrl" value="' + escHtml(s.safeUrl || '') + '" placeholder="' + escHtml(safeHref) + '"></div>'
+      +         '<div class="form-row"><label>Offer URL <span class="hint" style="display:inline">(real visitors)</span></label><input type="text" name="moneyUrl" value="' + escHtml(s.moneyUrl || '') + '" placeholder="https://your-offer-url.com"></div>'
+      +         '<div class="form-row"><label>Safe URL <span class="hint" style="display:inline">(bots / crawlers)</span></label><input type="text" name="safeUrl" value="' + escHtml(s.safeUrl || '') + '" placeholder="' + escHtml(safeHref) + '"></div>'
       +         '<div class="form-row"><label>GitHub Repo</label><input type="text" name="githubRepo" value="' + escHtml(s.githubRepo || '') + '" placeholder="https://github.com/user/repo"></div>'
       +         '<div class="form-row"><label>Allowed Countries</label><input type="text" name="allowedCountries" value="' + escHtml((s.allowedCountries || []).join(', ')) + '" placeholder="US CA GB"></div>'
+      +         '<div class="form-row" style="grid-column:1/-1"><label>Google Ad URL <span class="hint" style="display:inline">(reference — the URL you use in your Google Ad)</span></label><input type="text" name="adUrl" value="' + escHtml(s.adUrl || '') + '" placeholder="https://yourdomain.com"></div>'
       +       '</div>'
       +       '<button type="submit" class="btn-pri mt12">Save &amp; Push</button>'
       +     '</form>'
@@ -3433,10 +3456,21 @@ textarea{resize:vertical;min-height:80px}
             <div class="f-card-title">GitHub Integration</div>
             <div class="flex-gap8 mb12">
               ${hasGithubToken
-                ? '<span class="db-live">● Connected</span><span class="hint">GITHUB_TOKEN is set — auto-inject and auto-push are enabled</span>'
-                : '<span class="db-pending">○ Not connected</span><span class="hint" style="color:var(--amber)">Set GITHUB_TOKEN secret to enable auto-inject</span>'}
+                ? '<span class="db-live">● Connected</span><span class="hint">GitHub token is set — auto-inject and auto-push are enabled</span>'
+                : '<span class="db-pending">○ Not connected</span><span class="hint" style="color:var(--amber)">Paste your GitHub Personal Access Token below to enable auto-inject</span>'}
             </div>
-            <p class="hint">Set a GitHub Personal Access Token with <code>repo</code> scope as the <strong>GITHUB_TOKEN</strong> environment secret. FILTER will automatically push cloaking scripts to your GitHub repositories when you create or update sites.</p>
+            <p class="hint mb12">Create a GitHub Personal Access Token at <strong>github.com → Settings → Developer settings → Personal access tokens → Tokens (classic)</strong>, select the <code>repo</code> scope, and paste it here. FILTER will automatically push the cloaking script into your repo every time you add or update a site.</p>
+            <form method="POST" action="/${ADMIN_PATH}/settings/github-token">
+              <div class="form-row" style="gap:8px;align-items:center;flex-wrap:nowrap">
+                <input type="password" name="githubToken" autocomplete="new-password"
+                  placeholder="${hasGithubToken ? '••••••••••••••••  (token is set)' : 'Paste GitHub Personal Access Token…'}"
+                  style="flex:1;background:#0d0018;border:1px solid #2e1655;color:#e2d9ff;padding:8px 12px;border-radius:8px;font-size:0.85rem">
+                <button type="submit" class="btn-primary" style="padding:8px 18px;font-size:0.85rem;white-space:nowrap">Save Token</button>
+                ${hasGithubToken
+                  ? '<button type="submit" name="githubToken" value="" style="background:#1a0030;border:1px solid #7f1d1d;color:#f87171;padding:8px 12px;border-radius:8px;font-size:0.78rem;cursor:pointer;white-space:nowrap">Clear</button>'
+                  : ''}
+              </div>
+            </form>
           </div>
           <div class="f-card">
             <div class="f-card-title">Railway Integration</div>
@@ -3584,19 +3618,30 @@ textarea{resize:vertical;min-height:80px}
           <input type="text" name="name" placeholder="My Peacock Site" required>
         </div>
         <div class="form-row">
-          <label>Domain</label>
+          <label>Domain <span class="hint" style="display:inline">(your site's domain)</span></label>
           <input type="text" name="domain" placeholder="mypeacocksite.com">
         </div>
-        <div class="form-row">
+        <div class="form-row" style="grid-column:1/-1">
           <label>GitHub Repo URL</label>
-          <input type="text" name="githubRepo" placeholder="https://github.com/user/repo">
-        </div>
-        <div class="form-row">
-          <label>Money URL</label>
-          <input type="text" name="moneyUrl" placeholder="https://your-offer-page.com">
+          <input type="text" name="githubRepo" placeholder="https://github.com/yourusername/your-repo">
         </div>
       </div>
-      <p class="hint mt8">FILTER will automatically generate an API key, create hub-hosted safe and money pages, and push the cloaking script to your GitHub repo.</p>
+      <div style="margin:14px 0 6px;font-size:.72rem;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">Traffic URLs</div>
+      <div class="form-grid2">
+        <div class="form-row">
+          <label>Offer URL <span class="hint" style="display:inline">(real visitors go here)</span></label>
+          <input type="text" name="moneyUrl" placeholder="https://your-offer-page.com">
+        </div>
+        <div class="form-row">
+          <label>Safe URL <span class="hint" style="display:inline">(bots / crawlers go here)</span></label>
+          <input type="text" name="safeUrl" placeholder="Leave blank to use hub safe page">
+        </div>
+        <div class="form-row" style="grid-column:1/-1">
+          <label>Google Ad URL <span class="hint" style="display:inline">(the URL you put in your Google Ad — for reference)</span></label>
+          <input type="text" name="adUrl" placeholder="https://yourdomain.com (the URL your ad sends people to)">
+        </div>
+      </div>
+      <p class="hint mt10">FILTER will generate an API key, push the cloaking script to your GitHub repo, and auto-trigger a Railway deploy. Real visitors → Offer URL. Bots/crawlers → Safe URL.</p>
       <div class="flex-gap8 mt16">
         <button type="submit" class="btn-pri">Create Site →</button>
         <button type="button" class="btn-ghost" onclick="closeModal('addSiteModal')">Cancel</button>

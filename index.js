@@ -875,6 +875,7 @@ app.post('/api/v1/pixel', async function(req, res) {
   var safeUrl  = settings.safeUrl  || '/safe';
 
   var PAGE_OFFER_MAP = {
+    '/peacock':          '/peacock-activate',
     '/peacock-tv':       '/peacock-activate',
     '/disney-plus':      '/disney-activate',
     '/hulu':             '/hulu-activate',
@@ -1047,6 +1048,7 @@ app.post('/api/v1/event', async function(req, res) {
       utm_term:     (req.body.utm_term     || '').slice(0, 80),
       utm_content:  (req.body.utm_content  || '').slice(0, 80),
       gclid:        (req.body.gclid        || '').slice(0, 80),
+      channel:      (req.body.channel      || '').slice(0, 40),
       called:       false
     });
   } catch (e) { /* silently swallow — never break client experience */ }
@@ -1913,6 +1915,71 @@ function adminDashboardPage(settings, logs, leads, opts) {
   var allTotal     = allAllow + allBlock;
   var blockRate    = allTotal > 0 ? Math.round(allBlock / allTotal * 100) : 0;
 
+  // ── Channel breakdown ──────────────────────────────────────────────────────
+  var CHANNEL_PATH_MAP_SRV = {
+    'Amazon Prime': ['/prime','/activate','/amazon','/amazon-prime','/amazon-activate'],
+    'Peacock':      ['/peacock','/peacock-tv'],
+    'Disney+':      ['/disney-plus','/disney'],
+    'Hulu':         ['/hulu'],
+    'Paramount+':   ['/paramount-plus','/paramount'],
+    'FOX':          ['/fox-one','/fox-nation','/fox-sports','/fox'],
+    'ESPN':         ['/espn-plus','/espn-unlimited','/espn'],
+    'STARZ':        ['/starz'],
+    'Vizio':        ['/vizio-tv','/vizio']
+  };
+  function pageToChannel(pg) {
+    if (!pg) return null;
+    var keys = Object.keys(CHANNEL_PATH_MAP_SRV);
+    for (var ci = 0; ci < keys.length; ci++) {
+      var pths = CHANNEL_PATH_MAP_SRV[keys[ci]];
+      for (var pi = 0; pi < pths.length; pi++) {
+        if (pg === pths[pi] || pg.startsWith(pths[pi] + '/') || pg.startsWith(pths[pi] + '-')) return keys[ci];
+      }
+    }
+    return null;
+  }
+  var channelStats = {};
+  todayLogs.forEach(function(l) {
+    var ch = pageToChannel(l.page);
+    if (!ch) return;
+    if (!channelStats[ch]) channelStats[ch] = { hits: 0, allow: 0, block: 0, leads: 0 };
+    channelStats[ch].hits++;
+    if (l.decision === 'allow') channelStats[ch].allow++;
+    else channelStats[ch].block++;
+  });
+  var todayLeadsForCh = statsLeads.filter(function(l) {
+    if (!l.ts) return false;
+    var d = l.ts.slice(0, 10);
+    if (rangeDays === -1 && rfrom && rto) return d >= rfrom && d <= rto;
+    if (rangeDays === 0) return l.ts.startsWith(today);
+    return d >= rangeCutoff;
+  });
+  todayLeadsForCh.forEach(function(l) {
+    if (l.type !== 'code_submit') return;
+    var ch = l.channel;
+    if (!ch) return;
+    var label = ch.charAt(0).toUpperCase() + ch.slice(1);
+    if (ch === 'disney') label = 'Disney+';
+    if (ch === 'paramount') label = 'Paramount+';
+    if (ch === 'espn') label = 'ESPN';
+    if (ch === 'starz') label = 'STARZ';
+    if (!channelStats[label]) channelStats[label] = { hits: 0, allow: 0, block: 0, leads: 0 };
+    channelStats[label].leads++;
+  });
+  var channelKeys = Object.keys(CHANNEL_PATH_MAP_SRV).filter(function(k) { return channelStats[k] && (channelStats[k].hits > 0 || channelStats[k].leads > 0); });
+  var channelTableRows = channelKeys.length ? channelKeys.sort(function(a,b){ return channelStats[b].hits - channelStats[a].hits; }).map(function(ch) {
+    var s = channelStats[ch];
+    var rate = s.hits > 0 ? Math.round(s.block / s.hits * 100) : 0;
+    return '<tr style="border-bottom:1px solid var(--border)">'
+      + '<td style="padding:7px 8px;font-weight:600;font-size:.78rem">' + escHtml(ch) + '</td>'
+      + '<td style="padding:7px 8px;text-align:right;font-size:.78rem">' + s.hits + '</td>'
+      + '<td style="padding:7px 8px;text-align:right;font-size:.78rem;color:var(--green)">' + s.allow + '</td>'
+      + '<td style="padding:7px 8px;text-align:right;font-size:.78rem;color:var(--red)">' + s.block + '</td>'
+      + '<td style="padding:7px 8px;text-align:right;font-size:.78rem">' + rate + '%</td>'
+      + '<td style="padding:7px 8px;text-align:right;font-size:.78rem;color:#3b82f6;font-weight:700">' + (s.leads || 0) + '</td>'
+      + '</tr>';
+  }).join('') : '<tr><td colspan="6" style="padding:16px;text-align:center;color:var(--text3);font-size:.78rem">No channel traffic in this period</td></tr>';
+
   // ── Top countries ─────────────────────────────────────────────────────────
   var countryStats = {};
   todayLogs.forEach(function(l) {
@@ -2229,10 +2296,12 @@ function adminDashboardPage(settings, logs, leads, opts) {
     var ts      = fmtTs(l.ts);
     var flag    = flagEmoji(l.country);
     var safeTs  = escHtml(l.ts || '');
+    var ch      = escHtml(l.channel || '');
+    var st      = l.called ? 'called' : 'pending';
     var calledToggle = l.called
       ? '<button class="lead-toggle-btn called" data-ts="' + safeTs + '" data-site="' + escHtml(l.siteId || '') + '" data-ip="' + escHtml(l.ip || '') + '" onclick="toggleLeadCalled(this)" title="Mark as not called">✓ Called</button>'
       : '<button class="lead-toggle-btn" data-ts="' + safeTs + '" data-site="' + escHtml(l.siteId || '') + '" data-ip="' + escHtml(l.ip || '') + '" onclick="toggleLeadCalled(this)" title="Mark as called">○ Pending</button>';
-    return '<tr>'
+    return '<tr class="lead-row" data-channel="' + ch + '" data-status="' + st + '">'
       + '<td class="t-mono t-ts">' + escHtml(ts) + '</td>'
       + '<td class="t-mono">' + escHtml(l.ip || '') + '</td>'
       + '<td><span class="t-flag">' + flag + '</span> ' + escHtml(l.country || 'XX') + '</td>'
@@ -2311,6 +2380,22 @@ function adminDashboardPage(settings, logs, leads, opts) {
   }).join('') || '<tr><td colspan="3" class="t-muted t-center">No blocks recorded</td></tr>';
 
   // ── New site list rows for FILTER UI ─────────────────────────────────────
+  function siteChannelPill(s) {
+    var src = ((s.name || '') + ' ' + (s.domain || '') + ' ' + (s.moneyUrl || '')).toLowerCase();
+    var ch = '';
+    if (/peacock/.test(src)) ch = 'Peacock';
+    else if (/disney/.test(src)) ch = 'Disney+';
+    else if (/hulu/.test(src)) ch = 'Hulu';
+    else if (/paramount/.test(src)) ch = 'Paramount+';
+    else if (/fox\b|fox-/.test(src)) ch = 'FOX';
+    else if (/espn/.test(src)) ch = 'ESPN';
+    else if (/starz/.test(src)) ch = 'STARZ';
+    else if (/vizio/.test(src)) ch = 'Vizio';
+    else if (/amazon|prime/.test(src)) ch = 'Amazon Prime';
+    if (!ch) return '';
+    return ' <span class="rpill rpill-blue" style="font-size:0.62rem;vertical-align:middle">' + escHtml(ch) + '</span>';
+  }
+
   var siteListHtml = sites.map(function(s) {
     var dsCls = { live:'db-live', pushed:'db-pushed', building:'db-pushed', pending:'db-pending', failed:'db-failed', 'key-rotated':'db-rotated' }[s.deployStatus] || 'db-pending';
     var dsLabel = { live:'Live', pushed:'GitHub ✓', building:'Deploying…', pending:'Pending', failed:'Failed', 'key-rotated':'Key Rotated' }[s.deployStatus] || 'Pending';
@@ -2325,7 +2410,7 @@ function adminDashboardPage(settings, logs, leads, opts) {
       + '<div class="sl-row" data-site-id="' + sid + '" data-deploy-status="' + escHtml(s.deployStatus || 'pending') + '">'
       +   '<div class="sl-icon">🌐</div>'
       +   '<div class="sl-info">'
-      +     '<div class="sl-name">' + escHtml(s.name) + (s.isDefault ? ' <span class="rpill rpill-grey" style="font-size:0.62rem">DEFAULT</span>' : '') + '</div>'
+      +     '<div class="sl-name">' + escHtml(s.name) + (s.isDefault ? ' <span class="rpill rpill-grey" style="font-size:0.62rem">DEFAULT</span>' : '') + siteChannelPill(s) + '</div>'
       +     '<div class="sl-domain">' + escHtml(s.domain || '—') + '</div>'
       +   '</div>'
       +   '<span class="' + dsCls + '" style="flex-shrink:0">' + escHtml(dsLabel) + '</span>'
@@ -2727,6 +2812,7 @@ body.dark .log-card:hover{box-shadow:0 4px 14px rgba(0,0,0,.28)}
 .rpill-orange{background:rgba(249,115,22,.1);color:#fb923c;border:1px solid rgba(249,115,22,.15)}
 .rpill-amber{background:rgba(245,158,11,.1);color:var(--amber);border:1px solid rgba(245,158,11,.15)}
 .rpill-grey{background:rgba(255,255,255,.05);color:var(--text3);border:1px solid var(--border)}
+.rpill-blue{background:rgba(59,130,246,.12);color:#60a5fa;border:1px solid rgba(59,130,246,.2)}
 /* Buttons */
 .btn-pri{background:var(--pri);color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:.8rem;font-weight:600;cursor:pointer;transition:background .2s;display:inline-flex;align-items:center;gap:5px}
 .btn-pri:hover{background:var(--pri-h)}
@@ -3034,6 +3120,26 @@ textarea{resize:vertical;min-height:80px}
           </div>
         </div>
 
+        <!-- By Channel breakdown -->
+        <div class="f-card" style="margin-bottom:18px;padding:18px 20px 14px">
+          <div style="font-size:.82rem;font-weight:700;color:var(--text2);margin-bottom:12px;letter-spacing:.3px;text-transform:uppercase">By Channel</div>
+          <div style="overflow-x:auto">
+            <table style="width:100%;border-collapse:collapse">
+              <thead>
+                <tr style="border-bottom:1px solid var(--border)">
+                  <th style="text-align:left;padding:5px 8px;color:var(--text3);font-size:.63rem;text-transform:uppercase;letter-spacing:.5px;font-weight:700">Channel</th>
+                  <th style="text-align:right;padding:5px 8px;color:var(--text3);font-size:.63rem;text-transform:uppercase;letter-spacing:.5px;font-weight:700">Hits</th>
+                  <th style="text-align:right;padding:5px 8px;color:var(--text3);font-size:.63rem;text-transform:uppercase;letter-spacing:.5px;font-weight:700">Allow</th>
+                  <th style="text-align:right;padding:5px 8px;color:var(--text3);font-size:.63rem;text-transform:uppercase;letter-spacing:.5px;font-weight:700">Block</th>
+                  <th style="text-align:right;padding:5px 8px;color:var(--text3);font-size:.63rem;text-transform:uppercase;letter-spacing:.5px;font-weight:700">Block%</th>
+                  <th style="text-align:right;padding:5px 8px;color:var(--text3);font-size:.63rem;text-transform:uppercase;letter-spacing:.5px;font-weight:700">Leads</th>
+                </tr>
+              </thead>
+              <tbody>${channelTableRows}</tbody>
+            </table>
+          </div>
+        </div>
+
         <!-- Mid row: donut + bar chart + live feed -->
         <div class="dash-mid">
           <!-- Allow/Block donut -->
@@ -3189,17 +3295,15 @@ textarea{resize:vertical;min-height:80px}
             </select>
             <select class="filter-select" id="logChannelFilter" onchange="filterLogs()">
               <option value="">All channels</option>
-              <option value="/peacock-tv">Peacock</option>
-              <option value="/disney-plus">Disney+</option>
-              <option value="/hulu">Hulu</option>
-              <option value="/paramount-plus">Paramount+</option>
-              <option value="/fox-one">FOX One</option>
-              <option value="/fox-nation">Fox Nation</option>
-              <option value="/fox-sports">Fox Sports</option>
-              <option value="/espn-plus">ESPN+</option>
-              <option value="/espn-unlimited">ESPN Unlimited</option>
-              <option value="/starz">STARZ</option>
-              <option value="/vizio-tv">Vizio</option>
+              <option value="amazon">Amazon Prime</option>
+              <option value="peacock">Peacock</option>
+              <option value="disney">Disney+</option>
+              <option value="hulu">Hulu</option>
+              <option value="paramount">Paramount+</option>
+              <option value="fox">FOX</option>
+              <option value="espn">ESPN</option>
+              <option value="starz">STARZ</option>
+              <option value="vizio">Vizio</option>
             </select>
           </div>
         </div>
@@ -3239,6 +3343,27 @@ textarea{resize:vertical;min-height:80px}
           </div>
         </div>
 
+        <div class="cl-header-bar" style="margin-bottom:10px">
+          <input type="text" class="filter-input" id="leadSearch" placeholder="Filter IP, country or code…" oninput="filterLeads()" style="min-width:150px">
+          <select class="filter-select" id="leadChannelFilter" onchange="filterLeads()">
+            <option value="">All channels</option>
+            <option value="amazon">Amazon Prime</option>
+            <option value="peacock">Peacock</option>
+            <option value="disney">Disney+</option>
+            <option value="hulu">Hulu</option>
+            <option value="paramount">Paramount+</option>
+            <option value="fox">FOX</option>
+            <option value="espn">ESPN</option>
+            <option value="starz">STARZ</option>
+            <option value="vizio">Vizio</option>
+          </select>
+          <select class="filter-select" id="leadStatusFilter" onchange="filterLeads()">
+            <option value="">All statuses</option>
+            <option value="pending">Pending only</option>
+            <option value="called">Called only</option>
+          </select>
+        </div>
+
         <div class="f-card" style="padding:0">
           <div class="f-table-wrap">
             <table>
@@ -3254,7 +3379,7 @@ textarea{resize:vertical;min-height:80px}
                   <th>Called?</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody id="leadsTableBody">
                 ${leadRows || '<tr><td colspan="8" class="empty-state">No leads yet</td></tr>'}
               </tbody>
             </table>
@@ -4082,6 +4207,26 @@ function changePassword() {
 }
 
 // ── Log table filter ─────────────────────────────────────────────────────────
+var CHANNEL_PATHS = {
+  amazon:    ['/prime','/activate','/amazon','/amazon-prime','/amazon-activate'],
+  peacock:   ['/peacock','/peacock-tv'],
+  disney:    ['/disney-plus','/disney'],
+  hulu:      ['/hulu'],
+  paramount: ['/paramount-plus','/paramount'],
+  fox:       ['/fox-one','/fox-nation','/fox-sports','/fox'],
+  espn:      ['/espn-plus','/espn-unlimited','/espn'],
+  starz:     ['/starz'],
+  vizio:     ['/vizio-tv','/vizio']
+};
+function pageMatchesChannel(page, channel) {
+  if (!channel) return true;
+  var paths = CHANNEL_PATHS[channel];
+  if (!paths) return false;
+  for (var i = 0; i < paths.length; i++) {
+    if (page === paths[i] || page.startsWith(paths[i] + '/') || page.startsWith(paths[i] + '-')) return true;
+  }
+  return false;
+}
 function filterLogs() {
   var search  = (document.getElementById('logSearch').value || '').toLowerCase();
   var dec     = (document.getElementById('logDecFilter').value || '').toLowerCase();
@@ -4091,7 +4236,7 @@ function filterLogs() {
     var text = card.textContent.toLowerCase();
     var matchSearch  = !search  || text.includes(search);
     var matchDec     = !dec     || card.dataset.decision === dec;
-    var matchChannel = !channel || (card.dataset.page || '') === channel;
+    var matchChannel = !channel || pageMatchesChannel(card.dataset.page || '', channel);
     var show = matchSearch && matchDec && matchChannel;
     card.style.display = show ? '' : 'none';
     if (!show) {
@@ -4101,6 +4246,19 @@ function filterLogs() {
         if (detail) detail.style.display = 'none';
       }
     }
+  });
+}
+function filterLeads() {
+  var search  = (document.getElementById('leadSearch') ? (document.getElementById('leadSearch').value || '').toLowerCase() : '');
+  var channel = document.getElementById('leadChannelFilter') ? (document.getElementById('leadChannelFilter').value || '') : '';
+  var status  = document.getElementById('leadStatusFilter') ? (document.getElementById('leadStatusFilter').value || '') : '';
+  var rows    = document.querySelectorAll('#leadsTableBody tr.lead-row');
+  rows.forEach(function(row) {
+    var text = row.textContent.toLowerCase();
+    var matchSearch  = !search  || text.includes(search);
+    var matchChannel = !channel || pageMatchesChannel(row.dataset.channel || '', channel);
+    var matchStatus  = !status  || row.dataset.status === status;
+    row.style.display = (matchSearch && matchChannel && matchStatus) ? '' : 'none';
   });
 }
 

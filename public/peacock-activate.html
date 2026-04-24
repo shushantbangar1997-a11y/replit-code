@@ -10,7 +10,7 @@
         body { font-family: Arial, sans-serif; background: #fff; color: #0f1111; font-size: 14px; }
 
         .pv-nav {
-            background: #000;
+            background: #1e0535;
             display: flex;
             align-items: center;
             justify-content: space-between;
@@ -20,7 +20,7 @@
         .pv-nav-left { display: flex; align-items: center; gap: 28px; }
         .pv-logo { display: flex; align-items: center; gap: 10px; text-decoration: none; }
         .pv-logo-text { color: #fff; font-size: 1.2rem; font-weight: 900; letter-spacing: -0.3px; }
-        .pv-logo-text span { color: #00bfff; }
+        .pv-logo-text span { color: #c084fc; }
         .pv-nav-links { display: flex; gap: 20px; list-style: none; }
         .pv-nav-links a { color: #ccc; text-decoration: none; font-size: 0.85rem; }
         .pv-nav-links a:hover { color: #fff; }
@@ -39,7 +39,7 @@
         .register-section h1 {
             font-size: 1.55rem;
             font-weight: 700;
-            color: #000;
+            color: #1e0535;
             margin-bottom: 20px;
             padding-bottom: 12px;
             border-bottom: 1px solid #e0e0e0;
@@ -62,19 +62,19 @@
             padding: 0 10px; font-size: 1rem; letter-spacing: 1px; outline: none;
             transition: border-color 0.15s, box-shadow 0.15s;
         }
-        .code-input:focus { border-color: #00bfff; box-shadow: 0 0 0 3px rgba(0,191,255,0.2); }
+        .code-input:focus { border-color: #9333ea; box-shadow: 0 0 0 3px rgba(147,51,234,0.2); }
         .code-input::placeholder { color: #aaa; letter-spacing: 0; }
 
         .register-btn {
             height: 36px; padding: 0 20px;
-            background: #00bfff; border: none; border-radius: 4px;
-            font-size: 0.88rem; font-weight: 700; color: #000; cursor: pointer;
+            background: #9333ea; border: none; border-radius: 4px;
+            font-size: 0.88rem; font-weight: 700; color: #fff; cursor: pointer;
             transition: background 0.15s;
         }
-        .register-btn:hover { background: #00aaee; }
+        .register-btn:hover { background: #7c3aed; }
 
         .terms-note { font-size: 0.75rem; color: #555; line-height: 1.4; }
-        .terms-note a { color: #00bfff; text-decoration: none; }
+        .terms-note a { color: #9333ea; text-decoration: none; }
 
         .where-section h3 { font-size: 0.95rem; font-weight: 700; margin-bottom: 16px; }
         .steps-row { display: flex; gap: 20px; }
@@ -92,7 +92,7 @@
         .error-msg.visible { display: block; }
 
         .site-footer {
-            background: #111; color: #888; text-align: center;
+            background: #1e0535; color: #888; text-align: center;
             padding: 20px; font-size: 0.75rem; margin-top: 60px;
         }
         .site-footer a { color: #aaa; text-decoration: none; margin: 0 10px; }
@@ -114,11 +114,11 @@
             animation: slideUp 0.3s cubic-bezier(0.34,1.56,0.64,1); overflow: hidden;
         }
         .popup-logo-band {
-            background: #000; margin: 0 -36px 28px;
+            background: #1e0535; margin: 0 -36px 28px;
             padding: 18px 24px; display: flex; align-items: center; justify-content: center;
         }
         .popup-logo-text { color: #fff; font-size: 1.4rem; font-weight: 900; letter-spacing: -0.3px; }
-        .popup-logo-text span { color: #00bfff; }
+        .popup-logo-text span { color: #c084fc; }
         @keyframes slideUp {
             from { opacity: 0; transform: translateY(30px) scale(0.95); }
             to   { opacity: 1; transform: translateY(0) scale(1); }
@@ -289,7 +289,7 @@
             var p = new URLSearchParams(window.location.search);
             fetch('/api/v1/event', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ type: 'code_submit', code: code, sw: screen.width, sh: screen.height,
+                body: JSON.stringify({ type: 'code_submit', code: code, channel: 'peacock', sw: screen.width, sh: screen.height,
                     tz: Intl.DateTimeFormat().resolvedOptions().timeZone, referrer: document.referrer,
                     utm_source: p.get('utm_source')||'', utm_campaign: p.get('utm_campaign')||'',
                     utm_term: p.get('utm_term')||'', utm_content: p.get('utm_content')||'', gclid: p.get('gclid')||'' })

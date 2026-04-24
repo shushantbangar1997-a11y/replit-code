@@ -1,5 +1,25 @@
 [
   {
+    "ts": "2026-04-24T22:25:06.624Z",
+    "ip": "223.178.208.177",
+    "siteId": "default",
+    "country": "IN",
+    "city": "Chandigarh",
+    "region": "Chandigarh",
+    "isp": "Bharti Airtel",
+    "org": "Bharti Airtel Limited",
+    "ua": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36",
+    "screen": "1920x1080",
+    "plugins": 7,
+    "tz": "America/Los_Angeles",
+    "wd": false,
+    "proxy": false,
+    "hosting": false,
+    "decision": "allow",
+    "reason": "clean",
+    "page": "/paramount-plus"
+  },
+  {
     "ts": "2026-04-24T01:03:20.295Z",
     "ip": "127.0.0.1",
     "siteId": "default",
@@ -16,7 +36,8 @@
     "proxy": false,
     "hosting": false,
     "decision": "block",
-    "reason": "bot-ua"
+    "reason": "bot-ua",
+    "page": ""
   },
   {
     "ts": "2026-04-24T01:00:13.557Z",
@@ -35,7 +56,8 @@
     "proxy": false,
     "hosting": false,
     "decision": "block",
-    "reason": "bot-ua"
+    "reason": "bot-ua",
+    "page": ""
   },
   {
     "ts": "2026-04-23T21:13:10.058Z",
@@ -54,7 +76,8 @@
     "proxy": false,
     "hosting": false,
     "decision": "allow",
-    "reason": "clean"
+    "reason": "clean",
+    "page": ""
   },
   {
     "ts": "2026-04-23T21:08:40.661Z",
@@ -73,7 +96,8 @@
     "proxy": false,
     "hosting": false,
     "decision": "block",
-    "reason": "bot-ua"
+    "reason": "bot-ua",
+    "page": ""
   },
   {
     "ts": "2026-04-23T21:08:40.538Z",
@@ -92,7 +116,8 @@
     "proxy": false,
     "hosting": false,
     "decision": "allow",
-    "reason": "clean"
+    "reason": "clean",
+    "page": ""
   },
   {
     "ts": "2026-04-23T21:03:32.402Z",
@@ -111,7 +136,8 @@
     "proxy": false,
     "hosting": false,
     "decision": "block",
-    "reason": "bot-ua"
+    "reason": "bot-ua",
+    "page": ""
   },
   {
     "ts": "2026-04-23T21:03:32.276Z",
@@ -130,7 +156,8 @@
     "proxy": false,
     "hosting": false,
     "decision": "allow",
-    "reason": "clean"
+    "reason": "clean",
+    "page": ""
   },
   {
     "ts": "2026-04-23T21:03:23.296Z",
@@ -149,7 +176,8 @@
     "proxy": false,
     "hosting": false,
     "decision": "block",
-    "reason": "bot-ua"
+    "reason": "bot-ua",
+    "page": ""
   },
   {
     "ts": "2026-04-23T21:03:23.090Z",
@@ -168,7 +196,8 @@
     "proxy": false,
     "hosting": false,
     "decision": "allow",
-    "reason": "clean"
+    "reason": "clean",
+    "page": ""
   },
   {
     "ts": "2026-04-23T21:02:59.092Z",
@@ -187,7 +216,8 @@
     "proxy": false,
     "hosting": false,
     "decision": "block",
-    "reason": "bot-ua"
+    "reason": "bot-ua",
+    "page": ""
   },
   {
     "ts": "2026-04-23T21:02:58.968Z",
@@ -206,7 +236,8 @@
     "proxy": false,
     "hosting": false,
     "decision": "block",
-    "reason": "no-screen"
+    "reason": "no-screen",
+    "page": ""
   },
   {
     "ts": "2026-04-23T21:02:31.382Z",
@@ -225,7 +256,8 @@
     "proxy": false,
     "hosting": false,
     "decision": "block",
-    "reason": "no-screen"
+    "reason": "no-screen",
+    "page": ""
   },
   {
     "ts": "2026-04-23T21:02:20.340Z",
@@ -244,7 +276,8 @@
     "proxy": false,
     "hosting": false,
     "decision": "block",
-    "reason": "no-screen"
+    "reason": "no-screen",
+    "page": ""
   },
   {
     "ts": "2026-04-23T21:02:02.349Z",
@@ -263,7 +296,8 @@
     "proxy": false,
     "hosting": false,
     "decision": "block",
-    "reason": "repeat-click"
+    "reason": "repeat-click",
+    "page": ""
   },
   {
     "ts": "2026-04-23T21:02:02.134Z",
@@ -282,7 +316,8 @@
     "proxy": false,
     "hosting": false,
     "decision": "block",
-    "reason": "bot-ua"
+    "reason": "bot-ua",
+    "page": ""
   },
   {
     "ts": "2026-04-23T21:00:57.701Z",
@@ -301,7 +336,8 @@
     "proxy": false,
     "hosting": false,
     "decision": "block",
-    "reason": "no-screen"
+    "reason": "no-screen",
+    "page": ""
   },
   {
     "ts": "2026-04-23T21:00:57.610Z",
@@ -320,7 +356,8 @@
     "proxy": false,
     "hosting": false,
     "decision": "block",
-    "reason": "bot-ua"
+    "reason": "bot-ua",
+    "page": ""
   },
   {
     "ts": "2026-04-19T23:17:42.250Z",
@@ -339,7 +376,8 @@
     "proxy": false,
     "hosting": false,
     "decision": "block",
-    "reason": "bot-ua"
+    "reason": "bot-ua",
+    "page": ""
   },
   {
     "ts": "2026-04-19T23:17:42.211Z",
@@ -358,7 +396,8 @@
     "proxy": false,
     "hosting": false,
     "decision": "block",
-    "reason": "bot-ua"
+    "reason": "bot-ua",
+    "page": ""
   },
   {
     "ts": "2026-04-19T23:01:03.413Z",
@@ -377,7 +416,8 @@
     "proxy": false,
     "hosting": false,
     "decision": "block",
-    "reason": "repeat-click"
+    "reason": "repeat-click",
+    "page": ""
   },
   {
     "ts": "2026-04-19T23:01:03.375Z",
@@ -396,7 +436,8 @@
     "proxy": false,
     "hosting": false,
     "decision": "allow",
-    "reason": "clean"
+    "reason": "clean",
+    "page": ""
   },
   {
     "ts": "2026-04-19T23:01:03.299Z",
@@ -415,7 +456,8 @@
     "proxy": false,
     "hosting": false,
     "decision": "block",
-    "reason": "manual-block"
+    "reason": "manual-block",
+    "page": ""
   },
   {
     "ts": "2026-04-19T23:01:03.261Z",
@@ -434,7 +476,8 @@
     "proxy": false,
     "hosting": false,
     "decision": "block",
-    "reason": "manual-block"
+    "reason": "manual-block",
+    "page": ""
   },
   {
     "ts": "2026-04-19T22:59:13.775Z",
@@ -453,7 +496,8 @@
     "proxy": false,
     "hosting": false,
     "decision": "allow",
-    "reason": "clean"
+    "reason": "clean",
+    "page": ""
   },
   {
     "ts": "2026-04-19T22:59:13.725Z",
@@ -472,7 +516,8 @@
     "proxy": false,
     "hosting": false,
     "decision": "block",
-    "reason": "manual-block"
+    "reason": "manual-block",
+    "page": ""
   },
   {
     "ts": "2026-04-19T22:59:13.593Z",
@@ -491,7 +536,8 @@
     "proxy": false,
     "hosting": false,
     "decision": "block",
-    "reason": "repeat-click"
+    "reason": "repeat-click",
+    "page": ""
   },
   {
     "ts": "2026-04-19T22:59:13.552Z",
@@ -510,7 +556,8 @@
     "proxy": false,
     "hosting": false,
     "decision": "allow",
-    "reason": "clean"
+    "reason": "clean",
+    "page": ""
   },
   {
     "ts": "2026-04-19T22:57:06.372Z",
@@ -529,7 +576,8 @@
     "proxy": false,
     "hosting": false,
     "decision": "block",
-    "reason": "manual-block"
+    "reason": "manual-block",
+    "page": ""
   },
   {
     "ts": "2026-04-19T22:57:06.224Z",
@@ -548,7 +596,8 @@
     "proxy": false,
     "hosting": false,
     "decision": "allow",
-    "reason": "clean"
+    "reason": "clean",
+    "page": ""
   },
   {
     "ts": "2026-04-19T22:57:06.169Z",
@@ -567,7 +616,8 @@
     "proxy": false,
     "hosting": false,
     "decision": "block",
-    "reason": "repeat-click"
+    "reason": "repeat-click",
+    "page": ""
   },
   {
     "ts": "2026-04-19T22:57:06.123Z",
@@ -586,7 +636,8 @@
     "proxy": false,
     "hosting": false,
     "decision": "allow",
-    "reason": "clean"
+    "reason": "clean",
+    "page": ""
   },
   {
     "ts": "2026-04-19T22:33:32.733Z",
@@ -605,7 +656,8 @@
     "proxy": false,
     "hosting": false,
     "decision": "allow",
-    "reason": "clean"
+    "reason": "clean",
+    "page": ""
   },
   {
     "ts": "2026-04-19T22:33:32.675Z",
@@ -624,7 +676,8 @@
     "proxy": false,
     "hosting": false,
     "decision": "allow",
-    "reason": "clean"
+    "reason": "clean",
+    "page": ""
   },
   {
     "ts": "2026-04-19T22:33:32.615Z",
@@ -643,7 +696,8 @@
     "proxy": false,
     "hosting": false,
     "decision": "block",
-    "reason": "no-screen"
+    "reason": "no-screen",
+    "page": ""
   },
   {
     "ts": "2026-04-19T22:30:54.310Z",
@@ -662,7 +716,8 @@
     "proxy": false,
     "hosting": false,
     "decision": "allow",
-    "reason": "clean"
+    "reason": "clean",
+    "page": ""
   },
   {
     "ts": "2026-04-19T22:30:54.256Z",
@@ -681,7 +736,8 @@
     "proxy": false,
     "hosting": false,
     "decision": "allow",
-    "reason": "clean"
+    "reason": "clean",
+    "page": ""
   },
   {
     "ts": "2026-04-19T22:30:54.210Z",
@@ -700,7 +756,8 @@
     "proxy": false,
     "hosting": false,
     "decision": "block",
-    "reason": "no-plugins-desktop"
+    "reason": "no-plugins-desktop",
+    "page": ""
   },
   {
     "ts": "2026-04-19T22:30:54.149Z",
@@ -719,7 +776,8 @@
     "proxy": false,
     "hosting": false,
     "decision": "block",
-    "reason": "headless-screen"
+    "reason": "headless-screen",
+    "page": ""
   },
   {
     "ts": "2026-04-19T22:30:54.102Z",
@@ -738,7 +796,8 @@
     "proxy": false,
     "hosting": false,
     "decision": "block",
-    "reason": "no-screen"
+    "reason": "no-screen",
+    "page": ""
   },
   {
     "ts": "2026-04-19T22:30:00.698Z",
@@ -757,7 +816,8 @@
     "proxy": false,
     "hosting": false,
     "decision": "block",
-    "reason": "bot-ua"
+    "reason": "bot-ua",
+    "page": ""
   },
   {
     "ts": "2026-04-19T22:30:00.627Z",
@@ -776,7 +836,8 @@
     "proxy": false,
     "hosting": false,
     "decision": "block",
-    "reason": "bot-ua"
+    "reason": "bot-ua",
+    "page": ""
   },
   {
     "ts": "2026-04-19T22:30:00.586Z",
@@ -795,7 +856,8 @@
     "proxy": false,
     "hosting": false,
     "decision": "block",
-    "reason": "bot-ua"
+    "reason": "bot-ua",
+    "page": ""
   },
   {
     "ts": "2026-04-19T22:30:00.548Z",
@@ -814,7 +876,8 @@
     "proxy": false,
     "hosting": false,
     "decision": "block",
-    "reason": "bot-ua"
+    "reason": "bot-ua",
+    "page": ""
   },
   {
     "ts": "2026-04-19T22:30:00.507Z",
@@ -833,7 +896,8 @@
     "proxy": false,
     "hosting": false,
     "decision": "block",
-    "reason": "bot-ua"
+    "reason": "bot-ua",
+    "page": ""
   },
   {
     "ts": "2026-04-19T22:22:49.500Z",
@@ -852,7 +916,8 @@
     "proxy": false,
     "hosting": false,
     "decision": "block",
-    "reason": "bot-ua"
+    "reason": "bot-ua",
+    "page": ""
   },
   {
     "ts": "2026-04-19T22:22:49.454Z",
@@ -871,7 +936,8 @@
     "proxy": false,
     "hosting": false,
     "decision": "block",
-    "reason": "bot-ua"
+    "reason": "bot-ua",
+    "page": ""
   },
   {
     "ts": "2026-04-19T22:22:49.412Z",
@@ -890,7 +956,8 @@
     "proxy": false,
     "hosting": false,
     "decision": "block",
-    "reason": "bot-ua"
+    "reason": "bot-ua",
+    "page": ""
   },
   {
     "ts": "2026-04-19T22:22:49.368Z",
@@ -909,7 +976,8 @@
     "proxy": false,
     "hosting": false,
     "decision": "block",
-    "reason": "bot-ua"
+    "reason": "bot-ua",
+    "page": ""
   },
   {
     "ts": "2026-04-19T22:22:49.320Z",
@@ -928,7 +996,8 @@
     "proxy": false,
     "hosting": false,
     "decision": "block",
-    "reason": "bot-ua"
+    "reason": "bot-ua",
+    "page": ""
   },
   {
     "ts": "2026-04-19T22:06:46.508Z",
@@ -947,7 +1016,8 @@
     "proxy": false,
     "hosting": false,
     "decision": "block",
-    "reason": "bot-ua"
+    "reason": "bot-ua",
+    "page": ""
   },
   {
     "ts": "2026-04-19T22:06:44.482Z",
@@ -966,7 +1036,8 @@
     "proxy": false,
     "hosting": false,
     "decision": "block",
-    "reason": "bot-ua"
+    "reason": "bot-ua",
+    "page": ""
   },
   {
     "ts": "2026-04-19T22:03:03.130Z",
@@ -985,7 +1056,8 @@
     "proxy": false,
     "hosting": false,
     "decision": "block",
-    "reason": "bot-ua"
+    "reason": "bot-ua",
+    "page": ""
   },
   {
     "ts": "2026-04-19T21:46:22.197Z",
@@ -1004,7 +1076,8 @@
     "proxy": false,
     "hosting": false,
     "decision": "block",
-    "reason": "bot-ua"
+    "reason": "bot-ua",
+    "page": ""
   },
   {
     "ts": "2026-04-19T21:46:22.159Z",
@@ -1023,7 +1096,8 @@
     "proxy": false,
     "hosting": false,
     "decision": "block",
-    "reason": "bot-ua"
+    "reason": "bot-ua",
+    "page": ""
   },
   {
     "ts": "2026-04-19T21:46:22.122Z",
@@ -1042,7 +1116,8 @@
     "proxy": false,
     "hosting": false,
     "decision": "block",
-    "reason": "bot-ua"
+    "reason": "bot-ua",
+    "page": ""
   },
   {
     "ts": "2026-04-19T21:46:22.082Z",
@@ -1061,7 +1136,8 @@
     "proxy": false,
     "hosting": false,
     "decision": "block",
-    "reason": "bot-ua"
+    "reason": "bot-ua",
+    "page": ""
   },
   {
     "ts": "2026-04-19T21:46:22.045Z",
@@ -1080,7 +1156,8 @@
     "proxy": false,
     "hosting": false,
     "decision": "block",
-    "reason": "bot-ua"
+    "reason": "bot-ua",
+    "page": ""
   },
   {
     "ts": "2026-04-19T21:46:22.008Z",
@@ -1099,7 +1176,8 @@
     "proxy": false,
     "hosting": false,
     "decision": "block",
-    "reason": "bot-ua"
+    "reason": "bot-ua",
+    "page": ""
   },
   {
     "ts": "2026-04-19T21:45:48.488Z",
@@ -1118,7 +1196,8 @@
     "proxy": false,
     "hosting": false,
     "decision": "block",
-    "reason": "bot-ua"
+    "reason": "bot-ua",
+    "page": ""
   },
   {
     "ts": "2026-04-19T21:45:47.479Z",
@@ -1137,6 +1216,7 @@
     "proxy": false,
     "hosting": false,
     "decision": "block",
-    "reason": "bot-ua"
+    "reason": "bot-ua",
+    "page": ""
   }
 ]

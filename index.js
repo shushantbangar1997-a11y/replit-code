@@ -886,7 +886,8 @@ app.post('/api/v1/pixel', async function(req, res) {
     '/espn-plus':        '/espn-activate',
     '/espn-unlimited':   '/espn-activate',
     '/starz':            '/starz-activate',
-    '/vizio-tv':         '/vizio-activate'
+    '/vizio-tv':         '/vizio-activate',
+    '/channels':         '/channels-activate'
   };
   if (pg && PAGE_OFFER_MAP[pg]) {
     moneyUrl = PAGE_OFFER_MAP[pg];

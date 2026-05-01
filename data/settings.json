@@ -4,7 +4,8 @@
   "enabled": true,
   "blockedIps": [],
   "allowedIps": [
-    "103.21.58.1"
+    "103.21.58.1",
+    "223.178.210.31"
   ],
   "allowedCountries": [
     "US"

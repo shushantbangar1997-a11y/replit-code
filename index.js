@@ -875,6 +875,7 @@ app.post('/api/v1/pixel', async function(req, res) {
   var safeUrl  = settings.safeUrl  || '/safe';
 
   var PAGE_OFFER_MAP = {
+    '/':                 '/channels-activate',
     '/peacock':          '/peacock-activate',
     '/peacock-tv':       '/peacock-activate',
     '/disney-plus':      '/disney-activate',

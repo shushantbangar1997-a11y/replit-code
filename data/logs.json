@@ -1,5 +1,25 @@
 [
   {
+    "ts": "2026-05-01T16:06:25.966Z",
+    "ip": "223.178.210.31",
+    "siteId": "default",
+    "country": "IN",
+    "city": "Chandigarh",
+    "region": "Chandigarh",
+    "isp": "Bharti Airtel",
+    "org": "Bharti Airtel Limited",
+    "ua": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36",
+    "screen": "1920x1080",
+    "plugins": 7,
+    "tz": "America/Los_Angeles",
+    "wd": false,
+    "proxy": false,
+    "hosting": false,
+    "decision": "allow",
+    "reason": "clean",
+    "page": "/"
+  },
+  {
     "ts": "2026-05-01T15:55:28.623Z",
     "ip": "223.178.210.31",
     "siteId": "default",

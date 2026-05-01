@@ -3394,12 +3394,17 @@ textarea{resize:vertical;min-height:80px}
           <div class="f-card">
             <div class="f-card-title">
               Live Activity
-              <button class="live-cnt-btn" id="liveVisitorBtn" onclick="openVisitorDrawer()" title="View live visitors">
-                <span class="live-dot"></span>
-                <span class="live-cnt" id="liveCnt">${activeCount}</span>
-                <span style="font-size:.65rem;font-weight:400;color:var(--text3)">active</span>
-              </button>
+              <div style="display:flex;align-items:center;gap:8px;margin-left:auto">
+                <button onclick="testNotification()" style="font-size:.7rem;padding:4px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--bg3);color:var(--text2);cursor:pointer" title="Fire a test toast + sound to confirm notifications work in your browser">🔔 Test Alert</button>
+                <button class="live-cnt-btn" id="liveVisitorBtn" onclick="openVisitorDrawer()" title="View live visitors">
+                  <span class="live-dot"></span>
+                  <span class="live-cnt" id="liveCnt">${activeCount}</span>
+                  <span style="font-size:.65rem;font-weight:400;color:var(--text3)">active</span>
+                </button>
+              </div>
             </div>
+            <!-- Last visitor alert bar -->
+            <div id="lastVisitorBar" style="display:none;padding:10px 14px;border-radius:8px;margin-bottom:10px;font-size:.82rem;font-weight:600;display:flex;align-items:center;gap:10px;transition:background .3s"></div>
             <div class="lt-feed" id="ltFeed">
               ${liveInitRows || '<div style="text-align:center;padding:20px;font-size:.75rem;color:var(--text3)">Waiting for traffic…</div>'}
             </div>
@@ -4364,6 +4369,45 @@ function playVisitorSound(type) {
 // Prime the audio context on first user interaction (browsers require it)
 document.addEventListener('click', function() { getAudioCtx(); }, { once: true });
 
+// ── Last visitor bar (persistent, inside the Live Activity card) ──────────────
+function updateLastVisitorBar(entry) {
+  var bar = document.getElementById('lastVisitorBar');
+  if (!bar) return;
+  var dec = entry.decision || '';
+  var ip  = entry.ip      || '—';
+  var cc  = entry.country || '??';
+  var rsn = entry.reason  || dec;
+  var ts  = '';
+  try { ts = new Date(entry.ts || Date.now()).toLocaleTimeString('en-GB', { hour12: false }); } catch(e) {}
+  if (dec === 'allow') {
+    bar.style.background = 'rgba(22,163,74,.12)';
+    bar.style.border = '1px solid rgba(22,163,74,.4)';
+    bar.style.color = '#16a34a';
+    bar.innerHTML = '<span style="font-size:1.1rem">✓</span> <span>ALLOWED — ' + cc + ' &nbsp;|&nbsp; ' + ip + ' &nbsp;|&nbsp; ' + ts + '</span>';
+  } else {
+    bar.style.background = 'rgba(220,38,38,.1)';
+    bar.style.border = '1px solid rgba(220,38,38,.4)';
+    bar.style.color = '#dc2626';
+    bar.innerHTML = '<span style="font-size:1.1rem">✕</span> <span>BLOCKED — ' + cc + ' [' + rsn + '] &nbsp;|&nbsp; ' + ip + ' &nbsp;|&nbsp; ' + ts + '</span>';
+  }
+  bar.style.display = 'flex';
+}
+
+// ── Test notification (lets user verify toast + sound works in their browser) ─
+function testNotification() {
+  getAudioCtx(); // ensure audio context is resumed
+  var fakeEntry = { decision:'allow', ip:'1.2.3.4', country:'US', reason:'whitelist', ts: new Date().toISOString() };
+  updateLastVisitorBar(fakeEntry);
+  showToast('✓ TEST — Visitor allowed — US (1.2.3.4)', 'v-allow');
+  playVisitorSound('allow');
+  setTimeout(function() {
+    var fakeBlock = { decision:'block', ip:'5.6.7.8', country:'IN', reason:'country', ts: new Date().toISOString() };
+    updateLastVisitorBar(fakeBlock);
+    showToast('✕ TEST — Visitor blocked — IN [country]', 'v-block');
+    playVisitorSound('block');
+  }, 1200);
+}
+
 // ── Copy helpers ─────────────────────────────────────────────────────────────
 function copyKey(elId, key, btn) {
   navigator.clipboard.writeText(key).then(function() {
@@ -4975,6 +5019,7 @@ window._seenLogKeys = window._seenLogKeys || {};
       var toastMsg = dec === 'allow'
         ? '✓ Visitor allowed — ' + cc + ' (' + (entry.ip || '') + ')'
         : '✕ Visitor blocked — ' + cc + ' [' + rsn + ']';
+      if (typeof updateLastVisitorBar === 'function') updateLastVisitorBar(entry);
       if (typeof showToast === 'function') showToast(toastMsg, dec === 'allow' ? 'v-allow' : 'v-block');
       if (typeof playVisitorSound === 'function') playVisitorSound(dec);
     }
@@ -5059,6 +5104,7 @@ window._seenLogKeys = window._seenLogKeys || {};
             var toastMsg = dec === 'allow'
               ? '✓ Visitor allowed — ' + cc + ' (' + (entry.ip || '') + ')'
               : '✕ Visitor blocked — ' + cc + ' [' + rsn + ']';
+            if (typeof updateLastVisitorBar === 'function') updateLastVisitorBar(entry);
             if (typeof showToast === 'function') showToast(toastMsg, dec === 'allow' ? 'v-allow' : 'v-block');
             if (typeof playVisitorSound === 'function') playVisitorSound(dec);
           });

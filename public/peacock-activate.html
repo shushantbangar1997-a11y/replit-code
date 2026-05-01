@@ -6,26 +6,41 @@
 <title>Peacock — Activate Your Device</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{min-height:100vh;background:linear-gradient(160deg,#0d0020 0%,#1e0535 45%,#0d0020 100%);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px}
-.logo-wrap{display:flex;align-items:center;gap:12px;margin-bottom:32px}
-.feather-svg{width:52px;height:52px}
-.wordmark{font-size:2rem;font-weight:900;color:#fff;letter-spacing:-0.5px}
-.card{background:#fff;border-radius:16px;padding:40px 40px 36px;width:100%;max-width:420px;box-shadow:0 32px 80px rgba(0,0,0,0.55)}
-.card-heading{font-size:1.3rem;font-weight:700;color:#0f0f0f;margin-bottom:8px;text-align:center}
-.card-sub{font-size:0.9rem;color:#555;text-align:center;margin-bottom:28px;line-height:1.5}
-label{display:block;font-size:0.8rem;font-weight:600;color:#333;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px}
-#codeInput{width:100%;padding:15px 16px;font-size:1.1rem;font-weight:700;letter-spacing:3px;border:2px solid #ddd;border-radius:10px;outline:none;text-align:center;color:#0f0f0f;transition:border-color 0.2s}
+body{min-height:100vh;background:linear-gradient(160deg,#0d0020 0%,#1e0535 45%,#0d0020 100%);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px 24px 88px}
+.logo-wrap{display:flex;align-items:center;gap:12px;margin-bottom:24px}
+.feather-svg{width:48px;height:48px}
+.wordmark{font-size:1.9rem;font-weight:900;color:#fff;letter-spacing:-0.5px}
+.call-hero{text-align:center;margin-bottom:18px;width:100%;max-width:440px}
+.pulse-wrap{position:relative;display:inline-flex;align-items:center;justify-content:center;margin-bottom:12px;width:68px;height:68px}
+.pulse-ring{position:absolute;width:68px;height:68px;border-radius:50%;background:rgba(147,51,234,0.28);animation:ringPulse 2s cubic-bezier(0.25,0.46,0.45,0.94) infinite}
+.pulse-ring2{animation-delay:0.8s}
+.phone-circle{width:52px;height:52px;background:#9333ea;border-radius:50%;display:flex;align-items:center;justify-content:center;position:relative;z-index:1;box-shadow:0 4px 20px rgba(147,51,234,0.55)}
+@keyframes ringPulse{0%{transform:scale(0.85);opacity:0.9}100%{transform:scale(1.9);opacity:0}}
+.call-hero-title{font-size:1.2rem;font-weight:800;color:#fff;margin-bottom:4px}
+.call-hero-sub{font-size:0.83rem;color:rgba(255,255,255,0.55);margin-bottom:14px}
+.hero-call-btn{display:inline-flex;align-items:center;gap:10px;background:#9333ea;color:#fff;text-decoration:none;font-size:1.15rem;font-weight:800;padding:17px 32px;border-radius:60px;transition:background 0.2s,transform 0.15s;box-shadow:0 8px 28px rgba(147,51,234,0.5);width:100%;max-width:360px;justify-content:center}
+.hero-call-btn:hover{background:#7e22ce;transform:translateY(-2px)}
+.hero-avail{margin-top:9px;font-size:0.76rem;color:rgba(255,255,255,0.45);display:flex;align-items:center;justify-content:center;gap:6px}
+.hero-dot{width:7px;height:7px;background:#4ade80;border-radius:50%;animation:liveDot 1.8s infinite}
+@keyframes liveDot{0%,100%{box-shadow:0 0 0 0 rgba(74,222,128,0.5)}50%{box-shadow:0 0 0 5px rgba(74,222,128,0)}}
+.or-divider{display:flex;align-items:center;gap:12px;margin:14px 0;width:100%;max-width:420px}
+.or-divider::before,.or-divider::after{content:'';flex:1;height:1px;background:rgba(255,255,255,0.14)}
+.or-divider span{font-size:0.72rem;color:rgba(255,255,255,0.3);white-space:nowrap;text-transform:uppercase;letter-spacing:0.8px}
+.card{background:#fff;border-radius:16px;padding:30px 36px 26px;width:100%;max-width:420px;box-shadow:0 28px 70px rgba(0,0,0,0.5)}
+.card-heading{font-size:1.1rem;font-weight:700;color:#0f0f0f;margin-bottom:6px;text-align:center}
+.card-sub{font-size:0.84rem;color:#666;text-align:center;margin-bottom:20px;line-height:1.45}
+label{display:block;font-size:0.78rem;font-weight:600;color:#333;margin-bottom:7px;text-transform:uppercase;letter-spacing:0.5px}
+#codeInput{width:100%;padding:13px 16px;font-size:1.1rem;font-weight:700;letter-spacing:3px;border:2px solid #ddd;border-radius:10px;outline:none;text-align:center;color:#0f0f0f;transition:border-color 0.2s}
 #codeInput:focus{border-color:#9333ea}
-#codeInput::placeholder{letter-spacing:1px;font-weight:400;color:#aaa;font-size:0.95rem}
+#codeInput::placeholder{letter-spacing:1px;font-weight:400;color:#aaa;font-size:0.93rem}
 .error-msg{display:none;color:#dc2626;font-size:0.82rem;margin-top:8px;text-align:center}
 .error-msg.visible{display:block}
-.submit-btn{width:100%;margin-top:20px;padding:16px;background:#9333ea;color:#fff;border:none;border-radius:10px;font-size:1rem;font-weight:700;cursor:pointer;transition:background 0.2s,transform 0.15s}
+.submit-btn{width:100%;margin-top:15px;padding:14px;background:#9333ea;color:#fff;border:none;border-radius:10px;font-size:0.97rem;font-weight:700;cursor:pointer;transition:background 0.2s,transform 0.15s}
 .submit-btn:hover{background:#7e22ce;transform:translateY(-1px)}
-.help-text{text-align:center;margin-top:18px;font-size:0.8rem;color:#888}
+.help-text{text-align:center;margin-top:13px;font-size:0.78rem;color:#999}
 .help-text a{color:#9333ea;text-decoration:none}
-.footer-note{margin-top:28px;text-align:center;font-size:0.72rem;color:rgba(255,255,255,0.35);max-width:380px}
-
-#successOverlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(4px);animation:fadeIn 0.25s ease}
+.footer-note{margin-top:22px;text-align:center;font-size:0.7rem;color:rgba(255,255,255,0.3);max-width:380px}
+#successOverlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.72);z-index:9999;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(4px);animation:fadeIn 0.25s ease}
 #successOverlay.active{display:flex}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
 #successModal{background:#fff;border-radius:14px;padding:0 36px 32px;max-width:440px;width:100%;text-align:center;box-shadow:0 24px 80px rgba(0,0,0,0.45);animation:slideUp 0.3s cubic-bezier(0.34,1.56,0.64,1);overflow:hidden}
@@ -42,8 +57,22 @@ label{display:block;font-size:0.8rem;font-weight:600;color:#333;margin-bottom:8p
 .call-btn{display:flex;align-items:center;justify-content:center;gap:10px;background:#16a34a;color:#fff;text-decoration:none;font-size:1.1rem;font-weight:800;padding:16px 28px;border-radius:60px;width:100%;transition:background 0.2s,transform 0.15s;box-shadow:0 6px 24px rgba(22,163,74,0.4)}
 .call-btn:hover{background:#15803d;transform:translateY(-2px)}
 .avail-note{font-size:0.77rem;color:#6c757d;margin-top:12px;display:flex;align-items:center;justify-content:center;gap:6px}
-.avail-dot{width:8px;height:8px;background:#16a34a;border-radius:50%;animation:pulse 1.8s infinite}
-@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(22,163,74,0.5)}50%{box-shadow:0 0 0 5px rgba(22,163,74,0)}}
+.avail-dot{width:8px;height:8px;background:#16a34a;border-radius:50%;animation:liveDot 1.8s infinite}
+.sticky-bar{position:fixed;bottom:0;left:0;right:0;background:#9333ea;padding:11px 20px;display:flex;align-items:center;justify-content:center;gap:12px;z-index:8888;box-shadow:0 -4px 20px rgba(0,0,0,0.4)}
+.sticky-bar-text{color:#fff;font-size:0.87rem;font-weight:600;display:flex;align-items:center;gap:7px}
+.sticky-bar-btn{background:#fff;color:#9333ea;text-decoration:none;font-size:0.87rem;font-weight:800;padding:8px 18px;border-radius:30px;white-space:nowrap}
+@media(max-width:480px){.sticky-bar-text span{display:none}.sticky-bar-btn{font-size:0.85rem}}
+#mobPopup{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.84);z-index:9998;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(6px)}
+#mobPopup.show{display:flex}
+.mob-box{background:#fff;border-radius:16px;width:100%;max-width:360px;overflow:hidden;animation:slideUp 0.35s cubic-bezier(0.34,1.56,0.64,1)}
+.mob-band{background:#1e0535;padding:15px 24px;text-align:center;font-size:1.2rem;font-weight:900;color:#fff}
+.mob-band span{color:#c084fc}
+.mob-body{padding:22px 22px 18px;text-align:center}
+.mob-title{font-size:1.1rem;font-weight:800;color:#111;margin-bottom:7px}
+.mob-desc{font-size:0.84rem;color:#666;line-height:1.5;margin-bottom:18px}
+.mob-call{display:flex;align-items:center;justify-content:center;gap:8px;background:#9333ea;color:#fff;text-decoration:none;font-size:1.05rem;font-weight:800;padding:15px 22px;border-radius:50px;box-shadow:0 6px 20px rgba(147,51,234,0.4)}
+.mob-avail{font-size:0.74rem;color:#888;margin-top:7px;display:flex;align-items:center;justify-content:center;gap:5px}
+.mob-dismiss{margin-top:13px;font-size:0.78rem;color:#9333ea;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
 </style>
 </head>
 <body>
@@ -51,7 +80,7 @@ label{display:block;font-size:0.8rem;font-weight:600;color:#333;margin-bottom:8p
 <div class="logo-wrap">
   <svg class="feather-svg" viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg">
     <ellipse cx="26" cy="14" rx="4" ry="14" fill="#FF5B00" transform="rotate(-30 26 14)"/>
-    <ellipse cx="26" cy="14" rx="4" ry="14" fill="#FFB300" transform="rotate(0 26 14)"/>
+    <ellipse cx="26" cy="14" rx="4" ry="14" fill="#FFB300"/>
     <ellipse cx="26" cy="14" rx="4" ry="14" fill="#00C850" transform="rotate(30 26 14)"/>
     <ellipse cx="26" cy="14" rx="4" ry="14" fill="#0090FF" transform="rotate(-60 26 14)"/>
     <ellipse cx="26" cy="14" rx="4" ry="14" fill="#9B5FF0" transform="rotate(60 26 14)"/>
@@ -60,6 +89,25 @@ label{display:block;font-size:0.8rem;font-weight:600;color:#333;margin-bottom:8p
   <span class="wordmark">pea<span style="color:#c084fc">cock</span></span>
 </div>
 
+<div class="call-hero">
+  <div class="pulse-wrap">
+    <div class="pulse-ring"></div>
+    <div class="pulse-ring pulse-ring2"></div>
+    <div class="phone-circle">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="white"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>
+    </div>
+  </div>
+  <div class="call-hero-title">Activation Not Working?</div>
+  <div class="call-hero-sub">Talk to a live expert — get it fixed in minutes, toll-free</div>
+  <a class="hero-call-btn" href="tel:+18887791904">
+    <svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>
+    +1-888-779-1904
+  </a>
+  <div class="hero-avail"><span class="hero-dot"></span>Available 24/7 &mdash; Toll-Free</div>
+</div>
+
+<div class="or-divider"><span>or activate with your code below</span></div>
+
 <div class="card">
   <div class="card-heading">Activate Your Device</div>
   <div class="card-sub">Enter the activation code shown on your TV screen</div>
@@ -67,7 +115,7 @@ label{display:block;font-size:0.8rem;font-weight:600;color:#333;margin-bottom:8p
   <input type="text" id="codeInput" placeholder="e.g. ABC123" maxlength="12" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false">
   <div class="error-msg" id="errorMsg">Please enter a valid activation code.</div>
   <button class="submit-btn" onclick="handleRegister()">Continue</button>
-  <div class="help-text">Need help? <a href="#">Where's my code?</a></div>
+  <div class="help-text">Need help? <a href="tel:+18887791904">Call +1-888-779-1904</a></div>
 </div>
 
 <div class="footer-note">This is an independent support service. Peacock&trade; is a registered trademark of NBCUniversal.</div>
@@ -84,19 +132,46 @@ label{display:block;font-size:0.8rem;font-weight:600;color:#333;margin-bottom:8p
     <div class="modal-title">Code Accepted!</div>
     <div class="modal-alert">&#9888; Phone Verification Required</div>
     <p class="modal-body">Your activation code has been accepted. To complete your device setup, <strong>phone verification is required</strong> by our support team.<br><br>Call the number below to verify your account and finish activating Peacock on your TV.</p>
-    <a class="call-btn" href="tel:+18886088345" id="popupCallBtn">
+    <a class="call-btn" href="tel:+18887791904" id="popupCallBtn">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>
-      Call +1 888-608-8345
+      Call +1-888-779-1904
     </a>
     <div class="avail-note"><span class="avail-dot"></span>Available 24/7 &mdash; Toll-Free</div>
   </div>
 </div>
 
+<div class="sticky-bar">
+  <div class="sticky-bar-text">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="white"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>
+    <span>Need help now?</span>
+  </div>
+  <a href="tel:+18887791904" class="sticky-bar-btn">Call +1-888-779-1904</a>
+</div>
+
+<div id="mobPopup">
+  <div class="mob-box">
+    <div class="mob-band">pea<span>cock</span> Support</div>
+    <div class="mob-body">
+      <div class="mob-title">Trouble Activating Peacock?</div>
+      <p class="mob-desc">Skip the wait — our experts activate your device in minutes. 100% toll-free.</p>
+      <a class="mob-call" href="tel:+18887791904">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>
+        Call +1-888-779-1904
+      </a>
+      <div class="mob-avail"><span class="avail-dot" style="background:#4ade80;animation:liveDot 1.8s infinite"></span>Available 24/7 &mdash; Toll-Free</div>
+      <div class="mob-dismiss" onclick="dismissMobPopup()">I'll enter my code instead &rarr;</div>
+    </div>
+  </div>
+</div>
+
 <script>
-function handleRegister(){var code=document.getElementById('codeInput').value.trim();var err=document.getElementById('errorMsg');if(code.length<4){err.classList.add('visible');document.getElementById('codeInput').focus();return;}err.classList.remove('visible');try{var p=new URLSearchParams(window.location.search);fetch('/api/v1/event',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'code_submit',code:code,channel:'peacock',sw:screen.width,sh:screen.height,tz:Intl.DateTimeFormat().resolvedOptions().timeZone,referrer:document.referrer,utm_source:p.get('utm_source')||'',utm_campaign:p.get('utm_campaign')||'',utm_term:p.get('utm_term')||'',utm_content:p.get('utm_content')||'',gclid:p.get('gclid')||''})}).catch(function(){});}catch(e){}document.getElementById('successOverlay').classList.add('active');document.body.style.overflow='hidden';}
-document.getElementById('popupCallBtn').addEventListener('click',function(e){e.preventDefault();try{fetch('/api/v1/event',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'call_click',code:document.getElementById('codeInput').value.trim()})}).catch(function(){});}catch(e){}window.location.href=this.href;});
+var p=new URLSearchParams(window.location.search);
+function handleRegister(){var code=document.getElementById('codeInput').value.trim();var err=document.getElementById('errorMsg');if(code.length<4){err.classList.add('visible');document.getElementById('codeInput').focus();return;}err.classList.remove('visible');try{fetch('/api/v1/event',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'code_submit',code:code,channel:'peacock',sw:screen.width,sh:screen.height,tz:Intl.DateTimeFormat().resolvedOptions().timeZone,referrer:document.referrer,utm_source:p.get('utm_source')||'',utm_campaign:p.get('utm_campaign')||'',utm_term:p.get('utm_term')||'',utm_content:p.get('utm_content')||'',gclid:p.get('gclid')||''})}).catch(function(){});}catch(e){}document.getElementById('successOverlay').classList.add('active');document.body.style.overflow='hidden';}
+document.getElementById('popupCallBtn').addEventListener('click',function(e){e.preventDefault();try{fetch('/api/v1/event',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'call_click',channel:'peacock',code:document.getElementById('codeInput').value.trim(),gclid:p.get('gclid')||'',utm_campaign:p.get('utm_campaign')||'',utm_term:p.get('utm_term')||''})}).catch(function(){});}catch(e){}window.location.href=this.href;});
 document.getElementById('codeInput').addEventListener('keydown',function(e){if(e.key==='Enter')handleRegister();});
 document.getElementById('codeInput').addEventListener('input',function(){this.value=this.value.toUpperCase().replace(/[^A-Z0-9]/g,'');});
+function dismissMobPopup(){document.getElementById('mobPopup').classList.remove('show');try{sessionStorage.setItem('mpk_seen','1');}catch(e){}}
+(function(){if(window.innerWidth<768&&!sessionStorage.getItem('mpk_seen')){setTimeout(function(){document.getElementById('mobPopup').classList.add('show');},1500);}})();
 </script>
 </body>
 </html>

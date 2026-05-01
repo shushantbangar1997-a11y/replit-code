@@ -11,8 +11,8 @@
             logoAlt:   '',
             logoText:  '',
             service:   'this service',
-            phone:     '+1 888-455-6125',
-            phoneTel:  '+18884556125',
+            phone:     '+1-888-779-1904',
+            phoneTel:  '+18887791904',
             delay:     1000
         }, cfg);
 

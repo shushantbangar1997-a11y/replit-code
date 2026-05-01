@@ -1307,6 +1307,31 @@ app.get('/' + ADMIN_PATH + '/live-visitors', requireAdmin, function(req, res) {
   res.json({ ok: true, visitors: getActiveVisitorsList() });
 });
 
+// ─── Activity poll endpoint — fallback for when SSE is unreliable ─────────────
+app.get('/' + ADMIN_PATH + '/activity-poll', requireAdmin, function(req, res) {
+  var since = parseInt(req.query.since) || 0;
+  var logs  = readLogs().slice(0, 50); // most-recent first, cap at 50
+  var leads = readLeads().slice(0, 20);
+  var newLogs = since > 0
+    ? logs.filter(function(l) { return l.ts && new Date(l.ts).getTime() > since; })
+    : logs.slice(0, 5);
+  var newLeads = since > 0
+    ? leads.filter(function(l) { return l.ts && new Date(l.ts).getTime() > since; })
+    : [];
+  var today = new Date().toISOString().slice(0, 10);
+  var todayLogs = logs.filter(function(l) { return l.ts && l.ts.startsWith(today); });
+  var todayAllow = todayLogs.filter(function(l) { return l.decision === 'allow'; }).length;
+  var todayBlock = todayLogs.filter(function(l) { return l.decision === 'block'; }).length;
+  res.json({
+    ok: true,
+    logs: newLogs,
+    leads: newLeads,
+    visitors: getActiveVisitorsList(),
+    stats: { todayTotal: todayAllow + todayBlock, todayAllow: todayAllow, todayBlock: todayBlock },
+    serverTime: Date.now()
+  });
+});
+
 // ─── Admin settings save (URLs) ───────────────────────────────────────────────
 app.post('/' + ADMIN_PATH + '/settings', requireAdmin, function(req, res) {
   var settings = readSettings();
@@ -4760,6 +4785,90 @@ window.addEventListener('DOMContentLoaded', function() {
     } catch(e) {}
   };
   es.onerror = function(){};
+})();
+
+// ── Activity polling fallback (runs every 8s — keeps feed alive even if SSE is buffered) ──
+(function() {
+  var _lastPollTs = Date.now() - 10000; // start by fetching the last 10s of activity
+  var _seenKeys = {};
+  var feed = document.getElementById('ltFeed');
+  var cntEl = document.getElementById('liveCnt');
+
+  function entryKey(e) { return (e.ts || '') + '|' + (e.ip || ''); }
+
+  function makePollRow(entry) {
+    var dec = entry.decision || '';
+    var cls = dec === 'allow' ? 'lt-dec-allow' : 'lt-dec-block';
+    var ts = '';
+    try { ts = new Date(entry.ts).toLocaleTimeString('en-GB', { timeZone: _tz, hour12:false }); } catch(e) {}
+    var row = document.createElement('div');
+    row.className = 'lt-row';
+    row.innerHTML = '<span class="lt-ts">' + ts + '</span>'
+      + '<span class="lt-ip">' + (entry.ip || '') + '</span>'
+      + '<span class="' + cls + '">' + dec + '</span>';
+    return row;
+  }
+
+  function doPoll() {
+    fetch('/${ADMIN_PATH}/activity-poll?since=' + _lastPollTs)
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (!d || !d.ok) return;
+        _lastPollTs = d.serverTime || Date.now();
+
+        // Update visitor count
+        if (cntEl && d.visitors) cntEl.textContent = d.visitors.length;
+        if (window._vdRenderVisitors && d.visitors) window._vdRenderVisitors(d.visitors);
+
+        // Update today's stats (only on 24h view)
+        if (d.stats) {
+          var curRange = (new URLSearchParams(window.location.search)).get('range') || '24h';
+          if (curRange === '24h') {
+            var elT = document.getElementById('kpiTotal');
+            var elBP = document.getElementById('kpiBlockPct');
+            var elAP = document.getElementById('kpiAllowPct');
+            var tot = d.stats.todayTotal || 0, blk = d.stats.todayBlock || 0, alw = d.stats.todayAllow || 0;
+            var bRate = tot > 0 ? Math.round(blk / tot * 100) : 0;
+            if (elT) elT.textContent = tot;
+            var elB = document.getElementById('kpiBlock'); if (elB) elB.textContent = bRate + '%';
+            if (elBP) elBP.textContent = blk + ' blocked';
+            if (elAP) elAP.textContent = alw + ' allowed';
+          }
+        }
+
+        // Add new log entries to live feed (dedup against already-seen entries)
+        if (feed && Array.isArray(d.logs) && d.logs.length) {
+          var ph = feed.querySelector('[style]');
+          if (ph && ph.style.textAlign) ph.remove();
+          var added = 0;
+          d.logs.forEach(function(entry) {
+            var k = entryKey(entry);
+            if (_seenKeys[k]) return;
+            _seenKeys[k] = 1;
+            var row = makePollRow(entry);
+            if (feed.firstChild) feed.insertBefore(row, feed.firstChild);
+            else feed.appendChild(row);
+            added++;
+          });
+          if (added) {
+            var rows = feed.querySelectorAll('.lt-row');
+            while (rows.length > 12) { feed.removeChild(feed.lastChild); rows = feed.querySelectorAll('.lt-row'); }
+          }
+        }
+      })
+      .catch(function() {});
+  }
+
+  // Pre-seed seenKeys from any rows already in the feed (server-rendered)
+  if (feed) {
+    feed.querySelectorAll('.lt-row').forEach(function(r) {
+      var ip = r.querySelector('.lt-ip'); var ts = r.querySelector('.lt-ts');
+      if (ip && ts) _seenKeys[ts.textContent + '|' + ip.textContent] = 1;
+    });
+  }
+
+  doPoll(); // immediate first poll
+  setInterval(doPoll, 8000); // then every 8 seconds
 })();
 
 // ── Keyboard shortcuts ────────────────────────────────────────────────────────

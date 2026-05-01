@@ -1836,13 +1836,30 @@ function scheduleStartupReInject() {
   }, 8000);
 }
 
+// ─── Startup settings migration (runs in both DB and JSON-only mode) ──────────
+function migrateSettingsIfNeeded() {
+  var s = readSettings();
+  var changed = false;
+  if (!Array.isArray(s.allowedCountries) || s.allowedCountries.length === 0) {
+    s.allowedCountries = ['US'];
+    s.countryBlockingEnabled = true;
+    changed = true;
+  }
+  if (changed) {
+    writeSettings(s);
+    console.log('Settings migration: allowedCountries set to [US]');
+  }
+}
+
 initDb().then(function() {
+  migrateSettingsIfNeeded();
   app.listen(PORT, '0.0.0.0', function() {
     console.log('Server running on port ' + PORT);
     scheduleStartupReInject();
   });
 }).catch(function(e) {
   console.error('initDb failed, starting without DB:', e.message);
+  migrateSettingsIfNeeded();
   app.listen(PORT, '0.0.0.0', function() {
     console.log('Server running on port ' + PORT + ' (no DB)');
     scheduleStartupReInject();
@@ -4665,6 +4682,13 @@ window.addEventListener('DOMContentLoaded', function() {
   es.onmessage = function(e) {
     var payload, entry;
     try { payload = JSON.parse(e.data); } catch(x) { return; }
+
+    // Ignore the initial handshake event — just update the live indicator
+    if (payload.type === 'connected') {
+      var liveEl = document.getElementById('sseStatus');
+      if (liveEl) { liveEl.title = 'Live feed connected'; liveEl.style.background = '#16a34a'; }
+      return;
+    }
 
     // Handle KPI stats refresh (only overwrite when viewing 24h — other ranges show server-rendered values)
     if (payload.type === 'statsUpdate') {

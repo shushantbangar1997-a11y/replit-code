@@ -1,6 +1,6 @@
 {
   "moneyUrl": "/channels-activate",
-  "safeUrl": "/not-found",
+  "safeUrl": "/safe",
   "enabled": true,
   "blockedIps": [],
   "allowedIps": [

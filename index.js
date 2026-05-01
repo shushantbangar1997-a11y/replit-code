@@ -967,8 +967,7 @@ app.post('/api/v1/pixel', async function(req, res) {
   };
   if (pg && PAGE_OFFER_MAP[pg]) {
     moneyUrl = PAGE_OFFER_MAP[pg];
-    // Blocked visitors get /not-found (404) — non-US / bots see nothing
-    safeUrl = '/not-found';
+    // safeUrl stays as whatever is configured in settings (e.g. /safe)
   }
 
   function fastBlock(reason) {

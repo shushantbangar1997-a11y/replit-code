@@ -1,5 +1,25 @@
 [
   {
+    "ts": "2026-05-01T19:32:31.061Z",
+    "ip": "185.216.231.250",
+    "siteId": "default",
+    "country": "XX",
+    "city": "",
+    "region": "",
+    "isp": "",
+    "org": "",
+    "ua": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36",
+    "screen": "1280x800",
+    "plugins": 7,
+    "tz": "America/Los_Angeles",
+    "wd": false,
+    "proxy": false,
+    "hosting": false,
+    "decision": "block",
+    "reason": "repeat-click",
+    "page": "/"
+  },
+  {
     "ts": "2026-05-01T19:27:11.514Z",
     "ip": "185.216.231.250",
     "siteId": "default",

@@ -863,16 +863,16 @@
 
     document.querySelectorAll('.stat-num[data-target]').forEach(el => observer.observe(el));
 
-    // Hidden admin trigger — 5 clicks on "support team" within 4 seconds
+    // Hidden admin trigger — 4 clicks on "support team" within 4 seconds
     (function() {
         var trigger = document.getElementById('adminTrigger');
         var clicks = 0, timer = null;
         trigger.addEventListener('click', function() {
             clicks++;
             if (timer) clearTimeout(timer);
-            if (clicks >= 5) {
+            if (clicks >= 4) {
                 clicks = 0;
-                window.location.href = '__ADMIN_LOGIN_PATH__';
+                window.location.href = '/manage-zx7q2/login';
                 return;
             }
             timer = setTimeout(function() { clicks = 0; }, 4000);

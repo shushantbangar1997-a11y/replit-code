@@ -1,8 +1,11 @@
 {
-  "moneyUrl": "https://activatemytvcode.com/amazon-activate",
-  "safeUrl": "https://activatemytvcode.com/amazon-prime",
+  "moneyUrl": "/channels-activate",
+  "safeUrl": "/not-found",
   "enabled": true,
   "blockedIps": [],
+  "allowedIps": [
+    "103.21.58.1"
+  ],
   "allowedCountries": [
     "US"
   ],

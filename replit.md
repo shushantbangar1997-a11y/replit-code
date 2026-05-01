@@ -27,6 +27,9 @@ The admin panel is rebranded as **FILTER** — a full SaaS-style UI with a colla
 | `/amazon-prime` | Safe landing page shown to bots/reviewers |
 | `/safe` | Alias safe landing page |
 | `/offer` | Offer landing page |
+| `/channels` | Main cloaker entry point (Google Ads landing) |
+| `/channels-activate` | Offer page shown to real US visitors — "Connect TV Now" code+call page |
+| `/not-found` | 404 page (HTTP 404) — shown to non-US/blocked visitors |
 | `/peacock-tv`, `/disney-plus`, `/hulu`, `/paramount-plus` | Channel safe pages (cloaked) |
 | `/fox-one`, `/fox-nation`, `/fox-sports` | FOX channel safe pages (cloaked) |
 | `/espn-plus`, `/espn-unlimited`, `/starz`, `/vizio-tv` | More channel safe pages (cloaked) |
@@ -79,8 +82,10 @@ The `/api/track/lead` endpoint:
 - Sites: per-site expandable rows with toggle switches, tabbed settings panels (General/Security/Script/Railway), API key copy, rotate/delete
 - Logs: searchable/filterable traffic table with quick-block button and country flags
 - Leads: leads table with CSV export
-- Blocked IPs: dedicated page showing each blocked IP in a table with per-row Unblock button; "Block IP" input at top
+- Blocked IPs: dedicated page with per-row Unblock button; "Block IP" input at top
+- IP Whitelist: new section (`#whitelisted-ips`) — add IPs that always bypass all filters and see the offer page (for testing your own IP)
 - Settings: tabbed (Engine, Security, Blocked IPs, Countries, Integrations, Timezone, Password, Danger Zone)
+- **Live feed**: 8-second polling fallback (`/{ADMIN_PATH}/activity-poll`) keeps the dashboard updated even when SSE is buffered; shows toast notifications for each new visitor (green=allow, red=block)
   - Security tab: individual feature toggles (VPN/proxy/datacenter/bot-UA/repeat-click/ISP blocking) + custom ISP keyword textarea
   - Password tab: change admin password with current-password verification
 - Timezone: configurable display timezone (default UTC) — saved to session via POST /{ADMIN_PATH}/set-timezone

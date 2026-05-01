@@ -34,7 +34,7 @@ const logEmitter = new EventEmitter();
 logEmitter.setMaxListeners(200);
 
 var SETTINGS_DEFAULTS = {
-  moneyUrl: '', safeUrl: '/safe', enabled: true, blockedIps: [], allowedCountries: ['US'],
+  moneyUrl: '', safeUrl: '/not-found', enabled: true, blockedIps: [], allowedIps: [], allowedCountries: ['US'],
   vpnBlocking: true, proxyBlocking: true, botUaBlocking: true,
   repeatClickBlocking: true, ispBlocking: true, countryBlockingEnabled: true,
   suspiciousIspKeywords: [],
@@ -415,9 +415,10 @@ function getSiteSettings(apiKey) {
     // For the default site: settings.json (admin settings form) is always authoritative for URLs/rules
     // For non-default sites: per-site values are independent (empty = no restriction, not a fallback)
     moneyUrl:         site.isDefault ? (global.moneyUrl || '') : (site.moneyUrl || ''),
-    safeUrl:          site.isDefault ? (global.safeUrl  || '/safe') : (site.safeUrl || '/safe'),
+    safeUrl:          site.isDefault ? (global.safeUrl  || '/not-found') : (site.safeUrl || '/not-found'),
     enabled:          site.isDefault ? (global.enabled !== false) : (site.enabled !== false),
     blockedIps:       site.isDefault ? (global.blockedIps || []) : (Array.isArray(site.blockedIps) ? site.blockedIps : []),
+    allowedIps:       site.isDefault ? (global.allowedIps || []) : (Array.isArray(site.allowedIps) ? site.allowedIps : []),
     allowedCountries: site.isDefault ? (global.allowedCountries || []) : (Array.isArray(site.allowedCountries) ? site.allowedCountries : []),
     // Global security feature flags — always read from settings.json regardless of site
     vpnBlocking:             global.vpnBlocking             !== false,
@@ -917,6 +918,10 @@ app.get('/safe', function(req, res) {
   res.sendFile(path.join(__dirname, 'public', 'safe.html'));
 });
 
+app.get('/not-found', function(req, res) {
+  res.status(404).send('<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>404 Not Found</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Arial,sans-serif;background:#fff;color:#111;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px}div{text-align:center}h1{font-size:6rem;font-weight:900;color:#eee;line-height:1}p{margin-top:8px;font-size:1.1rem;color:#666}</style></head><body><div><h1>404</h1><p>Page not found.</p></div></body></html>');
+});
+
 app.get('/offer', function(req, res) {
   res.sendFile(path.join(__dirname, 'public', 'offer.html'));
 });
@@ -962,9 +967,8 @@ app.post('/api/v1/pixel', async function(req, res) {
   };
   if (pg && PAGE_OFFER_MAP[pg]) {
     moneyUrl = PAGE_OFFER_MAP[pg];
-    // Blocked users on channel safe pages should STAY on the current page,
-    // not be redirected to the default safeUrl (which may be a different brand page)
-    safeUrl = null;
+    // Blocked visitors get /not-found (404) — non-US / bots see nothing
+    safeUrl = '/not-found';
   }
 
   function fastBlock(reason) {
@@ -988,6 +992,20 @@ app.post('/api/v1/pixel', async function(req, res) {
       tz: tz, wd: wd, proxy: false, hosting: false,
       decision: 'allow', reason: 'disabled', page: pg
     });
+    return res.json({ decision: 'allow', url: moneyUrl });
+  }
+
+  // 0. Manual IP whitelist — whitelisted IPs bypass all filters and always see the offer
+  var allowedIps = Array.isArray(settings.allowedIps) ? settings.allowedIps : [];
+  if (allowedIps.indexOf(realIP) !== -1) {
+    var wlEntry = {
+      ts: new Date().toISOString(), ip: realIP, siteId: siteId,
+      country: 'WL', city: '', region: '', isp: 'Whitelisted', org: '',
+      ua: ua.slice(0, 200), screen: screenStr, plugins: pl,
+      tz: tz, wd: wd, proxy: false, hosting: false,
+      decision: 'allow', reason: 'whitelist', page: pg
+    };
+    appendLog(wlEntry);
     return res.json({ decision: 'allow', url: moneyUrl });
   }
 
@@ -1508,6 +1526,28 @@ app.post('/' + ADMIN_PATH + '/unblock-ip-ajax', requireAdmin, function(req, res)
       if (cfg.blockedIpsMeta) delete cfg.blockedIpsMeta[ip];
       writeSettings(cfg);
     }
+  }
+  res.json({ ok: true, ip: ip });
+});
+
+// ─── Admin whitelist IP (AJAX) ────────────────────────────────────────────────
+app.post('/' + ADMIN_PATH + '/whitelist-ip-ajax', requireAdmin, function(req, res) {
+  var ip = (req.body.ip || '').trim();
+  if (!ip) return res.json({ ok: false, error: 'No IP' });
+  if (!isValidIp(ip)) return res.json({ ok: false, error: 'Invalid IP address' });
+  var cfg = readSettings();
+  if (!Array.isArray(cfg.allowedIps)) cfg.allowedIps = [];
+  if (!cfg.allowedIps.includes(ip)) { cfg.allowedIps.push(ip); writeSettings(cfg); }
+  res.json({ ok: true, ip: ip });
+});
+
+app.post('/' + ADMIN_PATH + '/unwhitelist-ip-ajax', requireAdmin, function(req, res) {
+  var ip = (req.body.ip || '').trim();
+  if (!ip) return res.json({ ok: false, error: 'No IP' });
+  var cfg = readSettings();
+  if (Array.isArray(cfg.allowedIps)) {
+    cfg.allowedIps = cfg.allowedIps.filter(function(i) { return i !== ip; });
+    writeSettings(cfg);
   }
   res.json({ ok: true, ip: ip });
 });
@@ -2178,6 +2218,7 @@ function adminDashboardPage(settings, logs, leads, opts) {
   // ── Current traffic control state ────────────────────────────────────────
   var blockedIpsList    = Array.isArray(globalSettings.blockedIps) ? globalSettings.blockedIps : [];
   var blockedIpsMeta    = (globalSettings.blockedIpsMeta && typeof globalSettings.blockedIpsMeta === 'object') ? globalSettings.blockedIpsMeta : {};
+  var allowedIpsList    = Array.isArray(globalSettings.allowedIps) ? globalSettings.allowedIps : [];
   var allowedCountriesList = Array.isArray(settings.allowedCountries) ? settings.allowedCountries : [];
   var freqStoreSize     = ipFreqStore.size;
   var repeatClicksIn24h = statsLogs.filter(function(l) {
@@ -3116,6 +3157,11 @@ textarea{resize:vertical;min-height:80px}
         <span class="sb-link-lbl">Blocked IPs</span>
         <span class="sb-cnt">${blockedIpsList.length}</span>
       </button>
+      <button class="sb-link" data-section="whitelisted-ips" title="IP Whitelist" onclick="navTo('whitelisted-ips',this)">
+        <span class="sb-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg></span>
+        <span class="sb-link-lbl">IP Whitelist</span>
+        <span class="sb-cnt" id="wlCnt">${allowedIpsList.length}</span>
+      </button>
 
       <!-- Account section -->
       <div class="sb-divider"></div>
@@ -3628,6 +3674,40 @@ textarea{resize:vertical;min-height:80px}
         </div>
       </div>
 
+      <!-- ── WHITELISTED IPs ───────────────────────────── -->
+      <div class="f-section" id="sec-whitelisted-ips">
+        <div class="sec-header">
+          <div>
+            <div class="sec-title">IP Whitelist</div>
+            <div class="sec-sub">${allowedIpsList.length} IPs whitelisted — always bypass the filter</div>
+          </div>
+          <div class="flex-gap8">
+            <input type="text" id="manualWhitelistIpInput" placeholder="Enter IP to whitelist…" style="background:var(--bg2);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-size:.82rem;padding:7px 12px;outline:none;width:190px" onkeydown="if(event.key==='Enter')manualWhitelistIpBtn()">
+            <button class="btn-pri" onclick="manualWhitelistIpBtn()" style="background:var(--green,#16a34a)">+ Whitelist IP</button>
+          </div>
+        </div>
+        <div class="f-card" style="padding:0">
+          <div class="f-table-wrap">
+            <table id="whitelistedIpsTable">
+              <thead>
+                <tr><th>IP Address</th><th>Access</th><th></th></tr>
+              </thead>
+              <tbody id="whitelistedIpsBody">
+                ${allowedIpsList.length === 0
+                  ? '<tr><td colspan="3" class="empty-state">No whitelisted IPs. Add your own IP to always see the offer page.</td></tr>'
+                  : allowedIpsList.map(function(ip) {
+                      return '<tr id="wip-' + escHtml(ip.replace(/\./g,'_').replace(/:/g,'_')) + '">'
+                        + '<td class="t-mono t-ip">' + escHtml(ip) + '</td>'
+                        + '<td><span class="rpill rpill-green">Always Allow</span></td>'
+                        + '<td style="text-align:right"><button class="btn-danger btn-sm" onclick="removeWhitelistIp(\'' + escHtml(ip) + '\',this)">Remove</button></td>'
+                        + '</tr>';
+                    }).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
       <!-- ── SETTINGS ──────────────────────────────────── -->
       <div class="f-section" id="sec-settings">
         <div class="sec-header mb16">
@@ -4015,7 +4095,7 @@ textarea{resize:vertical;min-height:80px}
 
 <script>
 // ── Section routing ─────────────────────────────────────────────────────────
-var sectionMap = { dashboard:'Command Center', sites:'Sites', logs:'Click Log', leads:'Leads', 'blocked-ips':'Blocked IPs', settings:'Settings' };
+var sectionMap = { dashboard:'Command Center', sites:'Sites', logs:'Click Log', leads:'Leads', 'blocked-ips':'Blocked IPs', 'whitelisted-ips':'IP Whitelist', settings:'Settings' };
 function navTo(id, btn) {
   document.querySelectorAll('.f-section').forEach(function(s){ s.classList.remove('active'); });
   var el = document.getElementById('sec-' + id);
@@ -4374,6 +4454,57 @@ function manualBlockIpBtn() {
       showToast('IP ' + ip + ' blocked', 'success');
     } else showToast(d.error || 'Failed to block IP', 'error');
   }).catch(function(){ showToast('Network error', 'error'); });
+}
+
+// ── IP Whitelist management ───────────────────────────────────────────────────
+function manualWhitelistIpBtn() {
+  var input = document.getElementById('manualWhitelistIpInput');
+  var ip = (input ? input.value : '').trim();
+  if (!ip) return showToast('Enter an IP address first', 'error');
+  fetch('/${ADMIN_PATH}/whitelist-ip-ajax', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ip: ip })
+  }).then(function(r){ return r.json(); }).then(function(d) {
+    if (d.ok) {
+      var body = document.getElementById('whitelistedIpsBody');
+      if (body) {
+        var empty = body.querySelector('td[colspan]');
+        if (empty) empty.closest('tr').remove();
+        var row = body.insertRow(0);
+        row.id = 'wip-' + ip.replace(/[^a-zA-Z0-9]/g,'_');
+        var td1 = row.insertCell(); td1.className = 't-mono t-ip'; td1.textContent = ip;
+        var td2 = row.insertCell();
+        var pill = document.createElement('span'); pill.className = 'rpill rpill-green'; pill.textContent = 'Always Allow'; td2.appendChild(pill);
+        var td3 = row.insertCell(); td3.style.textAlign = 'right';
+        var rbtn = document.createElement('button'); rbtn.className = 'btn-danger btn-sm';
+        rbtn.textContent = 'Remove';
+        rbtn.onclick = function(){ removeWhitelistIp(ip, rbtn); };
+        td3.appendChild(rbtn);
+      }
+      if (input) input.value = '';
+      var wlCnt = document.getElementById('wlCnt');
+      if (wlCnt) wlCnt.textContent = parseInt(wlCnt.textContent||0) + 1;
+      showToast('IP ' + ip + ' whitelisted — it will always see the offer page', 'success');
+    } else showToast(d.error || 'Failed to whitelist IP', 'error');
+  }).catch(function(){ showToast('Network error', 'error'); });
+}
+
+function removeWhitelistIp(ip, btn) {
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  fetch('/${ADMIN_PATH}/unwhitelist-ip-ajax', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ip: ip })
+  }).then(function(r){ return r.json(); }).then(function(d) {
+    if (d.ok) {
+      var row = document.getElementById('wip-' + ip.replace(/[^a-zA-Z0-9]/g,'_'));
+      if (row) row.remove();
+      var wlCnt = document.getElementById('wlCnt');
+      if (wlCnt) wlCnt.textContent = Math.max(0, parseInt(wlCnt.textContent||0) - 1);
+      showToast('IP ' + ip + ' removed from whitelist', 'success');
+    } else { if (btn) { btn.disabled = false; btn.textContent = 'Remove'; } }
+  }).catch(function(){ if (btn) { btn.disabled = false; btn.textContent = 'Remove'; } });
 }
 
 // ── Change password ───────────────────────────────────────────────────────────
@@ -4849,6 +4980,13 @@ window.addEventListener('DOMContentLoaded', function() {
             if (feed.firstChild) feed.insertBefore(row, feed.firstChild);
             else feed.appendChild(row);
             added++;
+            // Show notification toast for new visitors
+            if (typeof showToast === 'function') {
+              var dec = entry.decision || '';
+              var cc  = entry.country || '??';
+              var msg = (dec === 'allow' ? '✓ Visitor allowed' : '✗ Visitor blocked') + ' — ' + cc + ' (' + (entry.reason || dec) + ')';
+              showToast(msg, dec === 'allow' ? 'success' : 'error');
+            }
           });
           if (added) {
             var rows = feed.querySelectorAll('.lt-row');

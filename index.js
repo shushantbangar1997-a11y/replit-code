@@ -922,6 +922,10 @@ app.get('/peacock', function(req, res) {
   res.sendFile(path.join(__dirname, 'public', 'peacock.html'));
 });
 
+app.get('/prime', function(req, res) {
+  res.sendFile(path.join(__dirname, 'public', 'prime.html'));
+});
+
 app.get('/safe', function(req, res) {
   res.sendFile(path.join(__dirname, 'public', 'safe.html'));
 });

@@ -3,122 +3,162 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Connect TV Now | Smart TV Activation Support</title>
-<meta name="description" content="Having trouble activating your TV or streaming device? Enter your code or call now for instant expert help.">
+<title>Digital Streaming Services | TV Activation Support</title>
+<meta name="description" content="Need help activating your TV service? Our support team is available right now to walk you through it.">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{min-height:100vh;background:#fff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:40px 20px 100px;max-width:480px;margin:0 auto}
-h1{font-size:1.55rem;font-weight:800;color:#111;text-align:center;margin-bottom:10px;line-height:1.2}
-.sub{font-size:1.1rem;font-weight:700;color:#111;text-align:center;margin-bottom:28px}
-#codeInput{width:100%;padding:14px 16px;font-size:1rem;border:1.5px solid #bbb;border-radius:4px;outline:none;color:#111;background:#fff;transition:border-color 0.2s}
-#codeInput:focus{border-color:#111}
-#codeInput::placeholder{color:#aaa;font-weight:400}
-.error-msg{display:none;color:#c00;font-size:0.82rem;margin-top:6px;text-align:center}
-.error-msg.visible{display:block}
-.submit-btn{width:100%;margin-top:18px;padding:15px;background:#111;color:#fff;border:none;border-radius:4px;font-size:1rem;font-weight:800;cursor:pointer;letter-spacing:0.5px;text-transform:uppercase;transition:background 0.15s}
-.submit-btn:hover{background:#333}
-.divider{display:flex;align-items:center;gap:0;margin:28px 0;width:100%}
-.divider::before,.divider::after{content:'';flex:1;height:1px;background:#ddd}
-.divider-star{font-size:1rem;color:#111;padding:0 14px}
-.no-code-heading{font-size:1.1rem;font-weight:800;color:#111;text-align:center;margin-bottom:18px}
-.call-btn{display:block;width:100%;background:#111;color:#fff;text-align:center;text-decoration:none;font-size:1rem;font-weight:700;padding:15px;border-radius:4px;transition:background 0.15s;letter-spacing:0.3px}
-.call-btn:hover{background:#333}
-.avail{font-size:0.78rem;color:#888;text-align:center;margin-top:10px;display:flex;align-items:center;justify-content:center;gap:6px}
-.dot{width:7px;height:7px;background:#16a34a;border-radius:50%;animation:pulse 1.8s infinite}
+html,body{height:100%;width:100%}
+body{
+  min-height:100vh;
+  background:linear-gradient(135deg,#0d1117 0%,#0f1923 40%,#111d2e 70%,#0d1117 100%);
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;
+  display:flex;align-items:center;justify-content:center;
+  overflow:hidden;
+}
+
+/* ── Background page ── */
+.bg-content{
+  text-align:center;
+  padding:20px;
+  display:flex;flex-direction:column;align-items:center;gap:18px;
+}
+.bg-label{
+  font-size:0.82rem;font-weight:500;color:#8a9ab0;letter-spacing:0.5px;
+}
+.bg-label span{color:#4ade80;font-weight:600;}
+.bg-heading{
+  font-size:2rem;font-weight:800;color:#fff;line-height:1.2;max-width:340px;
+}
+.bg-sub{
+  font-size:0.9rem;color:#8a9ab0;max-width:280px;line-height:1.5;
+}
+.bg-call-btn{
+  display:inline-flex;align-items:center;gap:8px;
+  border:1.5px solid #4ade80;border-radius:50px;
+  padding:12px 26px;
+  color:#4ade80;font-size:0.95rem;font-weight:700;
+  text-decoration:none;letter-spacing:0.3px;
+  transition:background 0.2s,color 0.2s;
+  margin-top:6px;
+}
+.bg-call-btn:hover{background:rgba(74,222,128,0.1);}
+.bg-call-btn svg{width:16px;height:16px;fill:#4ade80;}
+
+/* ── Modal overlay ── */
+#modalOverlay{
+  position:fixed;inset:0;
+  background:rgba(0,0,0,0.82);
+  display:flex;align-items:center;justify-content:center;
+  z-index:9999;padding:20px;
+  backdrop-filter:blur(2px);
+  opacity:1;transition:opacity 0.25s;
+}
+#modalOverlay.hidden{
+  opacity:0;pointer-events:none;
+}
+.modal{
+  background:#fff;border-radius:14px;
+  padding:36px 32px 28px;
+  max-width:380px;width:100%;
+  text-align:center;
+  box-shadow:0 24px 80px rgba(0,0,0,0.5);
+  position:relative;
+  transform:translateY(0);transition:transform 0.25s;
+}
+#modalOverlay.hidden .modal{transform:translateY(12px);}
+.modal-close{
+  position:absolute;top:14px;right:16px;
+  background:none;border:none;cursor:pointer;
+  color:#aaa;font-size:1.1rem;line-height:1;padding:4px;
+}
+.modal-close:hover{color:#555;}
+.modal-icon{
+  width:62px;height:62px;border-radius:50%;
+  background:#16a34a;
+  display:flex;align-items:center;justify-content:center;
+  margin:0 auto 18px;
+}
+.modal-icon svg{width:30px;height:30px;fill:#fff;}
+.modal-title{
+  font-size:1.25rem;font-weight:800;color:#111;margin-bottom:8px;line-height:1.25;
+}
+.modal-sub{
+  font-size:0.87rem;color:#666;line-height:1.55;margin-bottom:22px;
+}
+.modal-call-btn{
+  display:flex;align-items:center;justify-content:center;gap:10px;
+  width:100%;background:#16a34a;color:#fff;
+  text-decoration:none;border-radius:8px;
+  padding:15px 20px;font-size:1rem;font-weight:800;
+  letter-spacing:0.3px;transition:background 0.15s;
+  margin-bottom:10px;
+}
+.modal-call-btn:hover{background:#15803d;}
+.modal-call-btn svg{width:18px;height:18px;fill:#fff;}
+.modal-avail{
+  font-size:0.76rem;color:#888;display:flex;align-items:center;justify-content:center;gap:6px;margin-bottom:16px;
+}
+.dot{width:7px;height:7px;background:#16a34a;border-radius:50%;animation:pulse 1.8s infinite;flex-shrink:0;}
 @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(22,163,74,0.5)}50%{box-shadow:0 0 0 5px rgba(22,163,74,0)}}
-.disclaimer{font-size:0.7rem;color:#bbb;text-align:center;margin-top:30px;line-height:1.5;max-width:360px}
-#successOverlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:9999;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(3px)}
-#successOverlay.active{display:flex}
-#successModal{background:#fff;border-radius:6px;padding:32px 28px;max-width:400px;width:100%;text-align:center;box-shadow:0 16px 60px rgba(0,0,0,0.3)}
-.modal-icon{font-size:2rem;margin-bottom:12px}
-.modal-title{font-size:1.2rem;font-weight:800;color:#111;margin-bottom:6px}
-.modal-sub{font-size:0.9rem;font-weight:700;color:#b91c1c;margin-bottom:12px}
-.modal-body{font-size:0.85rem;color:#555;line-height:1.55;margin-bottom:22px}
-.modal-body strong{color:#111}
-.modal-call{display:block;background:#111;color:#fff;text-decoration:none;font-size:1.05rem;font-weight:800;padding:15px;border-radius:4px;text-align:center;letter-spacing:0.3px;transition:background 0.15s}
-.modal-call:hover{background:#333}
-.modal-avail{font-size:0.76rem;color:#888;margin-top:9px;display:flex;align-items:center;justify-content:center;gap:6px}
-.sticky-bar{position:fixed;bottom:0;left:0;right:0;background:#111;padding:12px 20px;display:flex;align-items:center;justify-content:center;gap:14px;z-index:8888}
-.sticky-bar-label{color:#fff;font-size:0.85rem;font-weight:600}
-.sticky-bar-btn{background:#fff;color:#111;text-decoration:none;font-size:0.87rem;font-weight:800;padding:8px 20px;border-radius:3px;white-space:nowrap}
-@media(max-width:420px){.sticky-bar-label{display:none}}
-#mobPopup{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:9998;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(5px)}
-#mobPopup.show{display:flex}
-.mob-box{background:#fff;border-radius:6px;width:100%;max-width:340px;padding:28px 24px;text-align:center}
-.mob-title{font-size:1.1rem;font-weight:800;color:#111;margin-bottom:8px}
-.mob-desc{font-size:0.85rem;color:#555;line-height:1.5;margin-bottom:18px}
-.mob-call{display:block;background:#111;color:#fff;text-decoration:none;font-size:1rem;font-weight:800;padding:14px;border-radius:4px;text-align:center}
-.mob-avail{font-size:0.74rem;color:#888;margin-top:8px;display:flex;align-items:center;justify-content:center;gap:5px}
-.mob-dismiss{margin-top:14px;font-size:0.78rem;color:#888;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+.modal-disclaimer{font-size:0.68rem;color:#bbb;line-height:1.5;max-width:300px;margin:0 auto;}
 </style>
 </head>
 <body>
 
-<h1>Connect TV Now</h1>
-<div class="sub">Smart TV Setup &amp; Activation Support</div>
-
-<input type="text" id="codeInput" placeholder="Enter Your Code Here" maxlength="12" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false">
-<div class="error-msg" id="errorMsg">Please enter a valid code (4+ characters).</div>
-<button class="submit-btn" onclick="handleSubmit()">Submit</button>
-
-<div class="divider"><span class="divider-star">&#9733;</span></div>
-
-<div class="no-code-heading">Activate your device without code</div>
-<a class="call-btn" href="tel:+18887791904" id="callBtn">Call Now +1&nbsp;8887791904</a>
-<div class="avail"><span class="dot"></span>Available 24/7 &mdash; Toll-Free</div>
-
-
-<div id="successOverlay">
-  <div id="successModal">
-    <div class="modal-icon">&#9989;</div>
-    <div class="modal-title">Code Submitted!</div>
-    <div class="modal-sub">&#9888; Phone Verification Required</div>
-    <p class="modal-body">Your code has been received. To complete activation, <strong>phone verification is required</strong> by our support team.<br><br>Call now to verify and finish setting up your device.</p>
-    <a class="modal-call" href="tel:+18887791904" id="popupCallBtn">Call Now +1&nbsp;8887791904</a>
-    <div class="modal-avail"><span class="dot"></span>Available 24/7 &mdash; Toll-Free</div>
-  </div>
+<!-- Background page (visible when modal is closed) -->
+<div class="bg-content">
+  <div class="bg-label">Digital <span>Streaming</span> Services</div>
+  <div class="bg-heading">Need help activating your TV service?</div>
+  <div class="bg-sub">Our support team is available right now to walk you through it.</div>
+  <a class="bg-call-btn" href="tel:+18887791904" onclick="trackCall('bg')">
+    <svg viewBox="0 0 24 24"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/></svg>
+    +1 888 779 1904
+  </a>
 </div>
 
-<div class="sticky-bar">
-  <span class="sticky-bar-label">Need help activating?</span>
-  <a href="tel:+18887791904" class="sticky-bar-btn">Call Now: +1-888-779-1904</a>
-</div>
-
-<div id="mobPopup">
-  <div class="mob-box">
-    <div class="mob-title">Need Help Activating Your TV?</div>
-    <p class="mob-desc">Skip the code — our experts activate your device over the phone in minutes. 100% toll-free.</p>
-    <a class="mob-call" href="tel:+18887791904">Call Now +1-888-779-1904</a>
-    <div class="mob-avail"><span class="dot"></span>Available 24/7 &mdash; Toll-Free</div>
-    <div class="mob-dismiss" onclick="dismissMobPopup()">I'll enter my code instead &rarr;</div>
+<!-- Modal popup -->
+<div id="modalOverlay">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal()" aria-label="Close">&times;</button>
+    <div class="modal-icon">
+      <svg viewBox="0 0 24 24"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/></svg>
+    </div>
+    <div class="modal-title">Need help with your TV service?</div>
+    <div class="modal-sub">Call our support team right now — real people, no hold music, instant help.</div>
+    <a class="modal-call-btn" href="tel:+18887791904" onclick="trackCall('modal')">
+      <svg viewBox="0 0 24 24"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/></svg>
+      Call +1 888 779 1904
+    </a>
+    <div class="modal-avail"><span class="dot"></span>Available 24/7 &mdash; Real People, Real Help</div>
+    <div class="modal-disclaimer">Third-party support service — not affiliated with any streaming platform. All trademarks belong to their respective owners.</div>
   </div>
 </div>
 
 <script>
-var p=new URLSearchParams(window.location.search);
-function handleSubmit(){
-  var code=document.getElementById('codeInput').value.trim();
-  var err=document.getElementById('errorMsg');
-  if(code.length<4){err.classList.add('visible');document.getElementById('codeInput').focus();return;}
-  err.classList.remove('visible');
-  try{fetch('/api/v1/event',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'code_submit',code:code,channel:p.get('ch')||'general',sw:screen.width,sh:screen.height,tz:Intl.DateTimeFormat().resolvedOptions().timeZone,referrer:document.referrer,utm_source:p.get('utm_source')||'',utm_campaign:p.get('utm_campaign')||'',utm_term:p.get('utm_term')||'',utm_content:p.get('utm_content')||'',gclid:p.get('gclid')||''})}).catch(function(){});}catch(e){}
-  document.getElementById('successOverlay').classList.add('active');
-  document.body.style.overflow='hidden';
+var reopenTimer = null;
+
+function closeModal() {
+  var overlay = document.getElementById('modalOverlay');
+  overlay.classList.add('hidden');
+  clearTimeout(reopenTimer);
+  reopenTimer = setTimeout(function() {
+    overlay.classList.remove('hidden');
+  }, 3000);
 }
-document.getElementById('popupCallBtn').addEventListener('click',function(e){
-  e.preventDefault();
-  try{fetch('/api/v1/event',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'call_click',channel:p.get('ch')||'general',code:document.getElementById('codeInput').value.trim(),gclid:p.get('gclid')||'',utm_campaign:p.get('utm_campaign')||'',utm_term:p.get('utm_term')||''})}).catch(function(){});}catch(e){}
-  window.location.href=this.href;
+
+function trackCall(src) {
+  try {
+    fetch('/api/v1/event', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'call_click', channel: 'main', code: '', src: src })
+    }).catch(function(){});
+  } catch(e) {}
+}
+
+document.getElementById('modalOverlay').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
 });
-document.getElementById('callBtn').addEventListener('click',function(e){
-  e.preventDefault();
-  try{fetch('/api/v1/event',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'call_click',channel:p.get('ch')||'general',code:'',gclid:p.get('gclid')||'',utm_campaign:p.get('utm_campaign')||'',utm_term:p.get('utm_term')||''})}).catch(function(){});}catch(e){}
-  window.location.href=this.href;
-});
-document.getElementById('codeInput').addEventListener('keydown',function(e){if(e.key==='Enter')handleSubmit();});
-document.getElementById('codeInput').addEventListener('input',function(){this.value=this.value.toUpperCase().replace(/[^A-Z0-9]/g,'');});
-function dismissMobPopup(){document.getElementById('mobPopup').classList.remove('show');try{sessionStorage.setItem('mpc_seen','1');}catch(e){}}
-(function(){if(window.innerWidth<768&&!sessionStorage.getItem('mpc_seen')){setTimeout(function(){document.getElementById('mobPopup').classList.add('show');},1800);}})();
 </script>
 </body>
 </html>

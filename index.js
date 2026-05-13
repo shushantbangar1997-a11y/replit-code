@@ -1166,6 +1166,16 @@ app.post('/api/v1/event', async function(req, res) {
   } catch (e) { /* silently swallow — never break client experience */ }
 });
 
+// ─── Secret admin unlock (used by 4-click footer trigger) ────────────────────
+app.post('/api/v1/admin-unlock', function(req, res) {
+  var password = req.body.password || '';
+  if (bcrypt.compareSync(password, ADMIN_PASSWORD_HASH)) {
+    req.session.adminAuth = true;
+    return res.json({ ok: true, redirect: '/' + ADMIN_PATH });
+  }
+  res.status(401).json({ ok: false, error: 'Invalid password' });
+});
+
 // ─── Old /admin paths → 404 (keep undiscoverable) ────────────────────────────
 app.all('/admin', function(req, res) { res.status(404).send('Not found'); });
 app.all('/admin/login', function(req, res) { res.status(404).send('Not found'); });

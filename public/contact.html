@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Contact Us — DeviceLink Pro</title>
+<meta name="description" content="Get in touch with DeviceLink Pro for streaming and TV device setup support.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{--blue:#1e40af;--blue-light:#3b82f6;--blue-pale:#eff6ff;--text:#0f172a;--muted:#64748b;--border:#e2e8f0;--surface:#f8fafc}
+body{font-family:'Inter',-apple-system,sans-serif;background:var(--surface);color:var(--text);line-height:1.6;min-height:100vh}
+.topbar{background:#0f172a;color:#94a3b8;text-align:center;padding:8px 20px;font-size:0.75rem;letter-spacing:0.3px}
+nav{display:flex;align-items:center;justify-content:space-between;padding:0 5%;height:64px;background:#fff;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;box-shadow:0 1px 4px rgba(0,0,0,0.05)}
+.nav-brand{display:flex;align-items:center;gap:9px;text-decoration:none}
+.nav-logo-box{width:32px;height:32px;background:var(--blue);border-radius:8px;display:flex;align-items:center;justify-content:center}
+.nav-logo-box svg{width:17px;height:17px;fill:#fff}
+.nav-brand-name{font-size:1rem;font-weight:800;color:var(--text);letter-spacing:-0.3px}
+.nav-brand-name span{color:var(--blue-light)}
+.nav-links{display:flex;align-items:center;gap:6px}
+.nav-link{color:var(--muted);text-decoration:none;font-size:0.85rem;font-weight:500;padding:7px 14px;border-radius:7px;transition:all 0.15s}
+.nav-link:hover{background:var(--blue-pale);color:var(--blue)}
+.nav-link.active{color:var(--blue);font-weight:600}
+
+.page{max-width:600px;margin:64px auto;padding:0 20px 80px}
+.page-eyebrow{font-size:0.72rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--blue-light);margin-bottom:10px}
+.page-title{font-size:2rem;font-weight:800;letter-spacing:-0.8px;margin-bottom:10px}
+.page-sub{font-size:0.95rem;color:var(--muted);margin-bottom:40px;line-height:1.65}
+
+.contact-card{background:#fff;border:1.5px solid var(--border);border-radius:16px;padding:32px;margin-bottom:20px}
+.contact-card h2{font-size:1rem;font-weight:700;margin-bottom:6px}
+.contact-card p{font-size:0.88rem;color:var(--muted);margin-bottom:20px;line-height:1.55}
+.call-btn{display:flex;align-items:center;gap:10px;background:var(--blue);color:#fff;text-decoration:none;padding:15px 24px;border-radius:10px;font-size:1rem;font-weight:700;transition:background 0.15s;width:100%;justify-content:center}
+.call-btn:hover{background:#1d3fa5}
+.call-btn svg{width:20px;height:20px;fill:#fff;flex-shrink:0}
+.avail{display:flex;align-items:center;justify-content:center;gap:7px;margin-top:12px;font-size:0.78rem;color:var(--muted)}
+.dot{width:7px;height:7px;background:#22c55e;border-radius:50%;animation:pulse 1.8s infinite;flex-shrink:0}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(34,197,94,0.5)}50%{box-shadow:0 0 0 5px rgba(34,197,94,0)}}
+
+.info-row{display:flex;align-items:flex-start;gap:14px;padding:18px 0;border-bottom:1px solid var(--border)}
+.info-row:last-child{border-bottom:none}
+.info-icon{width:38px;height:38px;background:var(--blue-pale);border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.info-icon svg{width:18px;height:18px;fill:var(--blue)}
+.info-label{font-size:0.78rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:3px}
+.info-value{font-size:0.92rem;font-weight:600;color:var(--text)}
+
+.disclaimer{font-size:0.75rem;color:#94a3b8;text-align:center;margin-top:28px;line-height:1.6}
+
+footer{background:#0f172a;color:#64748b;padding:28px 5%;margin-top:0}
+.footer-inner{max-width:1160px;margin:0 auto;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px}
+.footer-brand{font-size:0.88rem;font-weight:700;color:#fff}
+.footer-links{display:flex;gap:20px}
+.footer-links a{font-size:0.8rem;color:#64748b;text-decoration:none;transition:color 0.15s}
+.footer-links a:hover{color:#fff}
+.footer-copy{width:100%;font-size:0.72rem;color:#334155;margin-top:14px;padding-top:14px;border-top:1px solid #1e293b;text-align:center}
+@media(max-width:640px){nav{padding:0 4%}.nav-links .nav-link:not(.active){display:none}.page{margin-top:40px}.footer-inner{flex-direction:column;text-align:center}.footer-links{justify-content:center}}
+</style>
+</head>
+<body>
+
+<div class="topbar">Independent help center — not affiliated with any streaming platform or device brand</div>
+
+<nav>
+  <a class="nav-brand" href="/">
+    <div class="nav-logo-box">
+      <svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>
+    </div>
+    <span class="nav-brand-name">DeviceLink<span>Pro</span></span>
+  </a>
+  <div class="nav-links">
+    <a class="nav-link" href="/">Home</a>
+    <a class="nav-link active" href="/contact">Contact</a>
+  </div>
+</nav>
+
+<div class="page">
+  <div class="page-eyebrow">Get in touch</div>
+  <div class="page-title">Contact Us</div>
+  <p class="page-sub">Our support team is available 24/7 to help you with TV setup, device activation, and streaming issues.</p>
+
+  <div class="contact-card">
+    <h2>Phone Support</h2>
+    <p>Call us toll-free and speak directly with a setup specialist. No automated menus — a real person answers.</p>
+    <a class="call-btn" href="tel:+18887791904">
+      <svg viewBox="0 0 24 24"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>
+      Call +1 888 779 1904
+    </a>
+    <div class="avail"><span class="dot"></span>Available 24/7 &mdash; Toll-Free</div>
+  </div>
+
+  <div class="contact-card">
+    <div class="info-row">
+      <div class="info-icon"><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15v-4H7l5-8v4h4l-5 8z"/></svg></div>
+      <div><div class="info-label">Hours</div><div class="info-value">24 hours a day, 7 days a week</div></div>
+    </div>
+    <div class="info-row">
+      <div class="info-icon"><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 100 20A10 10 0 0012 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg></div>
+      <div><div class="info-label">Service</div><div class="info-value">TV setup, device activation, streaming issues</div></div>
+    </div>
+    <div class="info-row">
+      <div class="info-icon"><svg viewBox="0 0 24 24"><path d="M17 1.01L7 1c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-1.99-2-1.99zM17 19H7V5h10v14z"/></svg></div>
+      <div><div class="info-label">Supported Devices</div><div class="info-value">Smart TVs, Roku, Fire Stick, Apple TV, Chromecast, gaming consoles</div></div>
+    </div>
+  </div>
+
+  <p class="disclaimer">Third-party support service. Not affiliated with any streaming platform, TV manufacturer, or device brand. All trademarks belong to their respective owners.</p>
+</div>
+
+<footer>
+  <div class="footer-inner">
+    <div class="footer-brand">DeviceLink Pro</div>
+    <div class="footer-links">
+      <a href="/">Home</a>
+      <a href="/contact">Contact</a>
+    </div>
+  </div>
+  <div class="footer-copy">Independent help center — not affiliated with any streaming platform, device brand, or service provider.</div>
+</footer>
+
+</body>
+</html>

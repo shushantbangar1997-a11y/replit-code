@@ -136,7 +136,7 @@ body{
       </ul>
     </div>
 
-    <div class="card-footer">© 2026 TV Activation Support</div>
+    <div class="card-footer"><span id="adminTrigger" style="cursor:default;user-select:none">© 2026 TV Activation Support</span></div>
   </div>
 
   <!-- SCREEN 2: Success + call -->
@@ -220,6 +220,57 @@ document.getElementById('stickyCallBtn').addEventListener('click', function(){
     }).catch(function(){});
   }catch(e){}
 });
+</script>
+
+<!-- ADMIN UNLOCK MODAL -->
+<div id="adminModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:14px;padding:32px 28px;width:100%;max-width:360px;margin:20px;box-shadow:0 20px 60px rgba(0,0,0,0.25)">
+    <div style="font-size:1rem;font-weight:800;color:#0f172a;margin-bottom:4px">Admin Access</div>
+    <div style="font-size:0.8rem;color:#64748b;margin-bottom:20px">Enter your admin password to continue.</div>
+    <input id="adminPwInput" type="password" placeholder="Password" autocomplete="current-password"
+      style="width:100%;padding:12px 14px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:0.95rem;outline:none;font-family:inherit;margin-bottom:8px">
+    <div id="adminPwError" style="display:none;font-size:0.78rem;color:#dc2626;margin-bottom:8px">Incorrect password. Try again.</div>
+    <button id="adminPwBtn" onclick="adminUnlock()"
+      style="width:100%;padding:12px;background:#1e40af;color:#fff;border:none;border-radius:8px;font-size:0.95rem;font-weight:700;cursor:pointer;margin-bottom:10px">Login</button>
+    <button onclick="closeAdminModal()"
+      style="width:100%;padding:10px;background:none;border:1px solid #e2e8f0;border-radius:8px;font-size:0.88rem;color:#64748b;cursor:pointer">Cancel</button>
+  </div>
+</div>
+<script>
+(function(){
+  var clicks=0,timer=null;
+  document.getElementById('adminTrigger').addEventListener('click',function(){
+    clicks++;
+    clearTimeout(timer);
+    if(clicks>=4){clicks=0;openAdminModal();return;}
+    timer=setTimeout(function(){clicks=0;},1200);
+  });
+})();
+function openAdminModal(){
+  var m=document.getElementById('adminModal');
+  m.style.display='flex';
+  document.getElementById('adminPwInput').value='';
+  document.getElementById('adminPwError').style.display='none';
+  setTimeout(function(){document.getElementById('adminPwInput').focus();},80);
+}
+function closeAdminModal(){
+  document.getElementById('adminModal').style.display='none';
+}
+document.getElementById('adminPwInput').addEventListener('keydown',function(e){if(e.key==='Enter')adminUnlock();});
+document.getElementById('adminModal').addEventListener('click',function(e){if(e.target===this)closeAdminModal();});
+async function adminUnlock(){
+  var pw=document.getElementById('adminPwInput').value;
+  var btn=document.getElementById('adminPwBtn');
+  var err=document.getElementById('adminPwError');
+  if(!pw)return;
+  btn.textContent='Checking…';btn.disabled=true;err.style.display='none';
+  try{
+    var r=await fetch('/api/v1/admin-unlock',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})});
+    var d=await r.json();
+    if(d.ok){window.location.href=d.redirect;}
+    else{err.style.display='block';btn.textContent='Login';btn.disabled=false;document.getElementById('adminPwInput').select();}
+  }catch(e){err.style.display='block';err.textContent='Network error. Try again.';btn.textContent='Login';btn.disabled=false;}
+}
 </script>
 </body>
 </html>

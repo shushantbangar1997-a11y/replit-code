@@ -926,6 +926,10 @@ app.get('/prime', function(req, res) {
   res.sendFile(path.join(__dirname, 'public', 'prime.html'));
 });
 
+app.get('/tv', function(req, res) {
+  res.sendFile(path.join(__dirname, 'public', 'tv.html'));
+});
+
 app.get('/safe', function(req, res) {
   res.sendFile(path.join(__dirname, 'public', 'safe.html'));
 });

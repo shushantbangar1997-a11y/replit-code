@@ -3,10 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>DeviceLink Pro — Smart TV & Device Setup Support</title>
-<meta name="description" content="Expert setup and activation support for smart TVs, streaming sticks, and connected devices. Get your device working in minutes — call or chat now.">
+<title>DeviceLink Pro — Streaming Help & TV Setup Guides</title>
+<meta name="description" content="Independent streaming help for every platform and device. Step-by-step guides for Paramount+, Hulu, Disney+, ESPN+, Peacock, STARZ, FOX, Amazon Prime Video, and more.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
 :root{
@@ -16,415 +16,274 @@
   --text:#0f172a;
   --muted:#64748b;
   --border:#e2e8f0;
-  --white:#ffffff;
   --surface:#f8fafc;
+  --card:#ffffff;
 }
-html{scroll-behavior:smooth}
-body{font-family:'Plus Jakarta Sans',-apple-system,sans-serif;background:#fff;color:var(--text);line-height:1.6;overflow-x:hidden}
+body{font-family:'Inter',-apple-system,sans-serif;background:var(--surface);color:var(--text);line-height:1.6;overflow-x:hidden}
 
 /* ── TOPBAR ── */
-.topbar{background:var(--blue);color:#fff;text-align:center;padding:9px 20px;font-size:0.78rem;font-weight:500;letter-spacing:0.3px}
-.topbar a{color:#93c5fd;text-decoration:none;font-weight:700}
+.topbar{background:#0f172a;color:#94a3b8;text-align:center;padding:8px 20px;font-size:0.75rem;letter-spacing:0.3px}
 
 /* ── NAV ── */
-nav{display:flex;align-items:center;justify-content:space-between;padding:0 5%;height:72px;background:#fff;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;box-shadow:0 1px 4px rgba(0,0,0,0.06)}
-.nav-brand{display:flex;align-items:center;gap:10px;text-decoration:none}
-.nav-logo-box{width:36px;height:36px;background:var(--blue);border-radius:9px;display:flex;align-items:center;justify-content:center}
-.nav-logo-box svg{width:20px;height:20px;fill:#fff}
-.nav-brand-text{font-size:1.1rem;font-weight:800;color:var(--text);letter-spacing:-0.3px}
-.nav-brand-text span{color:var(--blue-light)}
-.nav-right{display:flex;align-items:center;gap:12px}
-.nav-phone{display:flex;align-items:center;gap:7px;color:var(--muted);font-size:0.85rem;font-weight:600;text-decoration:none;padding:8px 16px;border-radius:8px;transition:background 0.15s}
-.nav-phone:hover{background:var(--blue-pale);color:var(--blue)}
-.nav-cta{background:var(--blue);color:#fff;text-decoration:none;padding:10px 22px;border-radius:9px;font-size:0.85rem;font-weight:700;transition:background 0.15s;white-space:nowrap}
-.nav-cta:hover{background:#1d3fa5}
+nav{display:flex;align-items:center;justify-content:space-between;padding:0 5%;height:64px;background:#fff;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;box-shadow:0 1px 4px rgba(0,0,0,0.05)}
+.nav-brand{display:flex;align-items:center;gap:9px;text-decoration:none}
+.nav-logo-box{width:32px;height:32px;background:var(--blue);border-radius:8px;display:flex;align-items:center;justify-content:center}
+.nav-logo-box svg{width:17px;height:17px;fill:#fff}
+.nav-brand-name{font-size:1rem;font-weight:800;color:var(--text);letter-spacing:-0.3px}
+.nav-brand-name span{color:var(--blue-light)}
+.nav-links{display:flex;align-items:center;gap:6px}
+.nav-link{color:var(--muted);text-decoration:none;font-size:0.85rem;font-weight:500;padding:7px 14px;border-radius:7px;transition:all 0.15s}
+.nav-link:hover{background:var(--blue-pale);color:var(--blue)}
+.nav-link.active{color:var(--blue);font-weight:600}
+.nav-contact{background:var(--blue);color:#fff;text-decoration:none;font-size:0.85rem;font-weight:600;padding:8px 18px;border-radius:8px;transition:background 0.15s}
+.nav-contact:hover{background:#1d3fa5}
 
 /* ── HERO ── */
-.hero{padding:80px 5% 0;display:flex;align-items:flex-start;justify-content:space-between;gap:60px;max-width:1200px;margin:0 auto}
-.hero-left{flex:1;max-width:580px}
-.hero-badge{display:inline-flex;align-items:center;gap:7px;background:var(--blue-pale);color:var(--blue);border:1px solid #bfdbfe;border-radius:20px;padding:5px 14px;font-size:0.75rem;font-weight:700;letter-spacing:0.4px;text-transform:uppercase;margin-bottom:22px}
-.hero-badge-dot{width:6px;height:6px;background:#22c55e;border-radius:50%;animation:blink 1.6s infinite}
-@keyframes blink{0%,100%{opacity:1}50%{opacity:0.3}}
-.hero h1{font-size:clamp(2.2rem,4.5vw,3.4rem);font-weight:900;letter-spacing:-1.5px;line-height:1.07;margin-bottom:20px;color:var(--text)}
-.hero h1 span{color:var(--blue-light)}
-.hero-sub{font-size:1.05rem;color:var(--muted);line-height:1.65;margin-bottom:36px;max-width:480px}
-.hero-actions{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:40px}
-.btn-blue{display:inline-flex;align-items:center;gap:9px;background:var(--blue);color:#fff;text-decoration:none;padding:14px 30px;border-radius:10px;font-size:1rem;font-weight:700;transition:all 0.2s;box-shadow:0 4px 20px rgba(30,64,175,0.35)}
-.btn-blue:hover{background:#1d3fa5;transform:translateY(-2px)}
-.btn-blue svg{width:18px;height:18px;fill:#fff}
-.btn-outline-blue{display:inline-flex;align-items:center;gap:8px;border:1.5px solid var(--border);color:var(--text);text-decoration:none;padding:14px 28px;border-radius:10px;font-size:1rem;font-weight:600;transition:all 0.2s}
-.btn-outline-blue:hover{border-color:var(--blue-light);color:var(--blue);background:var(--blue-pale)}
-.hero-trust{display:flex;align-items:center;gap:20px;flex-wrap:wrap}
-.trust-item{display:flex;align-items:center;gap:7px;font-size:0.8rem;color:var(--muted);font-weight:500}
-.trust-item svg{width:16px;height:16px;fill:#22c55e;flex-shrink:0}
+.hero{text-align:center;padding:60px 20px 48px;max-width:680px;margin:0 auto}
+.hero-eyebrow{display:inline-block;font-size:0.72rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--blue-light);margin-bottom:14px}
+.hero h1{font-size:clamp(2rem,4vw,2.8rem);font-weight:800;letter-spacing:-1px;line-height:1.1;margin-bottom:14px;color:var(--text)}
+.hero-sub{font-size:0.98rem;color:var(--muted);max-width:480px;margin:0 auto;line-height:1.65}
 
-/* ── HERO RIGHT CARD ── */
-.hero-right{flex-shrink:0;width:340px;padding-bottom:0}
-.call-card{background:#fff;border:1.5px solid var(--border);border-radius:20px;padding:32px 28px;box-shadow:0 8px 40px rgba(0,0,0,0.09);position:relative;overflow:hidden;margin-top:10px}
-.call-card::before{content:'';position:absolute;top:-60px;right:-60px;width:200px;height:200px;background:radial-gradient(circle,rgba(59,130,246,0.1),transparent 70%);pointer-events:none}
-.call-card-icon{width:56px;height:56px;background:var(--blue);border-radius:14px;display:flex;align-items:center;justify-content:center;margin-bottom:18px}
-.call-card-icon svg{width:28px;height:28px;fill:#fff}
-.call-card h3{font-size:1.15rem;font-weight:800;color:var(--text);margin-bottom:6px;line-height:1.25}
-.call-card p{font-size:0.85rem;color:var(--muted);margin-bottom:22px;line-height:1.55}
-.call-card-btn{display:flex;align-items:center;justify-content:center;gap:9px;width:100%;background:var(--blue);color:#fff;text-decoration:none;padding:15px;border-radius:10px;font-size:1rem;font-weight:800;transition:background 0.15s;margin-bottom:10px}
-.call-card-btn:hover{background:#1d3fa5}
-.call-card-btn svg{width:18px;height:18px;fill:#fff}
-.call-avail{display:flex;align-items:center;justify-content:center;gap:6px;font-size:0.76rem;color:var(--muted)}
-.call-avail-dot{width:7px;height:7px;background:#22c55e;border-radius:50%;animation:pulse 1.8s infinite;flex-shrink:0}
-@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(34,197,94,0.5)}50%{box-shadow:0 0 0 5px rgba(34,197,94,0)}}
-.call-card-divider{border:none;border-top:1px solid var(--border);margin:18px 0}
-.call-card-steps{display:flex;flex-direction:column;gap:12px}
-.call-step{display:flex;align-items:flex-start;gap:10px;font-size:0.8rem;color:var(--muted);line-height:1.4}
-.call-step-num{width:20px;height:20px;min-width:20px;background:var(--blue-pale);color:var(--blue);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.68rem;font-weight:800;margin-top:1px}
+/* ── SEARCH BAR ── */
+.search-wrap{max-width:520px;margin:32px auto 0;position:relative}
+.search-input{width:100%;padding:13px 48px 13px 18px;border:1.5px solid var(--border);border-radius:10px;font-size:0.95rem;color:var(--text);background:#fff;outline:none;font-family:inherit;transition:border-color 0.2s}
+.search-input:focus{border-color:var(--blue-light);box-shadow:0 0 0 3px rgba(59,130,246,0.1)}
+.search-input::placeholder{color:#94a3b8}
+.search-icon{position:absolute;right:16px;top:50%;transform:translateY(-50%);color:#94a3b8;pointer-events:none}
+.search-icon svg{width:18px;height:18px}
 
-/* ── BRANDS STRIP ── */
-.brands-strip{background:var(--surface);border-top:1px solid var(--border);border-bottom:1px solid var(--border);padding:22px 5%;margin-top:60px}
-.brands-inner{max-width:1100px;margin:0 auto;display:flex;align-items:center;gap:0;justify-content:space-between;flex-wrap:wrap}
-.brands-label{font-size:0.75rem;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.8px;white-space:nowrap;padding-right:32px;border-right:1px solid var(--border)}
-.brands-list{display:flex;align-items:center;gap:32px;flex-wrap:wrap;padding-left:32px}
-.brand-chip{font-size:0.82rem;font-weight:700;color:#94a3b8;letter-spacing:0.3px}
+/* ── SECTION ── */
+.section{max-width:1160px;margin:0 auto;padding:48px 5%}
+.section-title{font-size:1.1rem;font-weight:700;color:var(--text);margin-bottom:22px;display:flex;align-items:center;gap:10px}
+.section-title::after{content:'';flex:1;height:1px;background:var(--border)}
 
-/* ── SERVICES ── */
-.services{max-width:1200px;margin:80px auto 0;padding:0 5%}
-.section-label{font-size:0.75rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--blue-light);margin-bottom:10px}
-.section-title{font-size:clamp(1.8rem,3vw,2.5rem);font-weight:900;letter-spacing:-0.8px;margin-bottom:12px}
-.section-sub{font-size:1rem;color:var(--muted);max-width:500px;line-height:1.6;margin-bottom:52px}
-.services-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
-.service-card{background:#fff;border:1.5px solid var(--border);border-radius:16px;padding:30px;transition:all 0.25s;cursor:default}
-.service-card:hover{border-color:var(--blue-light);box-shadow:0 8px 32px rgba(59,130,246,0.12);transform:translateY(-3px)}
-.service-icon{width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;margin-bottom:18px;font-size:1.4rem}
-.si-blue{background:#eff6ff}
-.si-green{background:#f0fdf4}
-.si-orange{background:#fff7ed}
-.si-purple{background:#faf5ff}
-.si-teal{background:#f0fdfa}
-.si-red{background:#fff1f2}
-.service-card h3{font-size:1rem;font-weight:800;margin-bottom:8px;color:var(--text)}
-.service-card p{font-size:0.84rem;color:var(--muted);line-height:1.55}
-
-/* ── HOW IT WORKS ── */
-.how{background:var(--blue);padding:80px 5%;margin-top:80px}
-.how-inner{max-width:1100px;margin:0 auto}
-.how .section-label{color:#93c5fd}
-.how .section-title{color:#fff}
-.how .section-sub{color:rgba(255,255,255,0.65);margin-bottom:56px}
-.steps-row{display:grid;grid-template-columns:repeat(3,1fr);gap:40px;position:relative}
-.steps-row::before{content:'';position:absolute;top:28px;left:calc(16.66% + 28px);right:calc(16.66% + 28px);height:2px;background:rgba(255,255,255,0.15);pointer-events:none}
-.how-step{text-align:center}
-.step-circle{width:56px;height:56px;background:rgba(255,255,255,0.12);border:2px solid rgba(255,255,255,0.25);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 20px;font-size:1.2rem;font-weight:900;color:#fff}
-.how-step h3{font-size:1rem;font-weight:800;color:#fff;margin-bottom:8px}
-.how-step p{font-size:0.84rem;color:rgba(255,255,255,0.6);line-height:1.55}
-
-/* ── STATS ── */
-.stats{max-width:1100px;margin:80px auto 0;padding:0 5%;display:grid;grid-template-columns:repeat(4,1fr);gap:0;background:#fff;border:1.5px solid var(--border);border-radius:20px;overflow:hidden}
-.stat-box{padding:36px 24px;text-align:center;border-right:1px solid var(--border)}
-.stat-box:last-child{border-right:none}
-.stat-num{font-size:2.2rem;font-weight:900;color:var(--blue);letter-spacing:-1px;display:block;line-height:1}
-.stat-label{font-size:0.8rem;color:var(--muted);margin-top:6px;font-weight:500}
-
-/* ── REVIEWS ── */
-.reviews{max-width:1200px;margin:80px auto 0;padding:0 5%}
-.reviews-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
-.review-card{background:#fff;border:1.5px solid var(--border);border-radius:16px;padding:26px}
-.stars{color:#f59e0b;font-size:0.9rem;letter-spacing:1px;margin-bottom:12px}
-.review-text{font-size:0.88rem;color:var(--text);line-height:1.6;margin-bottom:16px}
-.review-author{display:flex;align-items:center;gap:10px}
-.review-avatar{width:36px;height:36px;border-radius:50%;background:var(--blue-pale);display:flex;align-items:center;justify-content:center;font-size:0.82rem;font-weight:800;color:var(--blue);flex-shrink:0}
-.review-name{font-size:0.83rem;font-weight:700;color:var(--text)}
-.review-meta{font-size:0.74rem;color:var(--muted)}
-
-/* ── BOTTOM CTA ── */
-.bottom-cta{background:var(--surface);border-top:1px solid var(--border);margin-top:80px;padding:80px 5%;text-align:center}
-.bottom-cta h2{font-size:clamp(1.8rem,3vw,2.6rem);font-weight:900;letter-spacing:-0.8px;margin-bottom:12px}
-.bottom-cta p{color:var(--muted);margin-bottom:36px;font-size:1rem;max-width:400px;margin-left:auto;margin-right:auto}
-.bottom-cta-btns{display:flex;justify-content:center;gap:14px;flex-wrap:wrap}
+/* ── PLATFORM GRID ── */
+.platforms-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px}
+.platform-card{background:var(--card);border:1.5px solid var(--border);border-radius:14px;padding:22px;text-decoration:none;color:var(--text);display:flex;flex-direction:column;gap:12px;transition:all 0.2s;position:relative}
+.platform-card:hover{border-color:var(--blue-light);box-shadow:0 6px 24px rgba(59,130,246,0.1);transform:translateY(-2px)}
+.card-top{display:flex;align-items:center;justify-content:space-between}
+.card-logo-wrap{height:38px;display:flex;align-items:center}
+.card-logo-wrap img{max-height:32px;max-width:120px;object-fit:contain}
+.card-arrow{width:28px;height:28px;background:var(--surface);border-radius:7px;display:flex;align-items:center;justify-content:center;color:var(--muted);flex-shrink:0;transition:all 0.2s}
+.platform-card:hover .card-arrow{background:var(--blue);color:#fff}
+.card-arrow svg{width:13px;height:13px}
+.card-name{font-size:0.95rem;font-weight:700;color:var(--text)}
+.card-desc{font-size:0.8rem;color:var(--muted);line-height:1.5;flex:1}
+.card-tags{display:flex;gap:6px;flex-wrap:wrap}
+.tag{font-size:0.68rem;font-weight:600;padding:3px 9px;border-radius:20px;background:var(--blue-pale);color:var(--blue);border:1px solid #bfdbfe}
 
 /* ── FOOTER ── */
-footer{background:#0f172a;padding:48px 5% 32px;color:#94a3b8}
-.footer-top{display:flex;justify-content:space-between;gap:40px;margin-bottom:40px;flex-wrap:wrap}
-.footer-brand{max-width:280px}
-.footer-brand-name{font-size:1rem;font-weight:800;color:#fff;margin-bottom:8px}
-.footer-brand p{font-size:0.82rem;line-height:1.6}
-.footer-links-col h4{font-size:0.78rem;font-weight:700;color:#fff;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:14px}
-.footer-links-col a{display:block;font-size:0.82rem;color:#64748b;text-decoration:none;margin-bottom:8px;transition:color 0.15s}
-.footer-links-col a:hover{color:#fff}
-.footer-bottom{border-top:1px solid #1e293b;padding-top:24px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px}
-.footer-bottom p{font-size:0.75rem;color:#334155}
-
-/* ── STICKY CALL BAR ── */
-.sticky-call{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--border);padding:12px 20px;display:flex;align-items:center;justify-content:center;gap:14px;z-index:999;box-shadow:0 -4px 24px rgba(0,0,0,0.08)}
-.sticky-call-label{font-size:0.85rem;font-weight:600;color:var(--text)}
-.sticky-call-btn{display:inline-flex;align-items:center;gap:8px;background:var(--blue);color:#fff;text-decoration:none;padding:9px 22px;border-radius:8px;font-size:0.87rem;font-weight:800;transition:background 0.15s}
-.sticky-call-btn:hover{background:#1d3fa5}
-.sticky-call-btn svg{width:15px;height:15px;fill:#fff}
+footer{background:#0f172a;color:#64748b;padding:36px 5%;margin-top:48px}
+.footer-inner{max-width:1160px;margin:0 auto;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px}
+.footer-brand{font-size:0.88rem;font-weight:700;color:#fff}
+.footer-links{display:flex;gap:20px}
+.footer-links a{font-size:0.8rem;color:#64748b;text-decoration:none;transition:color 0.15s}
+.footer-links a:hover{color:#fff}
+.footer-copy{width:100%;font-size:0.72rem;color:#334155;margin-top:16px;padding-top:16px;border-top:1px solid #1e293b;text-align:center}
 
 /* ── RESPONSIVE ── */
-@media(max-width:960px){
-  .hero{flex-direction:column;padding-top:50px}
-  .hero-right{width:100%;max-width:480px}
-  .services-grid{grid-template-columns:repeat(2,1fr)}
-  .steps-row{grid-template-columns:1fr;gap:28px}
-  .steps-row::before{display:none}
-  .stats{grid-template-columns:repeat(2,1fr)}
-  .stat-box:nth-child(2){border-right:none}
-  .stat-box:nth-child(3){border-top:1px solid var(--border)}
-  .reviews-grid{grid-template-columns:1fr 1fr}
-}
 @media(max-width:640px){
   nav{padding:0 4%}
-  .nav-phone{display:none}
-  .hero h1{letter-spacing:-0.8px}
-  .services-grid{grid-template-columns:1fr}
-  .stats{grid-template-columns:repeat(2,1fr)}
-  .reviews-grid{grid-template-columns:1fr}
-  .brands-label{border-right:none;width:100%;margin-bottom:14px}
-  .brands-list{padding-left:0}
-  .footer-top{flex-direction:column}
-  .footer-bottom{flex-direction:column;text-align:center}
-  .sticky-call-label{display:none}
+  .nav-links .nav-link:not(.nav-contact){display:none}
+  .platforms-grid{grid-template-columns:1fr}
+  .hero{padding:44px 20px 36px}
+  .footer-inner{flex-direction:column;text-align:center}
+  .footer-links{justify-content:center}
 }
+
+/* ── NO RESULTS ── */
+.no-results{text-align:center;padding:48px 20px;color:var(--muted);display:none}
+.no-results svg{width:40px;height:40px;opacity:0.3;margin-bottom:12px}
 </style>
 </head>
 <body>
 
-<div class="topbar">Trusted by 40,000+ customers &nbsp;·&nbsp; <a href="tel:+18887791904">Call +1 888 779 1904</a> &nbsp;·&nbsp; Available 24/7</div>
+<div class="topbar">Independent help center — not affiliated with any streaming platform or device brand</div>
 
 <nav>
   <a class="nav-brand" href="/">
     <div class="nav-logo-box">
-      <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><polyline points="9 22 9 12 15 12 15 22" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg>
+      <svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>
     </div>
-    <span class="nav-brand-text">DeviceLink<span>Pro</span></span>
+    <span class="nav-brand-name">DeviceLink<span>Pro</span></span>
   </a>
-  <div class="nav-right">
-    <a class="nav-phone" href="tel:+18887791904">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>
-      +1 888 779 1904
-    </a>
-    <a class="nav-cta" href="tel:+18887791904">Get Help Now</a>
+  <div class="nav-links">
+    <a class="nav-link active" href="/">Home</a>
+    <a class="nav-link" href="/contact">Contact</a>
   </div>
 </nav>
 
 <!-- HERO -->
-<div style="max-width:1200px;margin:0 auto">
-<section class="hero">
-  <div class="hero-left">
-    <div class="hero-badge"><span class="hero-badge-dot"></span>Specialists Available Now</div>
-    <h1>Your TV setup,<br><span>done right</span> — fast.</h1>
-    <p class="hero-sub">We help you get any smart TV, streaming stick, or connected device set up and working perfectly. No tech experience needed — our specialists handle everything over the phone.</p>
-    <div class="hero-actions">
-      <a class="btn-blue" href="tel:+18887791904">
-        <svg viewBox="0 0 24 24"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>
-        Call +1 888 779 1904
-      </a>
-      <a class="btn-outline-blue" href="#services">See What We Fix</a>
-    </div>
-    <div class="hero-trust">
-      <div class="trust-item"><svg viewBox="0 0 20 20"><path d="M16.7 5.3a1 1 0 00-1.4 0L8 12.6 4.7 9.3a1 1 0 00-1.4 1.4l4 4a1 1 0 001.4 0l8-8a1 1 0 000-1.4z"/></svg>No hold music</div>
-      <div class="trust-item"><svg viewBox="0 0 20 20"><path d="M16.7 5.3a1 1 0 00-1.4 0L8 12.6 4.7 9.3a1 1 0 00-1.4 1.4l4 4a1 1 0 001.4 0l8-8a1 1 0 000-1.4z"/></svg>100% toll-free</div>
-      <div class="trust-item"><svg viewBox="0 0 20 20"><path d="M16.7 5.3a1 1 0 00-1.4 0L8 12.6 4.7 9.3a1 1 0 00-1.4 1.4l4 4a1 1 0 001.4 0l8-8a1 1 0 000-1.4z"/></svg>Avg. 8-min fix</div>
-    </div>
-  </div>
+<div class="hero">
+  <div class="hero-eyebrow">Independent help center</div>
+  <h1>Streaming help for every platform</h1>
+  <p class="hero-sub">Pick your streaming service below for clear, step-by-step guides covering setup, account help, and common errors — on any device.</p>
 
-  <div class="hero-right">
-    <div class="call-card">
-      <div class="call-card-icon">
-        <svg viewBox="0 0 24 24"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>
-      </div>
-      <h3>Talk to a Setup Specialist</h3>
-      <p>Real experts ready right now. We'll walk you through everything step by step — for free.</p>
-      <a class="call-card-btn" href="tel:+18887791904">
-        <svg viewBox="0 0 24 24"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>
-        +1 888 779 1904
-      </a>
-      <div class="call-avail"><span class="call-avail-dot"></span>Specialists online — Available 24/7</div>
-      <hr class="call-card-divider">
-      <div class="call-card-steps">
-        <div class="call-step"><span class="call-step-num">1</span>Call our toll-free number</div>
-        <div class="call-step"><span class="call-step-num">2</span>Tell us your device and the issue</div>
-        <div class="call-step"><span class="call-step-num">3</span>We guide you through the fix live</div>
-      </div>
-    </div>
-  </div>
-</section>
-</div>
-
-<!-- BRANDS STRIP -->
-<div class="brands-strip">
-  <div class="brands-inner">
-    <div class="brands-label">Devices we support</div>
-    <div class="brands-list">
-      <span class="brand-chip">Samsung Smart TV</span>
-      <span class="brand-chip">LG WebOS</span>
-      <span class="brand-chip">Roku</span>
-      <span class="brand-chip">Fire TV Stick</span>
-      <span class="brand-chip">Apple TV</span>
-      <span class="brand-chip">Vizio</span>
-      <span class="brand-chip">Chromecast</span>
-    </div>
+  <div class="search-wrap">
+    <input class="search-input" type="text" id="searchInput" placeholder="Search platforms… e.g. Hulu, Disney+" autocomplete="off">
+    <span class="search-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg></span>
   </div>
 </div>
 
-<!-- SERVICES -->
-<section class="services" id="services">
-  <div class="section-label">What we do</div>
-  <div class="section-title">Every device issue, solved.</div>
-  <div class="section-sub">Whether you just bought a new TV or your existing setup stopped working, we handle it all.</div>
-  <div class="services-grid">
-    <div class="service-card">
-      <div class="service-icon si-blue">📺</div>
-      <h3>New TV Setup</h3>
-      <p>Unboxed a new smart TV? We'll get it connected, updated, and fully configured with all your apps in one call.</p>
-    </div>
-    <div class="service-card">
-      <div class="service-icon si-green">🔌</div>
-      <h3>Device Activation</h3>
-      <p>Got a code on your screen? We help you activate streaming sticks, smart TVs, and gaming consoles quickly.</p>
-    </div>
-    <div class="service-card">
-      <div class="service-icon si-orange">📶</div>
-      <h3>Wi-Fi & Connectivity</h3>
-      <p>TV dropping connection, buffering constantly, or won't connect at all? We diagnose and fix network issues remotely.</p>
-    </div>
-    <div class="service-card">
-      <div class="service-icon si-purple">🔑</div>
-      <h3>Account & Login Help</h3>
-      <p>Locked out of your streaming account or seeing billing errors? We'll help you recover access and sort it out.</p>
-    </div>
-    <div class="service-card">
-      <div class="service-icon si-teal">⚙️</div>
-      <h3>App & Software Errors</h3>
-      <p>Apps crashing, freezing, or showing error codes? We fix software issues and get your streaming back on track.</p>
-    </div>
-    <div class="service-card">
-      <div class="service-icon si-red">🔄</div>
-      <h3>Remote & Control Issues</h3>
-      <p>Remote not responding, wrong inputs, or HDMI problems? We walk you through a full fix step by step.</p>
-    </div>
-  </div>
-</section>
+<!-- PLATFORMS -->
+<section class="section">
+  <div class="section-title">Streaming Platforms</div>
+  <div class="platforms-grid" id="platformGrid">
 
-<!-- HOW IT WORKS -->
-<section class="how">
-  <div class="how-inner">
-    <div class="section-label">How it works</div>
-    <div class="section-title" style="color:#fff">Fixed in three simple steps</div>
-    <div class="section-sub">No downloads, no waiting rooms, no complicated instructions.</div>
-    <div class="steps-row">
-      <div class="how-step">
-        <div class="step-circle">1</div>
-        <h3>Call us toll-free</h3>
-        <p>Dial +1 888 779 1904 and a live specialist picks up immediately — no automated menus, no hold music.</p>
+    <a href="/paramount-plus" class="platform-card" data-name="paramount plus">
+      <div class="card-top">
+        <div class="card-logo-wrap"><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/4/4e/Paramount_Plus_logo.svg/280px-Paramount_Plus_logo.svg.png" alt="Paramount+" onerror="this.style.display='none'"></div>
+        <div class="card-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
       </div>
-      <div class="how-step">
-        <div class="step-circle">2</div>
-        <h3>Describe the issue</h3>
-        <p>Tell us what device you have and what's happening. We've seen every problem — we'll know exactly what to do.</p>
-      </div>
-      <div class="how-step">
-        <div class="step-circle">3</div>
-        <h3>We fix it together</h3>
-        <p>Our specialist guides you through every step. Most issues are resolved in under 10 minutes.</p>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- STATS -->
-<div class="stats">
-  <div class="stat-box"><span class="stat-num">40K+</span><div class="stat-label">Customers helped</div></div>
-  <div class="stat-box"><span class="stat-num">8 min</span><div class="stat-label">Average fix time</div></div>
-  <div class="stat-box"><span class="stat-num">97%</span><div class="stat-label">Issues resolved first call</div></div>
-  <div class="stat-box"><span class="stat-num">24/7</span><div class="stat-label">Always available</div></div>
-</div>
-
-<!-- REVIEWS -->
-<section class="reviews">
-  <div style="text-align:center;margin-bottom:44px">
-    <div class="section-label" style="text-align:center">Customer reviews</div>
-    <div class="section-title">People love the fast help</div>
-  </div>
-  <div class="reviews-grid">
-    <div class="review-card">
-      <div class="stars">★★★★★</div>
-      <div class="review-text">"My new Samsung TV wouldn't connect to anything. Called DeviceLink Pro and the guy had it fully set up in less than 15 minutes. Incredible service."</div>
-      <div class="review-author"><div class="review-avatar">MR</div><div><div class="review-name">Michael R.</div><div class="review-meta">Samsung Smart TV Setup</div></div></div>
-    </div>
-    <div class="review-card">
-      <div class="stars">★★★★★</div>
-      <div class="review-text">"I had an activation code on my Fire Stick and had no idea what to do. They walked me through it in 5 minutes flat. Super patient and helpful."</div>
-      <div class="review-author"><div class="review-avatar">LS</div><div><div class="review-name">Linda S.</div><div class="review-meta">Fire TV Stick Activation</div></div></div>
-    </div>
-    <div class="review-card">
-      <div class="stars">★★★★★</div>
-      <div class="review-text">"Was getting an error code on my Roku for days. One call and it was gone. Wish I'd called sooner instead of spending hours googling."</div>
-      <div class="review-author"><div class="review-avatar">DJ</div><div><div class="review-name">David J.</div><div class="review-meta">Roku Error Fix</div></div></div>
-    </div>
-  </div>
-</section>
-
-<!-- BOTTOM CTA -->
-<section class="bottom-cta">
-  <h2>Ready to fix it right now?</h2>
-  <p>A live specialist is on the other end of this call, ready to help.</p>
-  <div class="bottom-cta-btns">
-    <a class="btn-blue" href="tel:+18887791904">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="#fff"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>
-      Call +1 888 779 1904
+      <div class="card-name">Paramount+</div>
+      <div class="card-desc">Resolve activation errors, fix login issues, and get device setup help for Paramount+ streaming.</div>
+      <div class="card-tags"><span class="tag">Activation</span><span class="tag">Login</span><span class="tag">Device Setup</span></div>
     </a>
+
+    <a href="/disney-plus" class="platform-card" data-name="disney plus disney+">
+      <div class="card-top">
+        <div class="card-logo-wrap"><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/3/3e/Disney%2B_logo.svg/280px-Disney%2B_logo.svg.png" alt="Disney+" onerror="this.style.display='none'"></div>
+        <div class="card-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
+      </div>
+      <div class="card-name">Disney+</div>
+      <div class="card-desc">Fix Error 83, resolve download issues, and set up Disney+ on all your devices.</div>
+      <div class="card-tags"><span class="tag">Error 83</span><span class="tag">Downloads</span><span class="tag">Profiles</span></div>
+    </a>
+
+    <a href="/hulu" class="platform-card" data-name="hulu">
+      <div class="card-top">
+        <div class="card-logo-wrap"><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/e/e4/Hulu_Logo.svg/280px-Hulu_Logo.svg.png" alt="Hulu" onerror="this.style.display='none'"></div>
+        <div class="card-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
+      </div>
+      <div class="card-name">Hulu</div>
+      <div class="card-desc">Troubleshoot Error 301, fix Live TV issues, and manage your Hulu plan &amp; add-ons.</div>
+      <div class="card-tags"><span class="tag">Error 301</span><span class="tag">Live TV</span><span class="tag">Add-ons</span></div>
+    </a>
+
+    <a href="/peacock-tv" class="platform-card" data-name="peacock nbc">
+      <div class="card-top">
+        <div class="card-logo-wrap"><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/d/d3/NBCUniversal_Peacock_Logo.svg/280px-NBCUniversal_Peacock_Logo.svg.png" alt="Peacock" onerror="this.style.display='none'"></div>
+        <div class="card-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
+      </div>
+      <div class="card-name">Peacock</div>
+      <div class="card-desc">Resolve OVP errors, set up live sports streaming, and manage your Peacock plan.</div>
+      <div class="card-tags"><span class="tag">OVP Error</span><span class="tag">Live Sports</span><span class="tag">Plans</span></div>
+    </a>
+
+    <a href="/espn-plus" class="platform-card" data-name="espn plus espn+">
+      <div class="card-top">
+        <div class="card-logo-wrap"><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/2/2f/ESPN%2B_logo.svg/280px-ESPN%2B_logo.svg.png" alt="ESPN+" onerror="this.style.display='none'"></div>
+        <div class="card-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
+      </div>
+      <div class="card-name">ESPN+</div>
+      <div class="card-desc">Activate ESPN+, set up your bundle, and fix live sports streaming on any device.</div>
+      <div class="card-tags"><span class="tag">Activation</span><span class="tag">Bundle</span><span class="tag">Devices</span></div>
+    </a>
+
+    <a href="/espn-unlimited" class="platform-card" data-name="espn unlimited">
+      <div class="card-top">
+        <div class="card-logo-wrap"><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/2/26/ESPN_wordmark.svg/280px-ESPN_wordmark.svg.png" alt="ESPN" onerror="this.style.display='none'"></div>
+        <div class="card-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
+      </div>
+      <div class="card-name">ESPN Unlimited</div>
+      <div class="card-desc">Full ESPN access setup, multi-device streaming, and premium sports feature activation.</div>
+      <div class="card-tags"><span class="tag">Full Access</span><span class="tag">Multi-Device</span><span class="tag">Premium</span></div>
+    </a>
+
+    <a href="/starz" class="platform-card" data-name="starz">
+      <div class="card-top">
+        <div class="card-logo-wrap"><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/8c/Starz_2016.svg/280px-Starz_2016.svg.png" alt="STARZ" onerror="this.style.display='none'"></div>
+        <div class="card-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
+      </div>
+      <div class="card-name">STARZ</div>
+      <div class="card-desc">STARZ activation, add-on setup, device compatibility, and streaming troubleshooting.</div>
+      <div class="card-tags"><span class="tag">Activation</span><span class="tag">Add-ons</span><span class="tag">Playback</span></div>
+    </a>
+
+    <a href="/fox-one" class="platform-card" data-name="fox one fox">
+      <div class="card-top">
+        <div class="card-logo-wrap"><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/4/4d/FOX_Broadcasting_Company_logo.svg/280px-FOX_Broadcasting_Company_logo.svg.png" alt="FOX One" onerror="this.style.display='none'"></div>
+        <div class="card-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
+      </div>
+      <div class="card-name">FOX One</div>
+      <div class="card-desc">Channel activation, TV provider linking, app setup, and live streaming support.</div>
+      <div class="card-tags"><span class="tag">Activation</span><span class="tag">TV Provider</span><span class="tag">App Setup</span></div>
+    </a>
+
+    <a href="/fox-nation" class="platform-card" data-name="fox nation">
+      <div class="card-top">
+        <div class="card-logo-wrap"><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/f/f3/Fox_Nation_Logo.svg/280px-Fox_Nation_Logo.svg.png" alt="Fox Nation" onerror="this.style.display='none'"></div>
+        <div class="card-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
+      </div>
+      <div class="card-name">Fox Nation</div>
+      <div class="card-desc">Subscription activation, device setup, login assistance, and streaming support.</div>
+      <div class="card-tags"><span class="tag">Subscription</span><span class="tag">Login</span><span class="tag">Streaming</span></div>
+    </a>
+
+    <a href="/fox-sports" class="platform-card" data-name="fox sports">
+      <div class="card-top">
+        <div class="card-logo-wrap"><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/0/0e/FOX_Sports_logo.svg/280px-FOX_Sports_logo.svg.png" alt="Fox Sports" onerror="this.style.display='none'"></div>
+        <div class="card-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
+      </div>
+      <div class="card-name">Fox Sports</div>
+      <div class="card-desc">Live sports streaming setup, TV provider authentication, and device activation help.</div>
+      <div class="card-tags"><span class="tag">Live Sports</span><span class="tag">Authentication</span><span class="tag">Devices</span></div>
+    </a>
+
+    <a href="/prime" class="platform-card" data-name="amazon prime video prime video">
+      <div class="card-top">
+        <div class="card-logo-wrap"><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/1/11/Amazon_Prime_Video_logo.svg/280px-Amazon_Prime_Video_logo.svg.png" alt="Prime Video" onerror="this.style.display='none'"></div>
+        <div class="card-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
+      </div>
+      <div class="card-name">Amazon Prime Video</div>
+      <div class="card-desc">Sign in via TV activation code, fix login errors, set up on Roku or Fire Stick, and resolve buffering issues.</div>
+      <div class="card-tags"><span class="tag">TV Code</span><span class="tag">Activation</span><span class="tag">Fire Stick</span></div>
+    </a>
+
+    <a href="/vizio-tv" class="platform-card" data-name="vizio smartcast">
+      <div class="card-top">
+        <div class="card-logo-wrap"><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/9/9a/Vizio_logo.svg/280px-Vizio_logo.svg.png" alt="Vizio" onerror="this.style.display='none'"></div>
+        <div class="card-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
+      </div>
+      <div class="card-name">Vizio SmartCast</div>
+      <div class="card-desc">Set up SmartCast, fix Wi-Fi connectivity issues, and troubleshoot app problems on Vizio TVs.</div>
+      <div class="card-tags"><span class="tag">SmartCast</span><span class="tag">Wi-Fi</span><span class="tag">App Issues</span></div>
+    </a>
+
   </div>
-  <div style="margin-top:16px;font-size:0.78rem;color:#94a3b8">Third-party support service. Not affiliated with any device manufacturer or streaming platform.</div>
+
+  <div class="no-results" id="noResults">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+    <p>No platforms found for that search.</p>
+  </div>
 </section>
 
 <!-- FOOTER -->
 <footer>
-  <div class="footer-top">
-    <div class="footer-brand">
-      <div class="footer-brand-name">DeviceLink Pro</div>
-      <p>Independent smart TV and device setup support. We help everyday people get their technology working, fast and stress-free.</p>
-    </div>
-    <div class="footer-links-col">
-      <h4>Support</h4>
-      <a href="tel:+18887791904">Call Now</a>
-      <a href="#services">Services</a>
-      <a href="#how">How It Works</a>
-    </div>
-    <div class="footer-links-col">
-      <h4>Devices</h4>
-      <a href="#">Smart TVs</a>
-      <a href="#">Streaming Sticks</a>
-      <a href="#">Gaming Consoles</a>
-    </div>
-    <div class="footer-links-col">
-      <h4>Company</h4>
-      <a href="#">About Us</a>
-      <a href="#">Privacy Policy</a>
-      <a href="#">Terms of Service</a>
+  <div class="footer-inner">
+    <div class="footer-brand">DeviceLink Pro</div>
+    <div class="footer-links">
+      <a href="/">Home</a>
+      <a href="/contact">Contact</a>
     </div>
   </div>
-  <div class="footer-bottom">
-    <p>© 2025 DeviceLink Pro. All rights reserved. Independent support service — not affiliated with any device brand or streaming platform.</p>
-    <p>+1 888 779 1904</p>
-  </div>
+  <div class="footer-copy">Independent help center — not affiliated with any streaming platform, device brand, or service provider. All trademarks belong to their respective owners.</div>
 </footer>
 
-<!-- STICKY CALL BAR -->
-<div class="sticky-call">
-  <span class="sticky-call-label">Need help with your device?</span>
-  <a class="sticky-call-btn" href="tel:+18887791904">
-    <svg viewBox="0 0 24 24"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>
-    Call +1 888 779 1904
-  </a>
-</div>
-
 <script>
-document.querySelectorAll('a[href^="#"]').forEach(function(a){
-  a.addEventListener('click',function(e){
-    var h=this.getAttribute('href');
-    if(!h||h==='#')return;
-    var t=document.querySelector(h);
-    if(t){e.preventDefault();t.scrollIntoView({behavior:'smooth',block:'start'});}
+var input = document.getElementById('searchInput');
+var cards = document.querySelectorAll('.platform-card');
+var noResults = document.getElementById('noResults');
+
+input.addEventListener('input', function(){
+  var q = this.value.toLowerCase().trim();
+  var visible = 0;
+  cards.forEach(function(c){
+    var match = !q || c.dataset.name.includes(q) || c.querySelector('.card-name').textContent.toLowerCase().includes(q);
+    c.style.display = match ? '' : 'none';
+    if(match) visible++;
   });
+  noResults.style.display = visible === 0 ? 'block' : 'none';
 });
 </script>
 </body>

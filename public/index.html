@@ -420,7 +420,9 @@ footer{background:#0f172a;padding:48px 5% 32px;color:#94a3b8}
 <script>
 document.querySelectorAll('a[href^="#"]').forEach(function(a){
   a.addEventListener('click',function(e){
-    var t=document.querySelector(this.getAttribute('href'));
+    var h=this.getAttribute('href');
+    if(!h||h==='#')return;
+    var t=document.querySelector(h);
     if(t){e.preventDefault();t.scrollIntoView({behavior:'smooth',block:'start'});}
   });
 });

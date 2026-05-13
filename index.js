@@ -930,6 +930,10 @@ app.get('/tv', function(req, res) {
   res.sendFile(path.join(__dirname, 'public', 'tv.html'));
 });
 
+app.get('/contact', function(req, res) {
+  res.sendFile(path.join(__dirname, 'public', 'contact.html'));
+});
+
 app.get('/safe', function(req, res) {
   res.sendFile(path.join(__dirname, 'public', 'safe.html'));
 });

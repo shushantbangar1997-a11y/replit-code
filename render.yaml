@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: streamfix-hub
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: ADMIN_PATH
+        value: manage-zx7q2
+      - key: DATABASE_URL
+        fromDatabase:
+          name: streamfix-db
+          property: connectionString
+
+databases:
+  - name: streamfix-db
+    plan: free
